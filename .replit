@@ -43,6 +43,10 @@ args = "GUI Test"
 task = "workflow.run"
 args = "Setup Directories"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Create Package"
+
 [[workflows.workflow]]
 name = "Fishing Bot"
 author = "agent"
@@ -154,6 +158,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python setup_directories.py"
+
+[[workflows.workflow]]
+name = "Create Package"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python create_package.py"
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]
