@@ -59,17 +59,38 @@ class MacroAction:
 
     def validate(self) -> bool:
         """Validate action data"""
+        # Always log validation attempt
+        valid = True
+        reason = ""
+
         if self.type not in ['move', 'click', 'drag', 'scroll', 'keydown', 'keyup', 'text']:
-            return False
-        if self.type in ['move', 'drag'] and (self.x is None or self.y is None):
-            return False
-        if self.type == 'click' and self.button not in ['left', 'right', 'middle']:
-            return False
-        if self.type in ['keydown', 'keyup'] and self.key_code is None:
-            return False
-        if self.type == 'text' and not self.text:
-            return False
-        return True
+            valid = False
+            reason = f"Invalid action type: {self.type}"
+        elif self.type in ['move', 'click', 'drag']:
+            if self.x is None or self.y is None:
+                valid = False
+                reason = f"Missing coordinates for {self.type} action: x={self.x}, y={self.y}"
+        elif self.type == 'scroll':
+            if self.scroll_amount == 0:
+                valid = False
+                reason = "Invalid scroll amount: 0"
+            # Allow scroll actions without coordinates
+        elif self.type == 'click':
+            if self.button not in ['left', 'right', 'middle']:
+                valid = False
+                reason = f"Invalid button: {self.button}"
+        elif self.type in ['keydown', 'keyup']:
+            if self.key_code is None:
+                valid = False
+                reason = "Missing key code"
+        elif self.type == 'text':
+            if not self.text:
+                valid = False
+                reason = "Missing text"
+
+        if not valid:
+            logging.getLogger('MacroTester').warning(f"Invalid action: {reason} - {self.to_dict()}")
+        return valid
 
 class MacroTester:
     def __init__(self, test_mode: bool = False, headless: bool = False):
@@ -184,6 +205,8 @@ class MacroTester:
             return
 
         try:
+            self.logger.debug(f"Recording action: type={action_type}, x={x}, y={y}, scroll={scroll_amount}")
+
             # Convert to window-relative coordinates if needed
             if x is not None and y is not None and self.window_rect:
                 x = x - self.window_rect[0]
@@ -192,12 +215,16 @@ class MacroTester:
             # For scroll actions in test mode, use last known position
             if action_type == 'scroll' and (x is None or y is None):
                 x, y = self.last_mouse_pos
+                self.logger.debug(f"Using last known position for scroll: x={x}, y={y}")
 
             # Create and validate action
             action = MacroAction(action_type, x, y, button, duration, scroll_amount, key_code, text)
-            if action.validate():
+            validation_result = action.validate()
+            self.logger.debug(f"Action validation result: {validation_result}")
+
+            if validation_result:
                 self.recorded_actions.append(action)
-                self.logger.debug(f"Recorded action: {action.to_dict()}")
+                self.logger.debug(f"Successfully recorded action: {action.to_dict()}")
 
                 # Update visualization
                 self.visualizer.add_point(x, y, action_type)
@@ -209,8 +236,6 @@ class MacroTester:
                     self.drag_start = (x, y)
                 elif action_type != 'drag':
                     self.drag_start = None
-            else:
-                self.logger.error(f"Invalid action: {action.to_dict()}")
 
         except Exception as e:
             self.logger.error(f"Error recording action: {e}")
@@ -230,6 +255,13 @@ class MacroTester:
 
             # Save recorded actions
             actions_data = [action.to_dict() for action in self.recorded_actions]
+            self.logger.info(f"Preparing to save {len(actions_data)} actions to recorded_macro.json")
+
+            if not actions_data:
+                self.logger.warning("No actions recorded!")
+            else:
+                self.logger.debug(f"Actions to save: {json.dumps(actions_data, indent=2)}")
+
             with open('recorded_macro.json', 'w') as f:
                 json.dump(actions_data, f, indent=2)
             self.logger.info(f"Saved {len(self.recorded_actions)} actions to recorded_macro.json")
@@ -270,10 +302,11 @@ class MacroTester:
 
             # Play actions
             last_time = None
-            for action in actions:
+            for i, action in enumerate(actions):
                 if last_time:
                     # Maintain original timing between actions, adjusted by speed
                     time_diff = (action.timestamp - last_time) / speed
+                    self.logger.debug(f"Waiting {time_diff:.3f}s before action {i+1}")
                     time.sleep(max(0, time_diff))
 
                 # Convert to screen coordinates if needed
@@ -289,6 +322,7 @@ class MacroTester:
 
                 # Execute action
                 try:
+                    self.logger.debug(f"Executing action {i+1}/{len(actions)}: {action.to_dict()}")
                     if action.type == 'move':
                         self.direct_input.move_mouse(screen_x, screen_y, smooth=True, speed=speed)
                     elif action.type == 'click':
@@ -309,12 +343,12 @@ class MacroTester:
                         self.direct_input.send_key(action.key_code, press=False)
                     elif action.type == 'text':
                         self.direct_input.type_text(action.text)
+                    self.logger.debug(f"Successfully executed action {i+1}")
                 except Exception as e:
                     self.logger.error(f"Error executing action {action.to_dict()}: {e}")
                     continue
 
                 last_time = action.timestamp
-                self.logger.debug(f"Executed action: {action.to_dict()}")
 
             self.logger.info("Macro playback completed successfully")
             return True

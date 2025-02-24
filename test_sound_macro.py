@@ -31,7 +31,13 @@ def main():
                 if manager.assign_macro_to_sound("test_sound", "test_macro"):
                     print("\nSuccessfully mapped sound to macro")
 
-                    # Start monitoring
+                    # Explicitly test the sound trigger callback
+                    print("\nTesting sound trigger callback directly...")
+                    manager._on_sound_detected = manager.on_sound_detected  # Store reference
+                    manager.on_sound_detected("test_sound")  # Directly trigger callback
+                    time.sleep(2)  # Wait for macro playback
+
+                    # Start regular monitoring
                     print("\nStarting sound monitoring for 10 seconds...")
                     manager.start_monitoring()
 
