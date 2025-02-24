@@ -1,14 +1,14 @@
-"""Windows-compatible DirectInput implementation for smooth mouse control"""
+"""Windows-compatible DirectInput implementation for smooth mouse and keyboard control"""
 import ctypes
 import time
 import math
 import random
 import traceback
-from ctypes import Structure, c_long, c_ulong, sizeof, POINTER, pointer
+from ctypes import Structure, c_long, c_ulong, sizeof, POINTER, pointer, c_ushort, c_short, c_uint
 import logging
 import platform
 
-# Windows API Constants
+# Windows API Constants for Mouse
 MOUSEEVENTF_MOVE = 0x0001
 MOUSEEVENTF_ABSOLUTE = 0x8000
 MOUSEEVENTF_LEFTDOWN = 0x0002
@@ -19,6 +19,11 @@ MOUSEEVENTF_MIDDLEDOWN = 0x0020
 MOUSEEVENTF_MIDDLEUP = 0x0040
 MOUSEEVENTF_WHEEL = 0x0800
 MOUSEEVENTF_HWHEEL = 0x1000
+
+# Windows API Constants for Keyboard
+KEYEVENTF_KEYDOWN = 0x0000
+KEYEVENTF_KEYUP = 0x0002
+KEYEVENTF_EXTENDEDKEY = 0x0001
 
 class POINT(Structure):
     _fields_ = [("x", c_long), ("y", c_long)]
@@ -33,8 +38,20 @@ class MOUSEINPUT(Structure):
         ("dwExtraInfo", POINTER(c_ulong))
     ]
 
+class KEYBDINPUT(Structure):
+    _fields_ = [
+        ("wVk", c_ushort),
+        ("wScan", c_ushort),
+        ("dwFlags", c_ulong),
+        ("time", c_ulong),
+        ("dwExtraInfo", POINTER(c_ulong))
+    ]
+
 class INPUT_UNION(ctypes.Union):
-    _fields_ = [("mi", MOUSEINPUT)]
+    _fields_ = [
+        ("mi", MOUSEINPUT),
+        ("ki", KEYBDINPUT)
+    ]
 
 class INPUT(Structure):
     _fields_ = [
@@ -52,6 +69,7 @@ class DirectInput:
             'right': False,
             'middle': False
         }
+        self.mock_key_state = {}  # For tracking key states in test mode
 
         try:
             if platform.system() == 'Windows' and not test_mode:
@@ -104,6 +122,66 @@ class DirectInput:
             self.logger.error(f"Error normalizing coordinates: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return 0, 0
+
+    def send_key(self, key_code: int, press: bool = True, extended: bool = False) -> bool:
+        """Send keyboard input"""
+        try:
+            if self.test_mode:
+                action = "pressing" if press else "releasing"
+                self.logger.info(f"Test mode: {action} key {key_code}")
+                self.mock_key_state[key_code] = press
+                return True
+
+            # Prepare keyboard input structure
+            kb_input = KEYBDINPUT()
+            kb_input.wVk = key_code
+            kb_input.wScan = 0
+            kb_input.dwFlags = KEYEVENTF_EXTENDEDKEY if extended else 0
+            if not press:
+                kb_input.dwFlags |= KEYEVENTF_KEYUP
+            kb_input.time = 0
+            kb_input.dwExtraInfo = pointer(c_ulong(0))
+
+            input_struct = INPUT()
+            input_struct.type = 1  # INPUT_KEYBOARD
+            input_struct.union.ki = kb_input
+
+            # Send input
+            result = self.user32.SendInput(1, pointer(input_struct), sizeof(INPUT))
+            if result != 1:
+                self.logger.error("SendInput failed for keyboard event")
+                return False
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error sending keyboard input: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def type_text(self, text: str, delay: float = 0.1) -> bool:
+        """Type a sequence of characters"""
+        try:
+            if self.test_mode:
+                self.logger.info(f"Test mode: Typing text '{text}'")
+                return True
+
+            for char in text:
+                # Get virtual key code
+                vk = self.user32.VkKeyScanW(ord(char)) & 0xFF
+                if vk != 0:
+                    # Press and release the key
+                    self.send_key(vk, press=True)
+                    time.sleep(delay)
+                    self.send_key(vk, press=False)
+                    time.sleep(delay)
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error typing text: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
 
     def move_mouse(self, x, y, smooth=True, speed=1.0):
         """Move mouse using SendInput with natural movement simulation"""

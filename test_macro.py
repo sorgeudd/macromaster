@@ -9,17 +9,22 @@ import traceback
 import math
 import random
 from direct_input import DirectInput
+import tkinter as tk
+from macro_visualizer import MacroVisualizer
 
 class MacroAction:
     """Class to represent a macro action with validation"""
     def __init__(self, action_type: str, x: Optional[int] = None, y: Optional[int] = None, 
-                 button: str = 'left', duration: float = 0.1, scroll_amount: int = 0):
+                 button: str = 'left', duration: float = 0.1, scroll_amount: int = 0,
+                 key_code: Optional[int] = None, text: Optional[str] = None):
         self.type = action_type
         self.x = x
         self.y = y
         self.button = button
         self.duration = duration
         self.scroll_amount = scroll_amount
+        self.key_code = key_code
+        self.text = text
         self.timestamp = time.time()
 
     def to_dict(self) -> Dict:
@@ -31,6 +36,8 @@ class MacroAction:
             'button': self.button,
             'duration': self.duration,
             'scroll_amount': self.scroll_amount,
+            'key_code': self.key_code,
+            'text': self.text,
             'timestamp': self.timestamp
         }
 
@@ -43,23 +50,29 @@ class MacroAction:
             y=data.get('y'),
             button=data.get('button', 'left'),
             duration=data.get('duration', 0.1),
-            scroll_amount=data.get('scroll_amount', 0)
+            scroll_amount=data.get('scroll_amount', 0),
+            key_code=data.get('key_code'),
+            text=data.get('text')
         )
         action.timestamp = data['timestamp']
         return action
 
     def validate(self) -> bool:
         """Validate action data"""
-        if self.type not in ['move', 'click', 'drag', 'scroll']:
+        if self.type not in ['move', 'click', 'drag', 'scroll', 'keydown', 'keyup', 'text']:
             return False
         if self.type in ['move', 'drag'] and (self.x is None or self.y is None):
             return False
         if self.type == 'click' and self.button not in ['left', 'right', 'middle']:
             return False
+        if self.type in ['keydown', 'keyup'] and self.key_code is None:
+            return False
+        if self.type == 'text' and not self.text:
+            return False
         return True
 
 class MacroTester:
-    def __init__(self, test_mode: bool = False):
+    def __init__(self, test_mode: bool = False, headless: bool = False):
         # Setup logging
         self.logger = logging.getLogger('MacroTester')
         self.logger.setLevel(logging.DEBUG)
@@ -82,6 +95,23 @@ class MacroTester:
         self.window_rect = None
         self.last_mouse_pos = (0, 0)
         self.drag_start = None
+
+        # Initialize visualization if not in headless mode
+        self.headless = headless or platform.system() != 'Windows'
+        try:
+            if not self.headless:
+                self.root = tk.Tk()
+                self.root.withdraw()  # Hide main window
+                self.visualizer = MacroVisualizer(headless=self.headless)
+            else:
+                self.root = None
+                self.visualizer = MacroVisualizer(headless=True)
+            self.logger.info(f"Visualization initialized (headless: {self.headless})")
+        except Exception as e:
+            self.logger.error(f"Error initializing visualization: {e}")
+            self.headless = True
+            self.root = None
+            self.visualizer = MacroVisualizer(headless=True)
 
         # Initialize DirectInput
         try:
@@ -139,12 +169,17 @@ class MacroTester:
         self.recorded_actions = []
         self.last_mouse_pos = (0, 0)
         self.drag_start = None
+
+        # Start visualization
+        self.visualizer.start_recording()
+
         self.logger.info("Started recording mouse movements")
         return True
 
     def record_action(self, action_type: str, x: Optional[int] = None, y: Optional[int] = None,
-                     button: str = 'left', duration: float = 0.1, scroll_amount: int = 0) -> None:
-        """Record a mouse action"""
+                     button: str = 'left', duration: float = 0.1, scroll_amount: int = 0,
+                     key_code: Optional[int] = None, text: Optional[str] = None) -> None:
+        """Record a macro action"""
         if not self.recording:
             return
 
@@ -154,6 +189,9 @@ class MacroTester:
                 if self.window_rect:
                     x = x - self.window_rect[0]
                     y = y - self.window_rect[1]
+
+                # Update visualization
+                self.visualizer.add_point(x, y, action_type)
 
                 # Check if this is potentially the end of a drag operation
                 if self.drag_start is not None:
@@ -166,7 +204,7 @@ class MacroTester:
                             self.recorded_actions.append(action)
                             self.logger.debug(f"Recorded drag start: {action.to_dict()}")
 
-            action = MacroAction(action_type, x, y, button, duration, scroll_amount)
+            action = MacroAction(action_type, x, y, button, duration, scroll_amount, key_code, text)
             if action.validate():
                 self.recorded_actions.append(action)
                 self.logger.debug(f"Recorded action: {action.to_dict()}")
@@ -192,11 +230,18 @@ class MacroTester:
             self.recording = False
             self.drag_start = None
 
+            # Stop visualization
+            self.visualizer.stop_recording()
+
             # Save recorded actions
             actions_data = [action.to_dict() for action in self.recorded_actions]
             with open('recorded_macro.json', 'w') as f:
                 json.dump(actions_data, f, indent=2)
             self.logger.info(f"Saved {len(self.recorded_actions)} actions to recorded_macro.json")
+
+            # Save visualization
+            self.visualizer.save_visualization('macro_visualization.json')
+
             return True
 
         except Exception as e:
@@ -218,11 +263,9 @@ class MacroTester:
             actions = [MacroAction.from_dict(data) for data in actions_data]
             self.logger.info(f"Loaded {len(actions)} actions from {macro_file}")
 
-            # Validate all actions before playback
-            for action in actions:
-                if not action.validate():
-                    self.logger.error(f"Invalid action in macro: {action.to_dict()}")
-                    return False
+            # Load visualization
+            self.visualizer.load_visualization('macro_visualization.json')
+            self.visualizer.playback_speed = speed
 
             # Activate window if not in test mode
             if not self.test_mode:
@@ -265,6 +308,12 @@ class MacroTester:
                             self.direct_input.drag(screen_x, screen_y, end_x, end_y, button=action.button, speed=speed)
                     elif action.type == 'scroll':
                         self.direct_input.scroll(action.scroll_amount)
+                    elif action.type == 'keydown':
+                        self.direct_input.send_key(action.key_code, press=True)
+                    elif action.type == 'keyup':
+                        self.direct_input.send_key(action.key_code, press=False)
+                    elif action.type == 'text':
+                        self.direct_input.type_text(action.text)
                 except Exception as e:
                     self.logger.error(f"Error executing action {action.to_dict()}: {e}")
                     continue
@@ -282,9 +331,10 @@ class MacroTester:
 
 def main():
     try:
-        # Initialize tester with appropriate test mode
+        # Initialize tester with appropriate modes
         test_mode = platform.system() != 'Windows'
-        tester = MacroTester(test_mode=test_mode)
+        headless = platform.system() != 'Windows'
+        tester = MacroTester(test_mode=test_mode, headless=headless)
 
         # Find window (use "Notepad" for testing)
         window_title = "Notepad" if not test_mode else "Test Window"
@@ -332,6 +382,10 @@ def main():
         print("Playing back recorded macro in 3 seconds...")
         time.sleep(3)
         tester.play_macro(speed=1.0)  # Normal speed playback
+
+        # Start Tkinter event loop only if not headless
+        if not tester.headless and tester.root:
+            tester.root.mainloop()
 
     except Exception as e:
         print(f"Error in main: {e}")
