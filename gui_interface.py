@@ -1,4 +1,4 @@
-"""GUI interface for sound macro application"""
+"""Main GUI interface for Sound Macro Recorder application"""
 import tkinter as tk
 from tkinter import ttk, messagebox
 import logging
@@ -74,7 +74,7 @@ class SoundMacroGUI:
             control_frame.pack(fill=tk.X, padx=5, pady=5)
 
             self.monitor_btn = ttk.Button(control_frame, text="Start Monitoring", 
-                                        command=self.toggle_monitoring)
+                                      command=self.toggle_monitoring)
             self.monitor_btn.pack(side=tk.LEFT, padx=5)
 
             self.monitoring = False
@@ -83,7 +83,7 @@ class SoundMacroGUI:
             # Add test mode indicator if active
             if self.test_mode:
                 test_label = ttk.Label(self.root, text="Running in Test Mode", 
-                                     foreground="red")
+                                   foreground="red")
                 test_label.pack(side=tk.BOTTOM, pady=5)
 
         except Exception as e:
