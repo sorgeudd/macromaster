@@ -1,1 +1,55 @@
-.replit\n.cache/\n.local/\n__pycache__/\n*.pyc\n.pytest_cache/\n.coverage\n.env
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs
+*.log
+fishing_bot_*.log
+
+# Cache directories
+.cache/
+.pytest_cache/
+.coverage
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Replit specific
+.replit/
+.breakpoints
+.config/
+.local/
+.pythonlibs/
+.upm/
+
+# Project specific
+*.zip
+!attached_assets/fishing_bot.zip
