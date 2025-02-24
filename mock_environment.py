@@ -47,7 +47,7 @@ class MockEnvironment:
         self.input_events = []
         self.fish_bite_event = Event()
         self.running = False
-        self.min_action_interval = 0.1  # Reduced for testing
+        self.min_action_interval = 0.05  # Reduced for more responsive testing
 
         # Initialize mock screen
         self.window_size = (800, 600)
@@ -87,38 +87,7 @@ class MockEnvironment:
                 else:
                     bite_cooldown = max(0, bite_cooldown - 0.1)
 
-                # Handle combat timeout
-                if self.state.is_in_combat and self.state.combat_start_time:
-                    if current_time - self.state.combat_start_time > 2.0:  # Reduced for testing
-                        self.state.is_in_combat = False
-                        self.state.combat_start_time = None
-                        self.logger.debug("Combat timeout reached, ending combat")
-
-                # Simulate random combat events
-                if random.random() < 0.1 and not self.state.is_in_combat:
-                    self.state.is_in_combat = True
-                    self.state.combat_start_time = current_time
-                    self.state.health -= random.uniform(5, 15)
-                    self.logger.debug("Started combat simulation")
-
-                # Update mock screen with random content
-                self._update_mock_screen()
-                self.state.last_action_time = current_time
-
-            time.sleep(0.05)  # Reduced CPU usage while maintaining responsiveness
-
-    def _update_mock_screen(self):
-        """Update mock screen content"""
-        screen = np.zeros((*self.window_size, 3), dtype=np.uint8)
-
-        # Add random elements (e.g., resources, obstacles)
-        if random.random() < 0.3:  # 30% chance to add elements
-            x = random.randint(0, self.window_size[0]-50)
-            y = random.randint(0, self.window_size[1]-50)
-            color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-            screen[y:y+50, x:x+50] = color
-
-        self.state.screen_content = screen
+                time.sleep(0.05)  # Reduced CPU usage while maintaining responsiveness
 
     def record_input(self, input_type, **kwargs):
         """Record input events for verification"""
@@ -129,28 +98,46 @@ class MockEnvironment:
             self.logger.debug(f"Recorded input event: {event}")
             self.state.last_action_time = current_time
             return True
+        self.logger.warning(f"Action ignored - too soon after last action (interval: {self.min_action_interval}s)")
         return False
 
     def move_mouse(self, x, y):
         """Record mouse movement"""
-        return self.record_input('mouse_move', x=x, y=y)
+        current_time = time.time()
+        event = {
+            'type': 'mouse_move',
+            'timestamp': current_time,
+            'x': x,
+            'y': y
+        }
+        self.input_events.append(event)
+        self.logger.debug(f"Recorded mouse move to ({x}, {y}) (total events: {len(self.input_events)})")
+        self.state.last_action_time = current_time
+        return True
 
     def click(self, button='left', clicks=1):
-        """Record mouse click"""
-        current_time = time.time()
-        if current_time - self.state.last_action_time >= self.min_action_interval:
-            event = {'type': 'mouse_click', 'timestamp': current_time, 
-                    'button': button, 'clicks': clicks}
+        """Record mouse click with improved logging"""
+        try:
+            current_time = time.time()
+            event = {
+                'type': 'mouse_click',
+                'timestamp': current_time,
+                'button': button,
+                'clicks': clicks
+            }
             self.input_events.append(event)
-            self.logger.debug(f"Recorded mouse click: {button} button, {clicks} clicks")
+            self.logger.debug(f"Recorded mouse click: {button} button with {clicks} clicks")
             self.state.last_action_time = current_time
             return True
-        return False
+
+        except Exception as e:
+            self.logger.error(f"Error recording click: {str(e)}")
+            return False
 
     def press_key(self, key, duration=None):
         """Record key press with improved logging"""
-        current_time = time.time()
-        if current_time - self.state.last_action_time >= self.min_action_interval:
+        try:
+            current_time = time.time()
             event = {'type': 'key_press', 'timestamp': current_time, 
                     'key': key, 'duration': duration}
             self.input_events.append(event)
@@ -159,6 +146,8 @@ class MockEnvironment:
             if key == 'a':
                 self.state.is_mounted = not self.state.is_mounted
                 self.logger.debug(f"Mount state toggled: {'mounted' if self.state.is_mounted else 'dismounted'}")
+            elif key == 'r' and self.state.fish_bite_active:
+                self.logger.debug("Reeling triggered on fish bite")
 
             # Update ability cooldowns
             if key in self.state.ability_cooldowns:
@@ -167,7 +156,10 @@ class MockEnvironment:
 
             self.state.last_action_time = current_time
             return True
-        return False
+
+        except Exception as e:
+            self.logger.error(f"Error recording key press: {str(e)}")
+            return False
 
     def get_screen_region(self):
         """Get current game state data"""

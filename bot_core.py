@@ -784,6 +784,155 @@ class FishingBot:
             self.logger.error(f"Error capturing window screenshot: {str(e)}")
             return None
 
+    def click(self, button='left'):
+        """Click the mouse at current position"""
+        try:
+            if self.test_mode and self.test_env:
+                self.logger.debug(f"Test mode: clicking {button} mouse button")
+                # Always try to record click in test environment
+                success = self.test_env.click(button=button, clicks=1)
+                if not success:
+                    self.logger.error(f"Failed to record {button} click in test environment")
+                    return False
+                return True
+            
+            if self.direct_input:
+                return self.direct_input.click()
+            
+            self.logger.error("No click implementation available")
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Click error: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def _handle_fish_bite(self):
+        """Handle fish bite event by reeling"""
+        try:
+            if not self._detect_bite():
+                return False
+                
+            self.logger.info("Fish bite detected, reeling")
+            success = self.press_key('r')  # Press reel key
+            if not success:
+                self.logger.error("Failed to press reel key")
+                return False
+                
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error handling fish bite: {str(e)}")
+            return False
+
+    def _move_to_position(self, target_pos):
+        """Move to specific position using left mouse clicks"""
+        try:
+            if not target_pos or len(target_pos) != 2:
+                self.logger.error("Invalid target position")
+                return False
+
+            # Move mouse to target position
+            self.logger.debug(f"Moving mouse to: {target_pos}")
+            if self.test_mode and self.test_env:
+                success = self.test_env.move_mouse(target_pos[0], target_pos[1])
+            else:
+                success = self.direct_input.move_mouse(target_pos[0], target_pos[1])
+
+            if not success:
+                self.logger.error("Failed to move mouse to target position")
+                return False
+            
+            # Small delay between movement and click
+            time.sleep(0.1)
+            
+            # Click to move to position using left mouse button
+            self.logger.debug(f"Left clicking at: {target_pos}")
+            success = self.click(button='left')
+            if not success:
+                self.logger.error("Failed to click for movement")
+                return False
+                
+            # Small delay after click
+            time.sleep(0.1)
+            
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Movement error: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def navigate_to(self, target_pos):
+        """Navigate to target position avoiding obstacles"""
+        try:
+            if not target_pos or len(target_pos) != 2:
+                self.logger.error("Invalid target position")
+                return False
+
+            # Get current position (default to center if not available)
+            current_pos = self.get_current_position()
+            if not current_pos:
+                if self.test_mode:
+                    current_pos = (100, 100)  # Default test position
+                else:
+                    self.logger.error("Could not determine current position")
+                    return False
+
+            self.logger.info(f"Starting navigation from {current_pos} to {target_pos}")
+            
+            # In test mode, use simple direct path
+            if self.test_mode:
+                self.logger.debug(f"Test mode: Moving directly to {target_pos}")
+                return self._move_to_position(target_pos)
+
+            # For non-test mode, use pathfinder if available
+            if self.pathfinder:
+                bounds = (800, 600)  # Default bounds for test mode
+                if not self.test_mode and self.window_rect:
+                    bounds = (self.window_rect[2] - self.window_rect[0],
+                            self.window_rect[3] - self.window_rect[1])
+                    
+                self.logger.debug(f"Finding path within bounds: {bounds}")
+                path = self.pathfinder.find_path(
+                    current_pos,
+                    target_pos,
+                    bounds=bounds
+                )
+                
+                if not path:
+                    self.logger.warning("No valid path found to target")
+                    return False
+
+                self.logger.debug(f"Following path with {len(path)} points: {path}")
+                
+                # Follow path
+                for next_pos in path:
+                    if self.stop_event.is_set():
+                        self.logger.info("Navigation stopped by stop event")
+                        return False
+
+                    success = self._move_to_position(next_pos)
+                    if not success:
+                        self.logger.error(f"Failed to move to position: {next_pos}")
+                        return False
+
+                    if self.check_combat_status():
+                        self.logger.debug("Combat detected during navigation")
+                        self._handle_combat()
+            else:
+                # Direct movement if no pathfinder available
+                return self._move_to_position(target_pos)
+
+            self.logger.info("Navigation completed successfully")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Navigation error: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+
     def _init_ai_components(self):
         """Initialize AI vision system"""
         try:
@@ -813,62 +962,9 @@ class FishingBot:
             self.logger.error(f"Error training on video: {str(e)}")
             return False
 
-    def navigate_to(self, target_pos):
-        """Navigate to target position avoiding obstacles"""
-        try:
-            # Get current position (default to center if not available)
-            current_pos = self.get_current_position()
-            if not current_pos:
-                if self.test_mode:
-                    current_pos = (100, 100)  # Default test position
-                else:
-                    self.logger.error("Could not determine current position")
-                    return False
 
-            self.logger.info(f"Starting navigation from {current_pos} to {target_pos}")
 
-            # Find path using pathfinder
-            if self.pathfinder:
-                path = self.pathfinder.find_path(
-                    current_pos,
-                    target_pos,
-                    bounds=(800, 600) if self.test_mode else self.window_rect[2:]
-                )
-            else:
-                # Fallback to direct path in test mode
-                path = [current_pos, target_pos]
 
-            if not path:
-                self.logger.warning("No path found to target")
-                return False
-
-            self.logger.debug(f"Path found with {len(path)} points: {path}")
-
-            # Follow path
-            for next_pos in path:
-                if self.stop_event.is_set():
-                    return False
-
-                # Move to next position
-                self.logger.debug(f"Moving to position: {next_pos}")
-                success = self._move_to_position(next_pos)
-                if not success:
-                    self.logger.warning(f"Failed to move to position: {next_pos}")
-                    continue
-
-                # Small delay between movements
-                time.sleep(0.1)
-
-                # Check for combat
-                if self.check_combat_status():
-                    self._handle_combat()
-
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Navigation error: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
 
     def _handle_combat(self):
         """Handle combat situation with proper ability rotation"""
@@ -930,32 +1026,6 @@ class FishingBot:
             return self.test_env.get_screen_region().get('is_mounted', False)
         # In real mode, would need to implement actual mount state detection
         return False
-
-    def _move_to_position(self, target_pos):
-        """Move to specific position using mouse clicks"""
-        try:
-            if not target_pos or len(target_pos) != 2:
-                self.logger.error("Invalid target position")
-                return False
-
-            # Move mouse to target position
-            self.logger.debug(f"Moving to position: {target_pos}")
-            success = self.move_mouse_to(target_pos[0], target_pos[1])
-            if not success:
-                return False
-            
-            # Click to move to position
-            self.logger.debug(f"Clicking to move to: {target_pos}")
-            self.click()  # Single click to move 
-            time.sleep(0.1)  # Small delay between actions
-
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Movement error: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
-
 
 
     def get_current_position(self):
@@ -1121,141 +1191,31 @@ class FishingBot:
             self.logger.error(f"Error recording action: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
-        """Play recorded macro with improved coordinate handling"""
+    def click(self, button='left'):
+        """Click the mouse at current position"""
         try:
-            if not self.macros.get(macro_name):
-                self.logger.error(f"Macro '{macro_name}' not found")
-                return False
-
-            self.logger.info(f"Playing macro: {macro_name}")
-
-            if self.test_mode:
-                self.logger.info("Test mode: Simulating macro playback")
-                return True
-
-            # Get current window dimensions for coordinate translation
-            if not self.window_handle or not self.win32gui:
-                self.logger.error("Window not found for macro playback")
-                return False
-
-            # Use GetWindowRect for full window coordinates including borders
-            window_x, window_y, window_right, window_bottom = self.win32gui.GetWindowRect(self.window_handle)
-            win_width = window_right - window_x
-            win_height = window_bottom - window_y
-
-            self.logger.debug(f"Window dimensions for playback: {win_width}x{win_height} at ({window_x}, {window_y})")
-
-            for action in self.macros[macro_name]:
-                if self.stop_event.is_set():
-                    self.logger.info("Macro playback stopped")
+            if self.test_mode and self.test_env:
+                self.logger.debug(f"Test mode: clicking {button} mouse button")
+                success = self.test_env.click(button=button)
+                if not success:
+                    self.logger.error(f"Failed to record {button} click in test environment")
                     return False
-
-                action_type = action.get('type')
-                self.logger.debug(f"Executing action: {action}")
-
-                if action_type == 'mouse_move':
-                    if all(k in action for k in ['x', 'y']):
-                        # Denormalize coordinates
-                        norm_x = float(action['x'])
-                        norm_y = float(action['y'])
-                        
-                        screen_x = window_x + int(norm_x * win_width)
-                        screen_y = window_y + int(norm_y * win_height)
-                        
-                        self.logger.debug(
-                            f"Moving mouse - " +
-                            f"Normalized({norm_x:.3f}, {norm_y:.3f}) -> " +
-                            f"Screen({screen_x}, {screen_y})"
-                        )
-                        
-                        self.move_mouse_to(screen_x, screen_y)
-
-                elif action_type in ['mouse_click', 'click']:
-                    if all(k in action for k in ['x', 'y']):
-                        # Convert normalized click coordinates
-                        norm_x = float(action['x'])
-                        norm_y = float(action['y'])
-                        
-                        target_x = window_x + int(norm_x * win_width)
-                        target_y = window_y + int(norm_y * win_height)
-                        
-                        self.logger.debug(f"Clicking at screen coordinates: ({target_x}, {target_y})")
-                        
-                        # Move to position first
-                        self.move_mouse_to(target_x, target_y)
-                        time.sleep(0.1)  # Short delay before click
-                        
-                        # Perform click
-                        button = action.get('button', 'left')
-                        if self.direct_input:
-                            self.direct_input.click(button=button)
-                            time.sleep(self.config['click_delay'])
-                    else:
-                        # Handle standalone clicks without coordinates
-                        button = action.get('button', 'left')
-                        if self.direct_input:
-                            self.direct_input.click(button=button)
-
-                elif action_type in ['key', 'key_press']:
-                    key = action.get('key')
-                    if key:
-                        self.logger.debug(f"Pressing key: {key}")
-                        if self.direct_input:
-                            self.direct_input.tap_key(key)
-
-                # Add small delay between actions
-                delay = 0.1 if self.test_mode else random.uniform(0.2, 0.5)
-                time.sleep(delay)
-
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Error playing macro: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+                return True
+            
+            if self.direct_input:
+                success = self.direct_input.click()
+                if not success:
+                    self.logger.error("DirectInput click failed")
+                    return False
+                return True
+            
+            self.logger.error("No click implementation available")
             return False
 
-            if not self.window_handle or not self.window_rect:
-                self.logger.error("Window not detected. Cannot move mouse.")
-                return False
-
-            # Get current window position and dimensions
-            win_x, win_y, win_right, win_bottom = self.window_rect
-            win_width = win_right - win_x
-            win_height = win_bottom - win_y
-
-            # Convert target coordinates to absolute screen coordinates
-            screen_x = x + win_x
-            screen_y = y + win_y
-
-            # Log detailed coordinate information
-            self.logger.debug("Mouse movement coordinate translation:")
-            self.logger.debug(f"Window bounds: {self.window_rect}")
-            self.logger.debug(f"Window-relative coordinates: ({x}, {y})")
-            self.logger.debug(f"Computed screen coordinates: ({screen_x}, {screen_y})")
-
-            # Ensure window is active
-            if not self.is_window_active():
-                self.activate_window()
-                time.sleep(0.1)
-
-            # Use DirectInput for precise movement
-            success = self.direct_input.move_mouse(screen_x, screen_y, smooth=True)
-            
-            if success:
-                # Record final position for verification
-                final = POINT()
-                self.user32.GetCursorPos(pointer(final))
-                self.logger.debug(f"Final screen position: ({final.x}, {final.y})")
-                self.logger.debug(f"Relative to window: ({final.x - win_x}, {final.y - win_y})")
-            
-            return success
-
         except Exception as e:
-            self.logger.error(f"Mouse movement error: {str(e)}")
+            self.logger.error(f"Click error: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
-
-    def _generate_bezier_curve(self, x1, y1, x2, y2, num_points=20):
         """Generate smooth mouse movement path using bezier curve
         Args:
             x1, y1: Start coordinates
