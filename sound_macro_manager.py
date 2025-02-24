@@ -29,6 +29,28 @@ class SoundMacroManager:
 
         self.logger.info("Sound macro manager initialized")
 
+        # Store callback reference
+        self.on_sound_detected = self._handle_sound_detected
+
+    def _handle_sound_detected(self, sound_name: str):
+        """Internal method to handle detected sounds"""
+        self.logger.info(f"Sound trigger detected: {sound_name}")
+
+        if sound_name in self.mappings:
+            macro_name = self.mappings[sound_name]
+            macro_file = self.macros_dir / f"{macro_name}.json"
+
+            self.logger.info(f"Found mapping for sound '{sound_name}' -> macro '{macro_name}'")
+            self.logger.info(f"Looking for macro file: {macro_file}")
+
+            if macro_file.exists():
+                self.logger.info(f"Executing macro '{macro_name}' triggered by sound '{sound_name}'")
+                self.macro_tester.play_macro(str(macro_file))
+            else:
+                self.logger.error(f"Mapped macro file not found: {macro_file}")
+        else:
+            self.logger.info(f"No macro mapping found for sound: {sound_name}")
+
     def _load_mappings(self):
         """Load sound trigger to macro mappings"""
         if self.mappings_file.exists():
@@ -119,25 +141,7 @@ class SoundMacroManager:
 
     def start_monitoring(self) -> bool:
         """Start monitoring for sound triggers and execute mapped macros"""
-        def on_sound_detected(sound_name: str):
-            self.logger.info(f"Sound trigger detected: {sound_name}")
-
-            if sound_name in self.mappings:
-                macro_name = self.mappings[sound_name]
-                macro_file = self.macros_dir / f"{macro_name}.json"
-
-                self.logger.info(f"Found mapping for sound '{sound_name}' -> macro '{macro_name}'")
-                self.logger.info(f"Looking for macro file: {macro_file}")
-
-                if macro_file.exists():
-                    self.logger.info(f"Executing macro '{macro_name}' triggered by sound '{sound_name}'")
-                    self.macro_tester.play_macro(str(macro_file))
-                else:
-                    self.logger.error(f"Mapped macro file not found: {macro_file}")
-            else:
-                self.logger.info(f"No macro mapping found for sound: {sound_name}")
-
-        self.sound_trigger.start_monitoring(callback=on_sound_detected)
+        self.sound_trigger.start_monitoring(callback=self._handle_sound_detected)
         self.logger.info("Started sound trigger monitoring")
         return True
 
