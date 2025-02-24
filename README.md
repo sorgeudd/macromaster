@@ -77,4 +77,4 @@ pip install numpy opencv-python pillow pyaudio pyautogui
 
 ## Support
 
-For issues and feature requests, please reach out through the provided support channels.
+For issues and feature requests, please file an issue in the GitHub repository.

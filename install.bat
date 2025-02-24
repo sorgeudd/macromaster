@@ -1,13 +1,12 @@
 @echo off
 echo ===============================
-echo    Setting up Fishing Bot...
+echo Sound Macro Recorder Setup
 echo ===============================
 
 REM Check system architecture
 reg Query "HKLM\Hardware\Description\System\CentralProcessor\0" | find /i "x86" > NUL && set ARCH=32BIT || set ARCH=64BIT
 if %ARCH%==32BIT (
     echo Warning: 32-bit Windows detected. 64-bit is recommended for optimal performance.
-    echo Some AI features might be limited on 32-bit systems.
     echo.
 )
 
@@ -54,7 +53,6 @@ echo Installing PyAutoGUI...
 pip install pyautogui
 if errorlevel 1 goto error
 
-
 REM Check Visual C++ Redistributable
 reg query "HKLM\SOFTWARE\Microsoft\VisualStudio\14.0" >nul 2>&1
 if errorlevel 1 (
@@ -76,10 +74,10 @@ if errorlevel 1 (
 
 echo.
 echo ===================================
-echo    Installation Complete!
+echo Installation Complete!
 echo ===================================
 echo.
-echo To start the Sound Macro app:
+echo To start the Sound Macro Recorder:
 echo 1. Double click on 'start_app.bat'
 echo    OR
 echo 2. Run 'python gui_interface.py' in terminal
@@ -88,7 +86,6 @@ echo Note: Make sure to run as Administrator
 echo for proper sound and keyboard control functionality
 echo.
 pause
-
 exit /b 0
 
 :error

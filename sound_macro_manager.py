@@ -1,7 +1,6 @@
 """Sound-triggered macro management module"""
 import logging
 import json
-import math
 import time
 from pathlib import Path
 from typing import Dict, Optional, Callable
@@ -61,27 +60,7 @@ class SoundMacroManager:
             self.logger.error("Failed to start macro recording")
             return False
 
-        # In test mode, generate some test actions
-        if self.test_mode:
-            start_time = time.time()
-            while time.time() - start_time < duration:
-                # Simulate mouse movement in a circular pattern
-                t = time.time() - start_time
-                x = int(400 + 200 * math.cos(t))
-                y = int(300 + 200 * math.sin(t))
-
-                # Record movement
-                self.macro_tester.record_action('move', x, y)
-
-                # Occasionally add clicks and scrolls
-                if t % 1.0 < 0.1:  # Every ~second
-                    self.macro_tester.record_action('click', x, y)
-                elif t % 2.0 < 0.1:  # Every ~2 seconds
-                    self.macro_tester.record_action('scroll', x, y, scroll_amount=1)
-
-                time.sleep(0.1)
-        else:
-            time.sleep(duration)
+        time.sleep(duration)
 
         if self.macro_tester.stop_recording():
             # Move the recorded macro to our macros directory

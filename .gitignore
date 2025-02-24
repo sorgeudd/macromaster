@@ -55,3 +55,6 @@ ENV/
 # Project specific
 *.zip
 test_macro.json
+sound_triggers/
+*.wav
+temp_recordings/
