@@ -23,7 +23,7 @@ class MacroVisualizer:
 
                 # Create canvas for drawing
                 self.canvas = tk.Canvas(self.root, width=window_size[0], height=window_size[1],
-                                   background='white')
+                                       background='white')
                 self.canvas.pack(fill=tk.BOTH, expand=True)
 
                 # Enhanced visualization settings
@@ -176,7 +176,7 @@ class MacroVisualizer:
                 start_time = self.actions[0]['timestamp']
                 current_time = action['timestamp']
                 self._draw_timeline_marker(current_time - start_time, 
-                                        max(action['timestamp'] for action in self.actions) - start_time)
+                                         max(action['timestamp'] for action in self.actions) - start_time)
 
             self.canvas.update()
 
@@ -187,8 +187,8 @@ class MacroVisualizer:
 
         r = self.point_radius
         self.canvas.create_rectangle(x-r, y-r, x+r, y+r,
-                                fill=self.key_color,
-                                outline=self.key_color)
+                               fill=self.key_color,
+                               outline=self.key_color)
         if key_info:
             self.canvas.create_text(x, y-r-5, text=key_info,
                                fill=self.key_color,
@@ -227,13 +227,19 @@ class MacroVisualizer:
 
         r = self.point_radius
         self.canvas.create_rectangle(x-r, y-r, x+r, y+r,
-                                fill=self.scroll_color,
-                                outline=self.scroll_color)
+                               fill=self.scroll_color,
+                               outline=self.scroll_color)
 
     def clear(self):
         """Clear the visualization"""
         if not self.headless:
             self.canvas.delete("all")
+            # Recreate timeline background
+            window_height = self.canvas.winfo_height()
+            window_width = self.canvas.winfo_width()
+            self.canvas.create_rectangle(0, window_height-self.timeline_height, 
+                                      window_width, window_height,
+                                      fill="#EEEEEE", outline="")
         self.points = []
         self.actions = []
         self.logger.debug("Cleared visualization")
@@ -297,3 +303,14 @@ class MacroVisualizer:
         except Exception as e:
             self.logger.error(f"Error loading visualization: {e}")
             return False
+
+    def start_recording(self):
+        """Start recording visualization"""
+        self.recording = True
+        self.clear()
+        self.logger.info("Started recording visualization")
+
+    def stop_recording(self):
+        """Stop recording visualization"""
+        self.recording = False
+        self.logger.info("Stopped recording visualization")
