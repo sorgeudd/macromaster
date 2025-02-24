@@ -814,36 +814,11 @@ class FishingBot:
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
-    def press_key(self, key):
-        """Press a key with improved logging and test environment handling"""
-        try:
-            if self.test_mode and self.test_env:
-                self.logger.debug(f"Test mode: pressing key {key}")
-                # Log state before key press
-                self.logger.debug(f"Events before key press: {len(self.test_env.input_events)}")
-                
-                # Record the action in test environment
-                success = self.test_env.press_key(key)
-                
-                # Log result after key press
-                self.logger.debug(f"Events after key press: {len(self.test_env.input_events)}")
-                self.logger.debug(f"Key press recorded successfully: {success}")
-                
-                if not success:
-                    self.logger.error(f"Failed to record key press '{key}' in test environment")
-                    return False
-                return True
-            
-            if self.direct_input:
-                return self.direct_input.tap_key(key)
-            
-            self.logger.error("No key press implementation available")
-            return False
 
-        except Exception as e:
-            self.logger.error(f"Key press error: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
+
+
+
+
 
     def _generate_bezier_curve(self, x1, y1, x2, y2, num_points=20):
         """Generate smooth mouse movement path using bezier curve"""
@@ -903,7 +878,85 @@ class FishingBot:
             
         except Exception as e:
             self.logger.error(f"Error handling fish bite: {str(e)}")
+
+    def check_ability_cooldown(self, ability_key):
+        """Check if ability is on cooldown"""
+        try:
+            if self.test_mode and self.test_env:
+                current_time = time.time()
+                last_used = self.test_env.state.ability_cooldowns.get(ability_key, 0)
+                cooldown = 1.0  # 1 second cooldown for testing
+                return (current_time - last_used) < cooldown
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking cooldown: {str(e)}")
+            return True
+
+    def _handle_combat(self):
+        """Handle combat situation with proper ability rotation"""
+        try:
+            if not self.check_combat_status():
+                return False
+
+            self.logger.debug("Entering combat handling")
+            combat_start = time.time()
+            
+            # Track ability cooldowns
+            ability_cooldowns = {
+                'e': 20.0,  # Longest cooldown
+                'w': 12.0,  # Medium cooldown
+                'q': 6.0,   # Short cooldown
+                'space': 1.5 # Auto-attack cooldown
+            }
+            last_cast = {key: 0 for key in ability_cooldowns}
+            
+            # Dismount if needed
+            if self.is_mounted():
+                self.logger.debug("Dismounting for combat")
+                self.press_key('a')
+                time.sleep(0.5)
+
+            while self.check_combat_status():
+                current_time = time.time()
+                current_health = self.get_current_health()
+                
+                # Emergency stop if health too low or combat taking too long
+                if current_health < 20 or (current_time - combat_start) > 30:
+                    self.logger.warning("Emergency combat exit - health low or timeout")
+                    break
+
+                # Use abilities based on cooldowns
+                for key, cooldown in ability_cooldowns.items():
+                    if current_time - last_cast[key] >= cooldown:
+                        self.logger.debug(f"Using combat ability: {key}")
+                        if key == 'space':
+                            self.press_key(key, duration=0.1)
+                        else:
+                            self.press_key(key)
+                        last_cast[key] = current_time
+                        time.sleep(0.1)  # Small delay between abilities
+
+                time.sleep(0.1)  # Combat loop delay
+
+            self.logger.debug("Combat handling complete")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Combat handling error: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def check_combat_status(self):
+        """Check if currently in combat"""
+        try:
+            if self.test_mode and self.test_env:
+                return self.test_env.state.is_in_combat
+                
+            # For non-test mode, implement actual combat detection here
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error checking combat status: {str(e)}")
             return False
 
     def _move_to_position(self, target_pos):
@@ -947,8 +1000,12 @@ class FishingBot:
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
-    def press_key(self, key):
-        """Press a key with improved logging and test environment handling"""
+    def press_key(self, key, duration=None):
+        """Press a key with improved logging and test environment handling
+        Args:
+            key: The key to press
+            duration: Optional duration to hold key in seconds
+        """
         try:
             if self.test_mode and self.test_env:
                 self.logger.debug(f"Test mode: pressing key {key}")
@@ -956,7 +1013,7 @@ class FishingBot:
                 self.logger.debug(f"Events before key press: {len(self.test_env.input_events)}")
                 
                 # Record the action in test environment
-                success = self.test_env.press_key(key)
+                success = self.test_env.press_key(key, duration=duration)
                 
                 # Log result after key press
                 self.logger.debug(f"Events after key press: {len(self.test_env.input_events)}")
@@ -968,6 +1025,8 @@ class FishingBot:
                 return True
             
             if self.direct_input:
+                if duration:
+                    return self.direct_input.press_and_hold(key, duration)
                 return self.direct_input.tap_key(key)
             
             self.logger.error("No key press implementation available")
@@ -977,8 +1036,6 @@ class FishingBot:
             self.logger.error(f"Key press error: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
-
-
 
     def navigate_to(self, target_pos):
         """Navigate to target position avoiding obstacles"""
@@ -1133,7 +1190,7 @@ class FishingBot:
             return True
 
         except Exception as e:
-            self.logger.error(f"Error in combat handling: {str(e)}")
+            self.logger.error(f"Combat handling error: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
@@ -1307,21 +1364,7 @@ class FishingBot:
         except Exception as e:
             self.logger.error(f"Error recording action: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
-
-
-_x}, {cp1_y}), ({cp2_x}, {cp2_y})")
-
-            # Generate points along the curve
-            points = []
-            for i in range(num_points):
-                t = i / (num_points - 1)
-                # Cubic Bezier formula
-                x = (1-t)**3 * x1 + 3*(1-t)**2 * t * cp1_x + 3*(1-t) * t**2 * cp2_x + t**3 * x2
-                y = (1-t)**3 * y1 + 3*(1-t)**2 * t * cp1_y + 3*(1-t) * t**2 * cp2_y + t**3 * y2
-                points.append((int(x), int(y)))
-
-            self.logger.debug(f"Generated {len(points)} points for movement path")
+            return False points for movement path")
             return points
 
         except Exception as e:
@@ -1449,13 +1492,20 @@ _x}, {cp1_y}), ({cp2_x}, {cp2_y})")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
-    def record_action(self, action_type, **kwargs):
-        """Record action with improved coordinate handling"""
+    def record_action(self, action_type, position=None, **kwargs):
+        """Record player action for learning mode and macros 
+        Args:
+            action_type: Type of action ('move', 'click', 'key', etc.)
+            position: Optional position tuple for action
+            **kwargs: Additional parameters (timing, duration, etc.)
+        """
         try:
             # Record for learning mode first
             if self.learning_mode and self.gameplay_learner:
-                position = (kwargs.get('x'), kwargs.get('y')) if 'x' in kwargs and 'y' in kwargs else None
-                self.gameplay_learner.record_action(action_type, position, **kwargs)
+                # Extract position from kwargs if not provided directly
+                if position is None and 'x' in kwargs and 'y' in kwargs:
+                    position = (kwargs.get('x'), kwargs.get('y'))
+                self.gameplay_learner.record_action(action_type, position=position, **kwargs)
                 self.logger.debug(f"Recorded learning action: {action_type} at {position}")
 
             # Then handle macro recording
