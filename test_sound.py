@@ -12,7 +12,6 @@ def test_record_and_play():
 
     # Initialize sound trigger system with test mode
     test_mode = platform.system() != 'Windows'
-    headless = platform.system() != 'Windows'
     sound_trigger = SoundTrigger(test_mode=test_mode)
 
     try:
@@ -40,8 +39,8 @@ def test_record_and_play():
     except Exception as e:
         logger.error(f"Error in test: {e}", exc_info=True)
     finally:
-        # Cleanup
-        if hasattr(sound_trigger, 'audio') and sound_trigger.audio:
+        # Cleanup only if we have a real audio object (not in test mode)
+        if not test_mode and hasattr(sound_trigger, 'audio') and sound_trigger.audio:
             sound_trigger.audio.terminate()
 
 if __name__ == "__main__":
