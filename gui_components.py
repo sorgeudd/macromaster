@@ -61,11 +61,11 @@ class MainWindow:
             self.window_title_entry = ttk.Entry(title_frame)
             self.window_title_entry.pack(side="left", fill="x", expand=True, padx=5)
 
-            # Detect Window Button
+            # Detect Window Button and Status
             detect_frame = ttk.Frame(window_frame)
             detect_frame.pack(fill="x", padx=5, pady=2)
             self.detect_window_btn = ttk.Button(detect_frame, text="Detect Window", 
-                                         command=self._detect_window)
+                                          command=self._detect_window)
             self.detect_window_btn.pack(side="left", padx=5)
             self.window_status_label = ttk.Label(detect_frame, text="No window detected")
             self.window_status_label.pack(side="left", padx=5)
@@ -212,12 +212,11 @@ class MainWindow:
             self.master.bind('<Key>', self._on_key_event)
             self.master.bind('<Button-1>', lambda e: self._on_mouse_event('left_click', e))
             self.master.bind('<Button-3>', lambda e: self._on_mouse_event('right_click', e))
-            
+
 
             # Update macro and sound lists
             self._update_macro_list()
             self._update_sound_list()
-
 
             # Bot Control Frame
             bot_frame = ttk.LabelFrame(main_frame, text="Bot Control", padding="5")
@@ -228,12 +227,24 @@ class MainWindow:
                                      command=self._start_bot)
             self.start_bot_btn.pack(fill="x", padx=5, pady=2)
 
-            # Log Display (at bottom, fixed height)
+            # Log Display (at bottom, with copy feature)
             log_frame = ttk.LabelFrame(main_frame, text="Log", padding="5")
             log_frame.pack(fill="both", expand=True, padx=5, pady=2)
 
-            # Create log display with fixed height (30% of window)
-            self.log_display = scrolledtext.ScrolledText(log_frame, height=10)
+            # Create log display with fixed height and copy button
+            log_controls = ttk.Frame(log_frame)
+            log_controls.pack(fill="x", padx=5, pady=2)
+
+            self.copy_log_btn = ttk.Button(log_controls, text="Copy Log", 
+                                         command=self._copy_log)
+            self.copy_log_btn.pack(side="right", padx=5)
+
+            self.clear_log_btn = ttk.Button(log_controls, text="Clear Log",
+                                          command=self._clear_log)
+            self.clear_log_btn.pack(side="right", padx=5)
+
+            # Create log display with increased height
+            self.log_display = scrolledtext.ScrolledText(log_frame, height=15)
             self.log_display.pack(fill="both", expand=True, padx=5, pady=2)
 
             # Configure row/column weights
@@ -388,20 +399,37 @@ class MainWindow:
         """Detect game window"""
         try:
             title = self.window_title_entry.get()
+            if not title:
+                self.logger.warning("Please enter a window title to detect")
+                messagebox.showwarning("Warning", "Please enter a window title to detect.\n\n" +
+                                     "The title can be part of the window name.\n" +
+                                     "Example: 'Notepad' or 'Chrome'")
+                return
+
             self.logger.info(f"Attempting to detect window with title: {title}")
-            success, message = self.bot.find_game_window(title if title else None)
+            success, message = self.bot.find_game_window(title)
 
             if success:
-                self.window_status_label.config(text="Window detected")
+                self.window_status_label.config(text="✓ Window detected", foreground="green")
                 window_info = self.bot.get_window_info()
                 if window_info:
-                    details = f"Found: {window_info['title']} ({window_info['rect']})"
+                    details = f"Found window: {window_info['title']}\nPosition: {window_info['rect']}"
                     self.logger.info(details)
+                    messagebox.showinfo("Success", f"Successfully detected window:\n\n{details}")
             else:
-                self.window_status_label.config(text="Detection failed")
+                self.window_status_label.config(text="❌ Detection failed", foreground="red")
                 self.logger.error(f"Window detection failed: {message}")
+                messagebox.showerror("Error", 
+                    f"Failed to detect window: {message}\n\n" +
+                    "Tips:\n" +
+                    "1. Make sure the window is open\n" +
+                    "2. Try with part of the window title\n" +
+                    "3. Window must be visible (not minimized)")
         except Exception as e:
             self.logger.error(f"Error detecting window: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            self.window_status_label.config(text="⚠ Detection error", foreground="red")
+            messagebox.showerror("Error", f"Error detecting window: {str(e)}")
 
     def _import_training_video(self):
         """Import video file for AI training"""
@@ -597,9 +625,24 @@ class MainWindow:
         """Toggle macro recording on/off"""
         try:
             if not self.bot.recording_macro:
+                # Verify window is detected first
+                if not self.bot.window_handle and not self.test_mode:
+                    self.logger.error("No window selected. Please detect a window first.")
+                    messagebox.showerror("Error", "Please detect a window before recording a macro.\n\n" +
+                                      "Steps to record a macro:\n" +
+                                      "1. Enter the window title above (e.g. 'Notepad')\n" +
+                                      "2. Click 'Detect Window' and wait for green checkmark\n" +
+                                      "3. After window is detected, try recording again\n\n" +
+                                      "The window must be visible and not minimized.")
+                    self.window_status_label.config(text="❌ No window detected", foreground="red")
+                    # Highlight window title entry to draw attention
+                    self.window_title_entry.focus_set()
+                    return
+
                 macro_name = self.macro_name_entry.get().strip()
                 if not macro_name:
-                    messagebox.showerror("Error", "Please enter a macro name")
+                    messagebox.showerror("Error", "Please enter a name for your macro")
+                    self.macro_name_entry.focus_set()
                     return
 
                 self.logger.debug("Starting macro recording...")
@@ -613,6 +656,14 @@ class MainWindow:
                     self.capture_mouse = True
                     self.logger.debug("Starting mouse position capture")
                     self._start_mouse_capture()
+                else:
+                    self.logger.error("Failed to start macro recording")
+                    messagebox.showerror("Error", 
+                                      "Failed to start macro recording.\n\n" +
+                                      "Please check:\n" +
+                                      "1. The window is still detected (green checkmark)\n" +
+                                      "2. The window is not minimized\n" +
+                                      "3. Check the log window for details")
             else:
                 self.logger.debug("Stopping macro recording...")
                 if self.bot.stop_macro_recording():
@@ -628,6 +679,11 @@ class MainWindow:
                     # Update macro list and clear entry
                     self.macro_name_entry.delete(0, tk.END)
                     self._update_macro_list()
+                else:
+                    self.logger.error("Failed to stop and save macro recording")
+                    messagebox.showerror("Error", 
+                                      "Failed to save macro.\n\n" +
+                                      "Please check the log window for details")
 
         except Exception as e:
             self.logger.error(f"Error toggling macro recording: {str(e)}")
@@ -673,7 +729,6 @@ class MainWindow:
                                          y=norm_y,
                                          absolute_x=rel_x,
                                          absolute_y=rel_y)
-
                     self.logger.debug(
                         f"Mouse position recorded: " +
                         f"Screen({x}, {y}), " +
@@ -919,3 +974,23 @@ class MainWindow:
             self.logger.error(f"Error stopping sound triggers: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             messagebox.showerror("Error", f"Failed to stop sound triggers: {str(e)}")
+            
+
+    def _copy_log(self):
+        """Copy log contents to clipboard"""
+        try:
+            log_text = self.log_display.get("1.0", tk.END)
+            self.master.clipboard_clear()
+            self.master.clipboard_append(log_text)
+            self.master.update()
+            self.logger.info("Log contents copied to clipboard")
+        except Exception as e:
+            self.logger.error(f"Failed to copy log: {str(e)}")
+
+    def _clear_log(self):
+        """Clear log display"""
+        try:
+            self.log_display.delete("1.0", tk.END)
+            self.logger.info("Log display cleared")
+        except Exception as e:
+            self.logger.error(f"Failed to clear log: {str(e)}")

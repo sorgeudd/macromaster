@@ -37,15 +37,15 @@ args = "Sound Macro Test"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "GUI Test"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Setup Directories"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Create Package"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "GUI Test"
 
 [[workflows.workflow]]
 name = "Fishing Bot"
@@ -132,20 +132,6 @@ task = "shell.exec"
 args = "python test_sound_macro.py"
 
 [[workflows.workflow]]
-name = "GUI Test"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python gui_interface.py"
-
-[[workflows.workflow]]
 name = "Setup Directories"
 author = "agent"
 
@@ -172,6 +158,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python create_package.py"
+
+[[workflows.workflow]]
+name = "GUI Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python gui_interface.py"
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]
