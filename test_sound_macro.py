@@ -19,7 +19,7 @@ def main():
         print("Recording a test sound in 3 seconds...")
         time.sleep(3)
         if manager.record_sound_trigger("test_sound", duration=2.0):
-            print(f"Successfully recorded sound trigger")
+            print("Successfully recorded sound trigger")
 
             # Record a test macro (simulated mouse movements)
             print("\nRecording a test macro in 3 seconds...")
@@ -32,11 +32,11 @@ def main():
                     print("\nSuccessfully mapped sound to macro")
 
                     # Start monitoring
-                    print("\nStarting sound monitoring (will run for 30 seconds)...")
+                    print("\nStarting sound monitoring for 10 seconds...")
                     manager.start_monitoring()
 
-                    # In test mode, this will trigger random detections
-                    time.sleep(30)
+                    # Wait for potential triggers
+                    time.sleep(10)  # Reduced from 30 to 10 seconds for testing
 
                     # Stop monitoring
                     manager.stop_monitoring()

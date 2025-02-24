@@ -184,30 +184,23 @@ class MacroTester:
             return
 
         try:
-            # Convert to window-relative coordinates
-            if x is not None and y is not None:
-                if self.window_rect:
-                    x = x - self.window_rect[0]
-                    y = y - self.window_rect[1]
+            # Convert to window-relative coordinates if needed
+            if x is not None and y is not None and self.window_rect:
+                x = x - self.window_rect[0]
+                y = y - self.window_rect[1]
 
-                # Update visualization
-                self.visualizer.add_point(x, y, action_type)
+            # For scroll actions in test mode, use last known position
+            if action_type == 'scroll' and (x is None or y is None):
+                x, y = self.last_mouse_pos
 
-                # Check if this is potentially the end of a drag operation
-                if self.drag_start is not None:
-                    dx = x - self.drag_start[0]
-                    dy = y - self.drag_start[1]
-                    if math.sqrt(dx*dx + dy*dy) > 5:  # Minimum drag distance
-                        action = MacroAction('drag', self.drag_start[0], self.drag_start[1],
-                                          button=button, duration=duration)
-                        if action.validate():
-                            self.recorded_actions.append(action)
-                            self.logger.debug(f"Recorded drag start: {action.to_dict()}")
-
+            # Create and validate action
             action = MacroAction(action_type, x, y, button, duration, scroll_amount, key_code, text)
             if action.validate():
                 self.recorded_actions.append(action)
                 self.logger.debug(f"Recorded action: {action.to_dict()}")
+
+                # Update visualization
+                self.visualizer.add_point(x, y, action_type)
 
                 # Update state
                 if x is not None and y is not None:
@@ -216,6 +209,8 @@ class MacroTester:
                     self.drag_start = (x, y)
                 elif action_type != 'drag':
                     self.drag_start = None
+            else:
+                self.logger.error(f"Invalid action: {action.to_dict()}")
 
         except Exception as e:
             self.logger.error(f"Error recording action: {e}")
