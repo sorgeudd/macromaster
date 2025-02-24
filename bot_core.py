@@ -789,8 +789,15 @@ class FishingBot:
         try:
             if self.test_mode and self.test_env:
                 self.logger.debug(f"Test mode: clicking {button} mouse button")
+                # Log input events before click
+                self.logger.debug(f"Events before click: {len(self.test_env.input_events)}")
+                
                 # Always try to record click in test environment
                 success = self.test_env.click(button=button, clicks=1)
+                
+                # Log input events after click
+                self.logger.debug(f"Events after click: {len(self.test_env.input_events)}")
+                
                 if not success:
                     self.logger.error(f"Failed to record {button} click in test environment")
                     return False
@@ -807,6 +814,65 @@ class FishingBot:
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
+    def press_key(self, key):
+        """Press a key with improved logging and test environment handling"""
+        try:
+            if self.test_mode and self.test_env:
+                self.logger.debug(f"Test mode: pressing key {key}")
+                # Log state before key press
+                self.logger.debug(f"Events before key press: {len(self.test_env.input_events)}")
+                
+                # Record the action in test environment
+                success = self.test_env.press_key(key)
+                
+                # Log result after key press
+                self.logger.debug(f"Events after key press: {len(self.test_env.input_events)}")
+                self.logger.debug(f"Key press recorded successfully: {success}")
+                
+                if not success:
+                    self.logger.error(f"Failed to record key press '{key}' in test environment")
+                    return False
+                return True
+            
+            if self.direct_input:
+                return self.direct_input.tap_key(key)
+            
+            self.logger.error("No key press implementation available")
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Key press error: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def _generate_bezier_curve(self, x1, y1, x2, y2, num_points=20):
+        """Generate smooth mouse movement path using bezier curve"""
+        try:
+            # Generate control points
+            dx = x2 - x1
+            dy = y2 - y1
+            
+            # Calculate control points with random offset
+            cp1_x = x1 + dx/3 + random.uniform(-5, 5)
+            cp1_y = y1 + dy/3 + random.uniform(-5, 5)
+            cp2_x = x1 + 2*dx/3 + random.uniform(-5, 5)
+            cp2_y = y1 + 2*dy/3 + random.uniform(-5, 5)
+            
+            # Generate points along the curve
+            points = []
+            for t in [i / (num_points - 1) for i in range(num_points)]:
+                # Cubic Bezier formula
+                x = (1-t)**3 * x1 + 3*(1-t)**2 * t * cp1_x + 3*(1-t) * t**2 * cp2_x + t**3 * x2
+                y = (1-t)**3 * y1 + 3*(1-t)**2 * t * cp1_y + 3*(1-t) * t**2 * cp2_y + t**3 * y2
+                points.append((int(x), int(y)))
+            
+            return points
+            
+        except Exception as e:
+            self.logger.error(f"Error generating bezier curve: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return [(x1, y1), (x2, y2)]  # Fallback to direct line
+
     def _handle_fish_bite(self):
         """Handle fish bite event by reeling"""
         try:
@@ -814,7 +880,21 @@ class FishingBot:
                 return False
                 
             self.logger.info("Fish bite detected, reeling")
-            success = self.press_key('r')  # Press reel key
+            
+            # Enhanced logging in test mode
+            if self.test_mode and self.test_env:
+                self.logger.debug(f"Events before reel: {len(self.test_env.input_events)}")
+                self.logger.debug(f"Current game state: {self.test_env.get_screen_region()}")
+            
+            # Record the action and press reel key
+            self.gameplay_learner.record_action('reel')
+            success = self.press_key('r')
+            
+            # Log after reel action
+            if self.test_mode and self.test_env:
+                self.logger.debug(f"Events after reel: {len(self.test_env.input_events)}")
+                self.logger.debug("Reel action recorded")
+            
             if not success:
                 self.logger.error("Failed to press reel key")
                 return False
@@ -823,6 +903,7 @@ class FishingBot:
             
         except Exception as e:
             self.logger.error(f"Error handling fish bite: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def _move_to_position(self, target_pos):
@@ -835,7 +916,9 @@ class FishingBot:
             # Move mouse to target position
             self.logger.debug(f"Moving mouse to: {target_pos}")
             if self.test_mode and self.test_env:
+                self.logger.debug(f"Events before mouse move: {len(self.test_env.input_events)}")
                 success = self.test_env.move_mouse(target_pos[0], target_pos[1])
+                self.logger.debug(f"Events after mouse move: {len(self.test_env.input_events)}")
             else:
                 success = self.direct_input.move_mouse(target_pos[0], target_pos[1])
 
@@ -844,24 +927,58 @@ class FishingBot:
                 return False
             
             # Small delay between movement and click
-            time.sleep(0.1)
+            time.sleep(0.1)  # Ensure enough time between actions
             
             # Click to move to position using left mouse button
-            self.logger.debug(f"Left clicking at: {target_pos}")
-            success = self.click(button='left')
+            self.logger.debug(f"Clicking at: {target_pos}")
+            success = self.click(button='left')  # Use our click method consistently
+            
             if not success:
                 self.logger.error("Failed to click for movement")
                 return False
                 
-            # Small delay after click
-            time.sleep(0.1)
+            # Small delay after click before next action
+            time.sleep(0.1)  # Ensure enough time between actions
             
             return True
 
         except Exception as e:
-            self.logger.error(f"Movement error: {str(e)}")
+            self.logger.error(f"Error moving to position: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
+
+    def press_key(self, key):
+        """Press a key with improved logging and test environment handling"""
+        try:
+            if self.test_mode and self.test_env:
+                self.logger.debug(f"Test mode: pressing key {key}")
+                # Log state before key press
+                self.logger.debug(f"Events before key press: {len(self.test_env.input_events)}")
+                
+                # Record the action in test environment
+                success = self.test_env.press_key(key)
+                
+                # Log result after key press
+                self.logger.debug(f"Events after key press: {len(self.test_env.input_events)}")
+                self.logger.debug(f"Key press recorded successfully: {success}")
+                
+                if not success:
+                    self.logger.error(f"Failed to record key press '{key}' in test environment")
+                    return False
+                return True
+            
+            if self.direct_input:
+                return self.direct_input.tap_key(key)
+            
+            self.logger.error("No key press implementation available")
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Key press error: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+
 
     def navigate_to(self, target_pos):
         """Navigate to target position avoiding obstacles"""
@@ -1191,57 +1308,9 @@ class FishingBot:
             self.logger.error(f"Error recording action: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
-    def click(self, button='left'):
-        """Click the mouse at current position"""
-        try:
-            if self.test_mode and self.test_env:
-                self.logger.debug(f"Test mode: clicking {button} mouse button")
-                success = self.test_env.click(button=button)
-                if not success:
-                    self.logger.error(f"Failed to record {button} click in test environment")
-                    return False
-                return True
-            
-            if self.direct_input:
-                success = self.direct_input.click()
-                if not success:
-                    self.logger.error("DirectInput click failed")
-                    return False
-                return True
-            
-            self.logger.error("No click implementation available")
-            return False
 
-        except Exception as e:
-            self.logger.error(f"Click error: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
-        """Generate smooth mouse movement path using bezier curve
-        Args:
-            x1, y1: Start coordinates
-            x2, y2: End coordinates
-            num_points: Number of points to generate
-        Returns:
-            List of (x,y) coordinates for the path
-        """
-        try:
-            # Generate control points
-            # Place control points at 1/3 and 2/3 distance with slight offset
-            dx = x2 - x1
-            dy = y2 - y1
-            
-            # Log original coordinates and calculated offsets
-            self.logger.debug(f"Generating bezier curve:")
-            self.logger.debug(f"Start: ({x1}, {y1}), End: ({x2}, {y2})")
-            self.logger.debug(f"Offset: dx={dx}, dy={dy}")
 
-            # Calculate control points with reduced offset
-            cp1_x = x1 + dx/3 + random.uniform(-5, 5)
-            cp1_y = y1 + dy/3 + random.uniform(-5, 5)
-            cp2_x = x1 + 2*dx/3 + random.uniform(-5, 5)
-            cp2_y = y1 + 2*dy/3 + random.uniform(-5, 5)
-
-            self.logger.debug(f"Control points: ({cp1_x}, {cp1_y}), ({cp2_x}, {cp2_y})")
+_x}, {cp1_y}), ({cp2_x}, {cp2_y})")
 
             # Generate points along the curve
             points = []
