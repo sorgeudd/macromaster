@@ -8,7 +8,7 @@
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410515.9278636
+    "timestamp": 1740410775.9533165
   },
   {
     "type": "click",
@@ -19,7 +19,7 @@
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410515.9288144
+    "timestamp": 1740410775.953667
   },
   {
     "type": "move",
@@ -30,7 +30,7 @@
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.030445
+    "timestamp": 1740410776.054303
   },
   {
     "type": "move",
@@ -41,534 +41,534 @@
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.131351
+    "timestamp": 1740410776.1548538
   },
   {
     "type": "move",
     "x": 590,
-    "y": 360,
+    "y": 359,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.2331939
+    "timestamp": 1740410776.2553823
   },
   {
     "type": "move",
-    "x": 583,
-    "y": 378,
+    "x": 578,
+    "y": 390,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.333968
+    "timestamp": 1740410776.4257145
   },
   {
     "type": "move",
-    "x": 574,
-    "y": 397,
+    "x": 568,
+    "y": 408,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.434928
+    "timestamp": 1740410776.5262804
   },
   {
     "type": "move",
-    "x": 564,
-    "y": 414,
+    "x": 556,
+    "y": 424,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.535805
+    "timestamp": 1740410776.6282363
   },
   {
     "type": "move",
-    "x": 551,
-    "y": 430,
+    "x": 542,
+    "y": 440,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.636584
+    "timestamp": 1740410776.7342918
   },
   {
     "type": "move",
-    "x": 537,
-    "y": 444,
+    "x": 527,
+    "y": 454,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.7384048
+    "timestamp": 1740410776.8350224
   },
   {
     "type": "move",
-    "x": 522,
-    "y": 458,
+    "x": 511,
+    "y": 466,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.839613
+    "timestamp": 1740410776.9356494
   },
   {
     "type": "move",
-    "x": 505,
-    "y": 469,
+    "x": 493,
+    "y": 476,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.9406142
+    "timestamp": 1740410777.0364292
   },
   {
     "type": "click",
-    "x": 505,
-    "y": 469,
+    "x": 493,
+    "y": 476,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410516.9435885
+    "timestamp": 1740410777.0397484
   },
   {
     "type": "move",
-    "x": 487,
-    "y": 479,
+    "x": 474,
+    "y": 485,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410517.0446146
+    "timestamp": 1740410777.1426156
   },
   {
     "type": "move",
-    "x": 469,
-    "y": 487,
+    "x": 455,
+    "y": 492,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410517.1456509
+    "timestamp": 1740410777.246957
   },
   {
     "type": "move",
-    "x": 449,
-    "y": 493,
+    "x": 434,
+    "y": 496,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410517.246425
+    "timestamp": 1740410777.3499768
   },
   {
     "type": "move",
-    "x": 430,
-    "y": 497,
-    "button": "left",
-    "duration": 0.1,
-    "scroll_amount": 0,
-    "key_code": null,
-    "text": null,
-    "timestamp": 1740410517.3469462
-  },
-  {
-    "type": "move",
-    "x": 410,
+    "x": 414,
     "y": 499,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410517.4479086
+    "timestamp": 1740410777.45059
   },
   {
     "type": "move",
-    "x": 389,
+    "x": 394,
     "y": 499,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410517.5491614
+    "timestamp": 1740410777.551358
   },
   {
     "type": "move",
-    "x": 369,
-    "y": 497,
+    "x": 374,
+    "y": 498,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410517.6508398
+    "timestamp": 1740410777.6586232
   },
   {
     "type": "move",
-    "x": 335,
-    "y": 489,
+    "x": 353,
+    "y": 494,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410517.8269734
+    "timestamp": 1740410777.7591708
   },
   {
     "type": "move",
-    "x": 316,
+    "x": 333,
+    "y": 488,
+    "button": "left",
+    "duration": 0.1,
+    "scroll_amount": 0,
+    "key_code": null,
+    "text": null,
+    "timestamp": 1740410777.8606882
+  },
+  {
+    "type": "move",
+    "x": 315,
     "y": 481,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410517.927597
+    "timestamp": 1740410778.0253901
   },
   {
-    "type": "move",
-    "x": 298,
-    "y": 472,
+    "type": "click",
+    "x": 315,
+    "y": 481,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.0284243
+    "timestamp": 1740410778.02652
   },
   {
     "type": "move",
-    "x": 282,
-    "y": 461,
+    "x": 286,
+    "y": 464,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.1318984
+    "timestamp": 1740410778.127537
   },
   {
     "type": "move",
-    "x": 265,
-    "y": 448,
+    "x": 270,
+    "y": 452,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.2334428
+    "timestamp": 1740410778.2288926
   },
   {
     "type": "move",
-    "x": 251,
-    "y": 434,
+    "x": 255,
+    "y": 438,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.3344145
+    "timestamp": 1740410778.3304365
   },
   {
     "type": "move",
-    "x": 238,
-    "y": 418,
+    "x": 242,
+    "y": 423,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.4357002
+    "timestamp": 1740410778.4310153
   },
   {
     "type": "move",
-    "x": 227,
-    "y": 401,
+    "x": 230,
+    "y": 406,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.5364137
+    "timestamp": 1740410778.5317261
   },
   {
     "type": "move",
-    "x": 218,
-    "y": 383,
+    "x": 220,
+    "y": 389,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.6375792
+    "timestamp": 1740410778.6334765
   },
   {
     "type": "move",
-    "x": 210,
-    "y": 364,
+    "x": 212,
+    "y": 369,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.738576
+    "timestamp": 1740410778.7519526
   },
   {
     "type": "move",
     "x": 205,
-    "y": 345,
+    "y": 347,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.8392668
+    "timestamp": 1740410778.8556795
   },
   {
     "type": "move",
     "x": 201,
-    "y": 325,
+    "y": 327,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.9401743
+    "timestamp": 1740410778.9563577
   },
   {
     "type": "click",
     "x": 201,
-    "y": 325,
+    "y": 327,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410518.9405332
+    "timestamp": 1740410778.956625
   },
   {
     "type": "move",
     "x": 200,
-    "y": 305,
+    "y": 307,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.041381
+    "timestamp": 1740410779.0570962
   },
   {
     "type": "move",
     "x": 200,
-    "y": 285,
+    "y": 287,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.1442273
+    "timestamp": 1740410779.225341
   },
   {
     "type": "move",
-    "x": 203,
-    "y": 264,
+    "x": 205,
+    "y": 254,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.2458382
+    "timestamp": 1740410779.326094
   },
   {
     "type": "move",
-    "x": 207,
-    "y": 245,
+    "x": 210,
+    "y": 234,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.3466113
+    "timestamp": 1740410779.4266853
   },
   {
     "type": "move",
-    "x": 214,
-    "y": 226,
+    "x": 218,
+    "y": 216,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.4474301
+    "timestamp": 1740410779.5273666
   },
   {
     "type": "move",
-    "x": 222,
-    "y": 207,
+    "x": 227,
+    "y": 198,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.5480692
+    "timestamp": 1740410779.6287992
   },
   {
     "type": "move",
-    "x": 232,
-    "y": 190,
+    "x": 239,
+    "y": 181,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.6507092
+    "timestamp": 1740410779.7322893
   },
   {
     "type": "move",
-    "x": 244,
-    "y": 173,
+    "x": 252,
+    "y": 165,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.7516992
+    "timestamp": 1740410779.8329623
   },
   {
     "type": "move",
-    "x": 258,
-    "y": 158,
+    "x": 266,
+    "y": 151,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.8525405
+    "timestamp": 1740410779.9338083
   },
   {
     "type": "move",
-    "x": 273,
-    "y": 145,
+    "x": 281,
+    "y": 138,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.9548593
+    "timestamp": 1740410780.0352802
   },
   {
     "type": "click",
-    "x": 273,
-    "y": 145,
+    "x": 281,
+    "y": 138,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410519.9557266
+    "timestamp": 1740410780.0386102
   },
   {
     "type": "move",
-    "x": 289,
-    "y": 133,
+    "x": 299,
+    "y": 126,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410520.056775
+    "timestamp": 1740410780.1403658
   },
   {
     "type": "move",
-    "x": 307,
-    "y": 122,
+    "x": 317,
+    "y": 117,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410520.158592
+    "timestamp": 1740410780.2412024
   },
   {
     "type": "move",
-    "x": 325,
-    "y": 114,
+    "x": 336,
+    "y": 110,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410520.2595284
+    "timestamp": 1740410780.3444118
   },
   {
     "type": "move",
-    "x": 344,
-    "y": 107,
+    "x": 356,
+    "y": 104,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410520.3642342
+    "timestamp": 1740410780.4460127
   },
   {
     "type": "move",
-    "x": 365,
-    "y": 103,
+    "x": 376,
+    "y": 101,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410520.525401
+    "timestamp": 1740410780.5473018
   },
   {
     "type": "move",
-    "x": 397,
+    "x": 396,
     "y": 100,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410520.6285985
+    "timestamp": 1740410780.6751606
   },
   {
     "type": "move",
-    "x": 417,
-    "y": 100,
+    "x": 421,
+    "y": 101,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410520.7292755
+    "timestamp": 1740410780.775859
   },
   {
     "type": "move",
-    "x": 437,
-    "y": 103,
+    "x": 451,
+    "y": 106,
     "button": "left",
     "duration": 0.1,
     "scroll_amount": 0,
     "key_code": null,
     "text": null,
-    "timestamp": 1740410520.8307788
+    "timestamp": 1740410780.9268231
   }
 ]
