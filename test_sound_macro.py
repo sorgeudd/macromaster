@@ -21,7 +21,7 @@ def main():
         if manager.record_sound_trigger("test_sound", duration=2.0):
             print("Successfully recorded sound trigger")
 
-            # Record a test macro (simulated mouse movements)
+            # Record a test macro
             print("\nRecording a test macro in 3 seconds...")
             time.sleep(3)
             if manager.record_macro("test_macro", duration=5.0):
@@ -31,22 +31,20 @@ def main():
                 if manager.assign_macro_to_sound("test_sound", "test_macro"):
                     print("\nSuccessfully mapped sound to macro")
 
-                    # Explicitly test the sound trigger callback
+                    # Test sound trigger callback directly
                     print("\nTesting sound trigger callback directly...")
-                    manager._on_sound_detected = manager.on_sound_detected  # Store reference
-                    manager.on_sound_detected("test_sound")  # Directly trigger callback
+                    manager._handle_sound_detected("test_sound")
                     time.sleep(2)  # Wait for macro playback
 
-                    # Start regular monitoring
+                    # Start monitoring
                     print("\nStarting sound monitoring for 10 seconds...")
-                    manager.start_monitoring()
-
-                    # Wait for potential triggers
-                    time.sleep(10)  # Reduced from 30 to 10 seconds for testing
-
-                    # Stop monitoring
-                    manager.stop_monitoring()
-                    print("\nStopped monitoring")
+                    if manager.start_monitoring():
+                        time.sleep(10)  # Monitor for 10 seconds
+                        manager.stop_monitoring()
+                        print("\nStopped monitoring")
+                        return True
+                    else:
+                        print("Failed to start monitoring")
                 else:
                     print("Failed to map sound to macro")
             else:
@@ -54,13 +52,18 @@ def main():
         else:
             print("Failed to record sound")
 
+        return False
+
     except KeyboardInterrupt:
         print("\nStopped by user")
         manager.stop_monitoring()
+        return False
 
     except Exception as e:
         logger.error(f"Error in test: {e}", exc_info=True)
         manager.stop_monitoring()
+        return False
 
 if __name__ == "__main__":
-    main()
+    success = main()
+    exit(0 if success else 1)
