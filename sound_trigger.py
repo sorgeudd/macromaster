@@ -194,7 +194,7 @@ class SoundTrigger:
         # Reduce dimensionality by averaging frequency bands
         n_bands = 13
         band_size = len(magnitude) // n_bands
-        features = np.array([np.mean(magnitude[i:i+band_size]) 
+        features = np.array([np.mean(magnitude[i:i+band_size])
                            for i in range(0, len(magnitude), band_size)])[:n_bands]
 
         # Normalize features
