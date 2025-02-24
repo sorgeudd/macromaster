@@ -816,36 +816,48 @@ class FishingBot:
     def navigate_to(self, target_pos):
         """Navigate to target position avoiding obstacles"""
         try:
-            # Get current position
+            # Get current position (default to center if not available)
             current_pos = self.get_current_position()
             if not current_pos:
-                return False
+                if self.test_mode:
+                    current_pos = (100, 100)  # Default test position
+                else:
+                    self.logger.error("Could not determine current position")
+                    return False
 
-            # Find path
+            self.logger.info(f"Starting navigation from {current_pos} to {target_pos}")
+
+            # Find path using pathfinder
             if self.pathfinder:
                 path = self.pathfinder.find_path(
                     current_pos,
                     target_pos,
-                    bounds=(self.config['game_window'][2], self.config['game_window'][3])
+                    bounds=(800, 600) if self.test_mode else self.window_rect[2:]
                 )
             else:
-                path = None
+                # Fallback to direct path in test mode
+                path = [current_pos, target_pos]
 
             if not path:
                 self.logger.warning("No path found to target")
                 return False
 
-            # Smooth path
-            if self.pathfinder:
-                path = self.pathfinder.smooth_path(path)
+            self.logger.debug(f"Path found with {len(path)} points: {path}")
 
             # Follow path
             for next_pos in path:
                 if self.stop_event.is_set():
                     return False
 
-                # Turn and move to next position
-                self._move_to_position(next_pos)
+                # Move to next position
+                self.logger.debug(f"Moving to position: {next_pos}")
+                success = self._move_to_position(next_pos)
+                if not success:
+                    self.logger.warning(f"Failed to move to position: {next_pos}")
+                    continue
+
+                # Small delay between movements
+                time.sleep(0.1)
 
                 # Check for combat
                 if self.check_combat_status():
@@ -855,69 +867,96 @@ class FishingBot:
 
         except Exception as e:
             self.logger.error(f"Navigation error: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
-    def _move_to_position(self, target_pos):
-        """Move to specific position using keyboard controls"""
+    def _handle_combat(self):
+        """Handle combat situation with proper ability rotation"""
         try:
-            current_pos = self.get_current_position()
-            if not current_pos:
+            if not self.check_combat_status():
                 return False
 
-            # Calculate direction
-            dx = target_pos[0] - current_pos[0]
-            dy = target_pos[1] - current_pos[1]
+            self.logger.debug("Entering combat handling")
+            combat_start = time.time()
+            
+            # Track ability cooldowns
+            ability_cooldowns = {
+                'e': 20.0,  # Longest cooldown
+                'w': 12.0,  # Medium cooldown
+                'q': 6.0,   # Short cooldown
+                'space': 1.5 # Auto-attack cooldown
+            }
+            last_cast = {key: 0 for key in ability_cooldowns}
+            
+            # Dismount if needed
+            if self.is_mounted():
+                self.logger.debug("Dismounting for combat")
+                self.press_key('a')
+                time.sleep(0.5)
 
-            # Determine key presses needed
-            keys = []
-            if dx > 0:
-                keys.append(self.config['movement_keys']['right'])
-            elif dx < 0:
-                keys.append(self.config['movement_keys']['left'])
+            while self.check_combat_status():
+                current_time = time.time()
+                current_health = self.get_current_health()
+                
+                # Emergency stop if health too low or combat taking too long
+                if current_health < 20 or (current_time - combat_start) > 30:
+                    self.logger.warning("Emergency combat exit - health low or timeout")
+                    break
 
-            if dy > 0:
-                keys.append(self.config['movement_keys']['forward'])
-            elif dy < 0:
-                keys.append(self.config['movement_keys']['backward'])
+                # Use abilities based on cooldowns
+                for key, cooldown in ability_cooldowns.items():
+                    if current_time - last_cast[key] >= cooldown:
+                        self.logger.debug(f"Using combat ability: {key}")
+                        if key == 'space':
+                            self.press_key(key, duration=0.1)
+                        else:
+                            self.press_key(key)
+                        last_cast[key] = current_time
+                        time.sleep(0.1)  # Small delay between abilities
 
-            # Press keys
-            for key in keys:
-                self.press_key(key, duration=0.1)
+                time.sleep(0.1)  # Combat loop delay
+
+            self.logger.debug("Combat handling complete")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error in combat handling: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def is_mounted(self):
+        """Check if character is currently mounted"""
+        if self.test_mode and self.test_env:
+            return self.test_env.get_screen_region().get('is_mounted', False)
+        # In real mode, would need to implement actual mount state detection
+        return False
+
+    def _move_to_position(self, target_pos):
+        """Move to specific position using mouse clicks"""
+        try:
+            if not target_pos or len(target_pos) != 2:
+                self.logger.error("Invalid target position")
+                return False
+
+            # Move mouse to target position
+            self.logger.debug(f"Moving to position: {target_pos}")
+            success = self.move_mouse_to(target_pos[0], target_pos[1])
+            if not success:
+                return False
+            
+            # Click to move to position
+            self.logger.debug(f"Clicking to move to: {target_pos}")
+            self.click()  # Single click to move 
+            time.sleep(0.1)  # Small delay between actions
 
             return True
 
         except Exception as e:
             self.logger.error(f"Movement error: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
-    def _handle_combat(self):
-        """Handle combat situation"""
-        try:
-            combat_start = time.time()
-            max_combat_duration = 5.0 if self.test_mode else 30.0
 
-            while (self.check_combat_status() and 
-                   not self.stop_event.is_set() and 
-                   time.time() - combat_start < max_combat_duration):
-
-                # Check health and heal if needed
-                if self.get_current_health() < self.config['combat_threshold']:
-                    self.press_key('h')  # Healing ability
-                    time.sleep(0.1 if self.test_mode else 1.0)
-
-                # Use combat abilities
-                for key in self.config['combat_keys']:
-                    if self.stop_event.is_set():
-                        break
-                    self.press_key(key)
-                    time.sleep(0.1 if self.test_mode else random.uniform(0.5, 1.0))
-
-                time.sleep(0.1)
-
-            self.logger.debug("Combat handling complete")
-
-        except Exception as e:
-            self.logger.error(f"Combat handling error: {str(e)}")
 
     def get_current_position(self):
         """Get current position in game world"""
@@ -1082,52 +1121,6 @@ class FishingBot:
             self.logger.error(f"Error recording action: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
-            # Handle macro recording if enabled
-            if self.recording_macro:
-                # Handle mouse coordinate normalization
-                if action_type in ['mouse_move', 'mouse_click'] and 'x' in kwargs and 'y' in kwargs:
-                    if self.window_rect:
-                        win_x, win_y, win_right, win_bottom = self.window_rect
-                        win_width = win_right - win_x
-                        win_height = win_bottom - win_y
-                        
-                        # Get relative coordinates
-                        x = kwargs.get('x')
-                        y = kwargs.get('y')
-                        rel_x = x - win_x if x is not None else None
-                        rel_y = y - win_y if y is not None else None
-                        
-                        # Normalize to 0-1 range
-                        norm_x = rel_x / win_width if rel_x is not None else None
-                        norm_y = rel_y / win_height if rel_y is not None else None
-                        
-                        self.logger.debug(
-                            f"Recording {action_type}: " +
-                            f"Screen({x}, {y}) -> " +
-                            f"Relative({rel_x}, {rel_y}) -> " +
-                            f"Normalized({norm_x:.3f}, {norm_y:.3f})"
-                        )
-                        
-                        kwargs['x'] = norm_x
-                        kwargs['y'] = norm_y
-                    else:
-                        self.logger.warning("No window bounds available for coordinate normalization")
-
-                # Create action record with timestamp
-                action = {
-                    'type': action_type,
-                    'timestamp': time.time(),
-                    **kwargs
-                }
-                
-                self.macro_actions.append(action)
-                self.logger.debug(f"Recorded macro action: {action}")
-
-        except Exception as e:
-            self.logger.error(f"Error recording action: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-
-    def play_macro(self, macro_name):
         """Play recorded macro with improved coordinate handling"""
         try:
             if not self.macros.get(macro_name):

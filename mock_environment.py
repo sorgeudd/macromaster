@@ -20,6 +20,7 @@ class GameState:
     screen_content: np.ndarray = None
     combat_start_time: float = None
     last_action_time: float = None  # Track timing of last action
+    ability_cooldowns: dict = None  # Track ability cooldowns
 
     def __post_init__(self):
         if self.detected_resources is None:
@@ -29,6 +30,13 @@ class GameState:
         if self.screen_content is None:
             # Create a mock screen content (black screen)
             self.screen_content = np.zeros((600, 800, 3), dtype=np.uint8)
+        if self.ability_cooldowns is None:
+            self.ability_cooldowns = {
+                'e': 0.0,  # Last use time for each ability
+                'w': 0.0,
+                'q': 0.0,
+                'space': 0.0
+            }
         self.last_action_time = time.time()
         self.combat_start_time = time.time()
 
@@ -134,17 +142,29 @@ class MockEnvironment:
             event = {'type': 'mouse_click', 'timestamp': current_time, 
                     'button': button, 'clicks': clicks}
             self.input_events.append(event)
+            self.logger.debug(f"Recorded mouse click: {button} button, {clicks} clicks")
             self.state.last_action_time = current_time
             return True
         return False
 
     def press_key(self, key, duration=None):
-        """Record key press"""
+        """Record key press with improved logging"""
         current_time = time.time()
         if current_time - self.state.last_action_time >= self.min_action_interval:
             event = {'type': 'key_press', 'timestamp': current_time, 
                     'key': key, 'duration': duration}
             self.input_events.append(event)
+
+            # Handle special keys
+            if key == 'a':
+                self.state.is_mounted = not self.state.is_mounted
+                self.logger.debug(f"Mount state toggled: {'mounted' if self.state.is_mounted else 'dismounted'}")
+
+            # Update ability cooldowns
+            if key in self.state.ability_cooldowns:
+                self.state.ability_cooldowns[key] = current_time
+                self.logger.debug(f"Updated cooldown for ability '{key}'")
+
             self.state.last_action_time = current_time
             return True
         return False
@@ -158,7 +178,9 @@ class MockEnvironment:
             'resources': self.state.detected_resources,
             'obstacles': self.state.detected_obstacles,
             'fish_bite_active': self.state.fish_bite_active,
-            'screen_content': self.state.screen_content
+            'screen_content': self.state.screen_content,
+            'is_mounted': self.state.is_mounted,
+            'ability_cooldowns': self.state.ability_cooldowns
         }
 
     def set_game_state(self, **kwargs):

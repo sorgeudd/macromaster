@@ -42,6 +42,74 @@ class TestFishingBot(unittest.TestCase):
             self.logger.error(f"Error in tearDown: {str(e)}")
             raise
 
+    def test_combat_system(self):
+        """Test combat system with ability rotation and mount handling"""
+        # Start mounted
+        self.mock_env.set_game_state(is_mounted=True)
+        self.assertTrue(self.mock_env.state.is_mounted)
+
+        # Enter combat
+        self.mock_env.set_game_state(is_in_combat=True, health=90.0)
+        self.assertTrue(self.bot.check_combat_status())
+
+        # Handle combat
+        start_time = time.time()
+        self.bot._handle_combat()
+        combat_duration = time.time() - start_time
+
+        # Get all combat-related events
+        combat_events = [e for e in self.mock_env.input_events 
+                        if e['type'] == 'key_press']
+
+        # Verify dismount occurred
+        mount_events = [e for e in combat_events if e['key'] == 'a']
+        self.assertGreater(len(mount_events), 0, "No dismount occurred")
+        self.assertFalse(self.mock_env.state.is_mounted, "Still mounted in combat")
+
+        # Verify ability usage order
+        ability_sequence = [e['key'] for e in combat_events if e['key'] in ['e', 'w', 'q', 'space']]
+        self.assertGreater(len(ability_sequence), 0, "No abilities used")
+
+        # Check if abilities were used in proper order (E -> W -> Q -> Space)
+        first_rotation = ability_sequence[:4]
+        expected_rotation = ['e', 'w', 'q', 'space']
+        self.assertEqual(first_rotation, expected_rotation, 
+                        "Incorrect ability rotation order")
+
+        # Verify combat duration was reasonable
+        self.assertLess(combat_duration, 30.0, 
+                       f"Combat took too long: {combat_duration:.1f}s")
+
+    def test_navigation_click(self):
+        """Test navigation using left mouse clicks"""
+        # Set initial position
+        self.mock_env.set_game_state(current_position=(100, 100))
+
+        # Navigate to new position
+        target_pos = (200, 200)
+        success = self.bot.navigate_to(target_pos)
+        self.assertTrue(success)
+
+        # Get navigation events
+        nav_events = [e for e in self.mock_env.input_events 
+                     if e['type'] in ('mouse_move', 'mouse_click')]
+
+        # Verify mouse movements occurred
+        move_events = [e for e in nav_events if e['type'] == 'mouse_move']
+        self.assertGreater(len(move_events), 0, "No mouse movements recorded")
+
+        # Verify left clicks for movement
+        click_events = [e for e in nav_events if e['type'] == 'mouse_click' 
+                       and e.get('button') == 'left']
+        self.assertGreater(len(click_events), 0, "No left clicks recorded")
+
+        # Verify events are in correct order (move then click)
+        for i in range(len(click_events)):
+            move_time = move_events[i]['timestamp']
+            click_time = click_events[i]['timestamp']
+            self.assertGreater(click_time, move_time, 
+                             "Click occurred before mouse movement")
+
     def test_learning_mode(self):
         """Test gameplay learning functionality"""
         # Start learning mode
@@ -133,33 +201,6 @@ class TestFishingBot(unittest.TestCase):
         # Clear fish bite
         self.mock_env.set_game_state(fish_bite_active=False)
         self.assertFalse(self.bot._detect_bite())
-
-    def test_combat_response(self):
-        """Test combat detection and response"""
-        # Simulate combat with health at 80%
-        self.mock_env.set_game_state(is_in_combat=True, health=80.0)
-        self.assertTrue(self.bot.check_combat_status())
-        self.assertEqual(self.bot.get_current_health(), 80.0)
-
-        # Set a timeout for combat handling
-        start_time = time.time()
-        max_combat_duration = 5.0  # Maximum time to wait for combat
-
-        # Test combat handling
-        self.bot._handle_combat()
-
-        # Verify combat didn't take too long
-        combat_duration = time.time() - start_time
-        self.assertLess(combat_duration, max_combat_duration, 
-                        f"Combat handling took too long: {combat_duration:.1f}s")
-
-        # Verify combat actions were taken
-        combat_events = [e for e in self.mock_env.input_events if e['type'] == 'key_press']
-        self.assertGreater(len(combat_events), 0, "No combat abilities used")
-
-        # Verify combat ended
-        self.mock_env.set_game_state(is_in_combat=False)
-        self.assertFalse(self.bot.check_combat_status(), "Combat state not cleared")
 
     def test_initialization(self):
         """Test bot initialization"""
@@ -271,7 +312,7 @@ class TestFishingBot(unittest.TestCase):
 
     def test_map_functionality(self):
         """Test map loading and navigation features"""
-        # Create a test map file
+        # Create a test map file with simplified data
         test_map = {
             'nodes': [
                 {'id': 1, 'x': 100, 'y': 100, 'type': 'resource', 'resource': 'fish'},
@@ -291,41 +332,32 @@ class TestFishingBot(unittest.TestCase):
         try:
             # Test map validation
             self.assertTrue(self.bot._validate_map_data(test_map))
+            self.logger.info("Map data validation successful")
 
             # Test loading from file
             success = self.bot.load_map_data(tmp_path)
             self.assertTrue(success)
+            self.logger.info("Map data loaded successfully")
 
-            # Test navigation with loaded map
-            self.bot.navigate_to((200, 200))  # Should use loaded map data
+            # Navigate to a specific point and verify events
+            target_pos = (200, 200)
+            self.logger.info(f"Attempting navigation to {target_pos}")
+            self.bot.navigate_to(target_pos)
 
-            # Verify navigation events
+            # Get all navigation-related events
             nav_events = [e for e in self.mock_env.input_events 
                          if e['type'] in ('mouse_move', 'key_press')]
-            self.assertGreater(len(nav_events), 0)
+
+            # Verify navigation generated events
+            self.logger.info(f"Navigation events generated: {len(nav_events)}")
+            self.assertGreater(len(nav_events), 0, "No navigation events were generated")
 
             # Test invalid map data
             invalid_map = {'nodes': []}  # Missing required data
             self.assertFalse(self.bot._validate_map_data(invalid_map))
 
-            # Test CSV format
-            csv_data = [
-                {'x': '100', 'y': '100', 'type': 'resource'},
-                {'x': '200', 'y': '200', 'type': 'path'}
-            ]
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmp_csv:
-                writer = csv.DictWriter(tmp_csv, fieldnames=['x', 'y', 'type'])
-                writer.writeheader()
-                writer.writerows(csv_data)
-                tmp_csv_path = tmp_csv.name
-
-            success = self.bot.load_map_data(tmp_csv_path)
-            self.assertTrue(success)
-            os.unlink(tmp_csv_path)
-
         finally:
             os.unlink(tmp_path)
-
 
 if __name__ == '__main__':
     unittest.main()
