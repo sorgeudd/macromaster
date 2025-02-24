@@ -38,6 +38,10 @@ echo Installing numpy...
 pip install numpy
 if errorlevel 1 goto error
 
+echo Installing PyAudio...
+pip install pyaudio
+if errorlevel 1 goto error
+
 echo Installing OpenCV...
 pip install opencv-python
 if errorlevel 1 goto error
@@ -50,21 +54,6 @@ echo Installing PyAutoGUI...
 pip install pyautogui
 if errorlevel 1 goto error
 
-echo Installing Torch CPU...
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
-if errorlevel 1 goto error
-
-echo Installing Transformers...
-pip install transformers
-if errorlevel 1 goto error
-
-echo Installing Trafilatura...
-pip install trafilatura
-if errorlevel 1 goto error
-
-echo Installing Twilio...
-pip install twilio
-if errorlevel 1 goto error
 
 REM Check Visual C++ Redistributable
 reg query "HKLM\SOFTWARE\Microsoft\VisualStudio\14.0" >nul 2>&1
@@ -78,7 +67,7 @@ if errorlevel 1 (
 REM Verify installations
 echo.
 echo Verifying installations...
-python -c "import numpy; import cv2; import PIL; import pyautogui; import torch; import transformers; import trafilatura; import twilio" > nul 2>&1
+python -c "import numpy; import pyaudio; import cv2; import PIL; import pyautogui" > nul 2>&1
 if errorlevel 1 (
     echo Error: Some dependencies failed to install correctly
     echo Please check the error messages above and try again
@@ -90,13 +79,13 @@ echo ===================================
 echo    Installation Complete!
 echo ===================================
 echo.
-echo To start the Fishing Bot:
-echo 1. Double click on 'start_bot.bat'
+echo To start the Sound Macro app:
+echo 1. Double click on 'start_app.bat'
 echo    OR
-echo 2. Run 'python fishing_bot.py' in terminal
+echo 2. Run 'python gui_interface.py' in terminal
 echo.
 echo Note: Make sure to run as Administrator
-echo for proper keyboard control functionality
+echo for proper sound and keyboard control functionality
 echo.
 pause
 
