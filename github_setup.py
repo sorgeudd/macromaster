@@ -81,8 +81,9 @@ macro_visualization.json
         subprocess.run(["git", "commit", "-m", "Organized Sound Macro Recorder application files"], check=True)
         print("Committed changes")
 
-        # Push to GitHub
-        subprocess.run(["git", "push", "-u", "origin", "master"], check=True)
+        # Switch to main branch and push
+        subprocess.run(["git", "branch", "-M", "main"], check=True)
+        subprocess.run(["git", "push", "-u", "origin", "main"], check=True)
         print("Pushed code to GitHub")
 
         return True
