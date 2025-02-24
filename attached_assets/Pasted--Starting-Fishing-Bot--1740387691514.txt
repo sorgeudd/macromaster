@@ -1,0 +1,50 @@
+===================================
+   Starting Fishing Bot...
+===================================
+Running with administrator privileges...
+2025-02-24 09:47:27,509 - root - INFO - Logger initialized with file and console output
+2025-02-24 09:47:27,510 - root - INFO - Starting Fishing Bot
+2025-02-24 09:47:27,698 - INFO - Initializing GUI (Test Mode: False)
+2025-02-24 09:47:27,698 - GUI - INFO - Initializing GUI (Test Mode: False)
+2025-02-24 09:47:27,756 - DirectInput - INFO - Initialized DirectInput with screen size: 1920x1200
+2025-02-24 09:47:27,756 - FishingBot - INFO - DirectInput initialized for mouse control
+2025-02-24 09:47:27,766 - FishingBot - INFO - Successfully initialized dependencies
+C:\Users\Marta\AppData\Local\Programs\Python\Python313\Lib\site-packages\transformers\models\convnext\feature_extraction_convnext.py:28: FutureWarning: The class ConvNextFeatureExtractor is deprecated and will be removed in version 5 of Transformers. Please use ConvNextImageProcessor instead.
+  warnings.warn(
+2025-02-24 09:47:37,982 - VisionSystem - INFO - Using pretrained model: microsoft/resnet-50
+2025-02-24 09:47:37,989 - FishingBot - INFO - Vision system initialized
+2025-02-24 09:47:37,990 - FishingBot - INFO - PathFinder initialized with grid_size: 32
+2025-02-24 09:47:37,990 - GameplayLearner - INFO - Initializing machine learning models
+2025-02-24 09:47:37,992 - GameplayLearner - INFO - Loaded learned patterns from file
+2025-02-24 09:47:37,992 - FishingBot - INFO - GameplayLearner initialized
+2025-02-24 09:47:38,151 - INFO - No macros available
+2025-02-24 09:47:38,151 - GUI - INFO - No macros available
+2025-02-24 09:47:38,157 - GUI - INFO - GUI logging system initialized
+2025-02-24 09:47:38,162 - GUI - INFO - Emergency stop hotkey (F6) registered
+2025-02-24 09:47:38,168 - GUI - INFO - GUI initialization complete
+2025-02-24 09:47:38,173 - root - INFO - MainWindow initialized successfully
+2025-02-24 09:59:38,234 - GUI - INFO - Attempting to detect window with title: albit
+2025-02-24 09:59:38,236 - GUI - ERROR - Window detection failed: Window 'albit' not found
+2025-02-24 09:59:42,999 - GUI - INFO - Attempting to detect window with title: albion
+2025-02-24 09:59:43,000 - FishingBot - INFO - Found window 'albion' at (-6, 6, 1290, 765)
+2025-02-24 09:59:43,001 - GUI - INFO - Found: Albion Online Client ((-6, 6, 1290, 765))
+2025-02-24 09:59:51,672 - GUI - INFO - Attempting to detect window with title: albion online client
+2025-02-24 09:59:51,674 - FishingBot - INFO - Found window 'albion online client' at (-6, 6, 1290, 765)
+2025-02-24 09:59:51,675 - GUI - INFO - Found: Albion Online Client ((-6, 6, 1290, 765))
+2025-02-24 10:00:00,180 - FishingBot - INFO - Started recording macro: kenny
+2025-02-24 10:00:00,181 - GUI - INFO - Started recording macro: kenny
+2025-02-24 10:00:04,910 - FishingBot - INFO - Stopped macro recording and saved
+2025-02-24 10:00:04,911 - GUI - INFO - Stopped recording macro and saved
+2025-02-24 10:00:04,912 - GUI - INFO - Updated macro list with 1 macros: ['kenny']
+2025-02-24 10:00:09,449 - DirectInput - ERROR - Invalid button type: left_click
+2025-02-24 10:00:21,047 - DirectInput - ERROR - Invalid button type: left_click
+2025-02-24 10:00:47,434 - GUI - INFO - Started recording sound: fish
+2025-02-24 10:00:47,475 - FishingBot - INFO - Started sound monitoring
+2025-02-24 10:00:51,685 - GUI - INFO - Stopped recording sound
+2025-02-24 10:00:51,730 - FishingBot - INFO - Stopped sound monitoring
+2025-02-24 10:00:55,566 - GUI - INFO - Creating mouse click trigger for button: left
+2025-02-24 10:00:55,567 - GUI - ERROR - Error saving sound trigger: FishingBot.add_sound_trigger() missing 1 required positional argument: 'action'
+2025-02-24 10:00:55,569 - GUI - ERROR - Stack trace: Traceback (most recent call last):
+  File "C:\Users\Marta\Downloads\fishing_bot_package (12)\gui_components.py", line 560, in _save_sound_trigger
+    success = self.bot.add_sound_trigger(trigger_name, action)
+TypeError: FishingBot.add_sound_trigger() missing 1 required positional argument: 'action'

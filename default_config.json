@@ -1,0 +1,18 @@
+{
+    "detection_area": [0, 0, 100, 100],
+    "detection_threshold": 0.8,
+    "cast_key": "f",
+    "reel_key": "r",
+    "color_threshold": [200, 200, 200],
+    "auto_start": false,
+    "log_level": "INFO",
+    "mouse_movement_speed": 0.5,
+    "click_delay": 0.2,
+    "double_click_interval": 0.3,
+    "sound_threshold": 0.1,
+    "audio_sample_rate": 44100,
+    "audio_chunk_size": 1024,
+    "macros_enabled": true,
+    "combat_threshold": 80.0,
+    "resource_scan_interval": 5.0
+}

@@ -1,0 +1,37 @@
+===================================
+   Starting Fishing Bot...
+===================================
+Running with administrator privileges...
+2025-02-23 23:03:08,383 - root - INFO - Logger initialized with file and console output
+2025-02-23 23:03:08,383 - root - INFO - Starting Fishing Bot
+2025-02-23 23:03:08,495 - INFO - Initializing GUI (Test Mode: False)
+2025-02-23 23:03:08,495 - GUI - INFO - Initializing GUI (Test Mode: False)
+2025-02-23 23:03:08,538 - FishingBot - INFO - Successfully initialized dependencies
+C:\Users\Marta\AppData\Local\Programs\Python\Python313\Lib\site-packages\transformers\models\convnext\feature_extraction_convnext.py:28: FutureWarning: The class ConvNextFeatureExtractor is deprecated and will be removed in version 5 of Transformers. Please use ConvNextImageProcessor instead.
+  warnings.warn(
+2025-02-23 23:03:09,904 - VisionSystem - INFO - Using pretrained model: microsoft/resnet-50
+2025-02-23 23:03:09,907 - FishingBot - INFO - Vision system initialized
+2025-02-23 23:03:09,908 - FishingBot - INFO - PathFinder initialized with grid size: 32
+2025-02-23 23:03:09,908 - GameplayLearner - INFO - Initializing machine learning models
+2025-02-23 23:03:09,923 - GameplayLearner - INFO - Loaded learned patterns from file
+2025-02-23 23:03:09,931 - GUI - INFO - GUI logging system initialized
+2025-02-23 23:03:09,956 - GUI - INFO - All GUI components created successfully
+2025-02-23 23:03:09,961 - GUI - INFO - Emergency stop hotkey (F6) registered
+2025-02-23 23:03:09,967 - GUI - INFO - GUI initialization complete
+2025-02-23 23:03:09,973 - root - INFO - MainWindow initialized successfully
+2025-02-23 23:05:42,028 - GUI - INFO - Starting learning mode
+2025-02-23 23:05:42,030 - GUI - ERROR - Error toggling learning mode: 'FishingBot' object has no attribute 'start_learning'
+2025-02-23 23:06:08,022 - GUI - INFO - Attempting to detect window with title: Albion online client
+2025-02-23 23:06:08,023 - FishingBot - INFO - Found window 'Albion online client' at (-6, 6, 1290, 765)
+2025-02-23 23:06:08,023 - GUI - INFO - Found: Albion Online Client ((-6, 6, 1290, 765))
+2025-02-23 23:06:10,918 - GUI - INFO - Starting learning mode
+2025-02-23 23:06:10,921 - GUI - ERROR - Error toggling learning mode: 'FishingBot' object has no attribute 'start_learning'
+2025-02-23 23:06:16,244 - GUI - INFO - Starting learning mode
+2025-02-23 23:06:16,246 - GUI - ERROR - Error toggling learning mode: 'FishingBot' object has no attribute 'start_learning'
+2025-02-23 23:06:28,280 - GUI - INFO - Resetting learning patterns
+2025-02-23 23:06:28,281 - GameplayLearner - INFO - Resetting all learned patterns
+2025-02-23 23:06:28,283 - GameplayLearner - INFO - Saved learned patterns to file
+2025-02-23 23:06:28,284 - GameplayLearner - INFO - Successfully reset all learned patterns
+2025-02-23 23:06:28,284 - GUI - INFO - Successfully reset all learned patterns
+2025-02-23 23:06:31,626 - GUI - INFO - Starting learning mode
+2025-02-23 23:06:31,628 - GUI - ERROR - Error toggling learning mode: 'FishingBot' object has no attribute 'start_learning'

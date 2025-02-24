@@ -1,0 +1,1 @@
+.replit\n.cache/\n.local/\n__pycache__/\n*.pyc\n.pytest_cache/\n.coverage\n.env

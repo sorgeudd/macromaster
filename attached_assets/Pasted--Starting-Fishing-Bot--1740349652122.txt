@@ -1,0 +1,32 @@
+===================================
+   Starting Fishing Bot...
+===================================
+Running with administrator privileges...
+2025-02-23 23:21:29,058 - root - INFO - Logger initialized with file and console output
+2025-02-23 23:21:29,059 - root - INFO - Starting Fishing Bot
+2025-02-23 23:21:29,197 - INFO - Initializing GUI (Test Mode: False)
+2025-02-23 23:21:29,197 - GUI - INFO - Initializing GUI (Test Mode: False)
+2025-02-23 23:21:29,252 - FishingBot - INFO - Successfully initialized dependencies
+C:\Users\Marta\AppData\Local\Programs\Python\Python313\Lib\site-packages\transformers\models\convnext\feature_extraction_convnext.py:28: FutureWarning: The class ConvNextFeatureExtractor is deprecated and will be removed in version 5 of Transformers. Please use ConvNextImageProcessor instead.
+  warnings.warn(
+2025-02-23 23:21:30,861 - VisionSystem - INFO - Using pretrained model: microsoft/resnet-50
+2025-02-23 23:21:30,864 - FishingBot - INFO - Vision system initialized
+2025-02-23 23:21:30,865 - FishingBot - INFO - PathFinder initialized with grid size: 32
+2025-02-23 23:21:30,865 - GameplayLearner - INFO - Initializing machine learning models
+2025-02-23 23:21:30,871 - GameplayLearner - INFO - Loaded learned patterns from file
+2025-02-23 23:21:30,880 - GUI - INFO - GUI logging system initialized
+2025-02-23 23:21:30,901 - GUI - INFO - All GUI components created successfully
+2025-02-23 23:21:30,909 - GUI - INFO - Emergency stop hotkey (F6) registered
+2025-02-23 23:21:30,916 - GUI - INFO - GUI initialization complete
+2025-02-23 23:21:30,925 - root - INFO - MainWindow initialized successfully
+2025-02-23 23:23:50,570 - GUI - INFO - Attempting to detect window with title:
+2025-02-23 23:23:50,573 - GUI - ERROR - Window detection failed: No supported game window found
+2025-02-23 23:24:02,240 - GUI - INFO - Attempting to detect window with title: Albion Online Client
+2025-02-23 23:24:02,241 - FishingBot - INFO - Found window 'Albion Online Client' at (-6, 6, 1290, 765)
+2025-02-23 23:24:02,241 - GUI - INFO - Found: Albion Online Client ((-6, 6, 1290, 765))
+2025-02-23 23:24:07,164 - GUI - INFO - Starting learning mode
+2025-02-23 23:24:07,166 - GameplayLearner - INFO - Started learning mode
+2025-02-23 23:24:07,166 - FishingBot - INFO - Learning mode started - Now recording user actions
+2025-02-23 23:25:22,554 - GUI - INFO - Stopping learning mode
+2025-02-23 23:25:22,556 - FishingBot - ERROR - Error stopping learning mode: 'GameplayLearner' object has no attribute 'save_patterns'
+2025-02-23 23:25:31,034 - GUI - WARNING - Emergency stop activated
