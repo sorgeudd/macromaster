@@ -22,7 +22,9 @@ wheels/
 
 # Logs
 *.log
-fishing_bot_*.log
+macro_test.log
+recorded_macro.json
+macro_visualization.json
 
 # Cache directories
 .cache/
@@ -52,4 +54,4 @@ ENV/
 
 # Project specific
 *.zip
-!attached_assets/fishing_bot.zip
+test_macro.json
