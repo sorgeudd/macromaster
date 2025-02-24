@@ -23,6 +23,10 @@ args = "Test Bot"
 task = "workflow.run"
 args = "Fishing Bot Test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Macro Test"
+
 [[workflows.workflow]]
 name = "Fishing Bot"
 author = "agent"
@@ -64,6 +68,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python fishing_bot.py"
+
+[[workflows.workflow]]
+name = "Macro Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python test_macro.py"
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]

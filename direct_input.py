@@ -43,6 +43,7 @@ class DirectInput:
     def __init__(self, test_mode=False):
         self.logger = logging.getLogger('DirectInput')
         self.test_mode = test_mode
+        self.mock_cursor_pos = (0, 0)  # For test mode
 
         try:
             if platform.system() == 'Windows' and not test_mode:
@@ -53,7 +54,7 @@ class DirectInput:
                     self.screen_top = self.user32.GetSystemMetrics(77)   # SM_YVIRTUALSCREEN
                     self.screen_width = self.user32.GetSystemMetrics(78) # SM_CXVIRTUALSCREEN
                     self.screen_height = self.user32.GetSystemMetrics(79)# SM_CYVIRTUALSCREEN
-                    self.logger.info(f"Initialized DirectInput with virtual screen: {self.screen_width}x{self.screen_height} at ({self.screen_left}, {self.screen_top})")
+                    self.logger.info(f"Initialized DirectInput with virtual screen: {self.screen_width}x{self.screen_height}")
                 except AttributeError:
                     raise ImportError("Windows-specific functionality not available")
             else:
@@ -85,8 +86,6 @@ class DirectInput:
             x = x - self.screen_left
             y = y - self.screen_top
 
-            self.logger.debug(f"After screen offset adjustment: ({x}, {y})")
-
             # Ensure coordinates are within virtual screen bounds
             x = max(0, min(x, self.screen_width))
             y = max(0, min(y, self.screen_height))
@@ -107,6 +106,7 @@ class DirectInput:
         try:
             if self.test_mode:
                 self.logger.info(f"Test mode: Moving mouse to ({x}, {y})")
+                self.mock_cursor_pos = (x, y)
                 return True
 
             # Get current position
@@ -119,10 +119,6 @@ class DirectInput:
                 steps = 20
                 dx = (x - current.x) / steps
                 dy = (y - current.y) / steps
-
-                # Log movement details
-                self.logger.debug(f"Movement vector: dx={dx}, dy={dy}")
-                self.logger.debug(f"Target position: ({x}, {y})")
 
                 for i in range(steps):
                     # Calculate next point
@@ -144,11 +140,6 @@ class DirectInput:
                 # Direct movement
                 self._send_mouse_input(x, y)
 
-            # Verify final position
-            final = POINT()
-            self.user32.GetCursorPos(pointer(final))
-            self.logger.debug(f"Final position: ({final.x}, {final.y})")
-
             return True
         except Exception as e:
             self.logger.error(f"Error moving mouse: {str(e)}")
@@ -160,6 +151,7 @@ class DirectInput:
         try:
             if self.test_mode:
                 self.logger.debug(f"Test mode: Sending mouse input to ({x}, {y})")
+                self.mock_cursor_pos = (x, y)
                 return True
 
             # Convert to normalized coordinates
@@ -235,3 +227,16 @@ class DirectInput:
         except Exception as e:
             self.logger.error(f"Error performing click: {str(e)}")
             return False
+
+    def get_cursor_pos(self):
+        """Get current cursor position"""
+        if self.test_mode:
+            return self.mock_cursor_pos
+
+        try:
+            point = POINT()
+            self.user32.GetCursorPos(pointer(point))
+            return (point.x, point.y)
+        except Exception as e:
+            self.logger.error(f"Error getting cursor position: {e}")
+            return (0, 0)
