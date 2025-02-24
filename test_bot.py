@@ -241,22 +241,33 @@ class TestFishingBot(unittest.TestCase):
         screenshot = self.bot.get_window_screenshot()
         self.assertIsNotNone(screenshot)
 
-    def test_window_detection_improved(self):
-        """Test improved window detection functionality"""
-        # Test with specific title
+    def test_window_detection_comprehensive(self):
+        """Test comprehensive window detection functionality"""
+        # Test 1: Valid window title
         success, message = self.bot.find_game_window("Test Game")
         self.assertTrue(success)
-        self.assertIn("Found specific window", message)
+        self.assertIn("Found window", message)
 
-        # Get window info
+        # Verify window info is populated
         window_info = self.bot.get_window_info()
         self.assertIsNotNone(window_info)
-        self.assertEqual(window_info['rect'], (0, 0, 800, 600))  # Test mode dimensions
+        self.assertEqual(window_info['rect'], (0, 0, 800, 600))
 
-        # Test with unknown title
-        success, message = self.bot.find_game_window("NonexistentGame")
+        # Test 2: Empty window title
+        success, message = self.bot.find_game_window("")
+        self.assertFalse(success)
+        self.assertIn("provide a window title", message)
+
+        # Test 3: Invalid window title
+        success, message = self.bot.find_game_window("NonexistentWindow12345")
         self.assertFalse(success)
         self.assertIn("not found", message)
+
+        # Test 4: Notepad (valid test window)
+        success, message = self.bot.find_game_window("Notepad")
+        self.assertTrue(success)
+        self.assertIn("Found window", message)
+
 
     def test_map_functionality(self):
         """Test map loading and navigation features"""

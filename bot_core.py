@@ -248,40 +248,64 @@ class FishingBot:
         }
 
     def find_game_window(self, window_title=None):
-        """Find game window by title with improved test mode handling"""
-        if self.test_mode:
-            if window_title and window_title.lower() not in ['test game', 'mock window']:
-                # Return False for invalid window titles in test mode
-                return False, f"Window '{window_title}' not found in test mode"
+        """Find game window by title with improved test mode handling and detailed feedback"""
+        if not window_title:
+            return False, "Please provide a window title to search for"
 
-            self.window_handle = 1
-            self.window_rect = (0, 0, 800, 600)
-            return True, "Test mode: Using mock window"
+        if self.test_mode:
+            self.logger.info(f"Test mode: Simulating window detection for '{window_title}'")
+            if window_title.lower() in ['test game', 'mock window', 'notepad']:
+                self.window_handle = 1
+                self.window_rect = (0, 0, 800, 600)
+                return True, f"Found window: {window_title}"
+            return False, f"Window '{window_title}' not found"
 
         if platform.system() != 'Windows':
             return False, "Window detection requires Windows OS"
 
         try:
-            if not window_title:
-                # Common game window titles to try
-                common_titles = [
-                    "RuneScape", "World of Warcraft", "OSRS", 
-                    "Final Fantasy XIV", "Black Desert", "Lost Ark"
-                ]
-                for title in common_titles:
-                    found = self._find_window_by_title(title)
-                    if found:
-                        return True, f"Found game window: {title}"
-                return False, "No supported game window found"
+            def callback(hwnd, extra):
+                if self.win32gui and self.win32gui.IsWindowVisible(hwnd):
+                    window_text = self.win32gui.GetWindowText(hwnd)
+                    if window_title.lower() in window_text.lower():
+                        self.window_handle = hwnd
+                        self.window_rect = self.win32gui.GetWindowRect(hwnd)
+                        extra['found'] = True
+                        extra['title'] = window_text
+                        return False
+                return True
 
-            found = self._find_window_by_title(window_title)
-            if found:
-                return True, f"Found specific window: {window_title}"
-            return False, f"Window '{window_title}' not found"
+            search_results = {'found': False, 'title': None}
+            if self.win32gui:
+                self.win32gui.EnumWindows(callback, search_results)
+
+            if search_results['found']:
+                # Get additional window info for better feedback
+                if self.win32gui:
+                    self.window_placement = self.win32gui.GetWindowPlacement(self.window_handle)
+                    self.window_style = self.win32gui.GetWindowLong(self.window_handle, -16)
+
+                    # Get process info
+                    try:
+                        if self.win32process:
+                            _, pid = self.win32process.GetWindowThreadProcessId(self.window_handle)
+                            self.window_process_id = pid
+                    except Exception as e:
+                        self.logger.warning(f"Could not get process ID: {str(e)}")
+                        self.window_process_id = None
+
+                    # Update config
+                    self.config['game_window'] = self.window_rect
+                    self.config['window_title'] = search_results['title']
+
+                    return True, f"Found window: {search_results['title']}"
+
+                return False, f"Window '{window_title}' not found"
 
         except Exception as e:
-            self.logger.error(f"Error finding game window: {str(e)}")
-            return False, f"Error: {str(e)}"
+            self.logger.error(f"Error in find_game_window: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False, f"Error detecting window: {str(e)}"
 
     def _find_window_by_title(self, title):
         """Helper method to find window by title"""
@@ -470,25 +494,34 @@ class FishingBot:
                 'is_visible': True,
                 'is_active': True,
                 'process_id': 12345,
-                'placement': None
+                'placement': 'normal',
+                'style': 'test_style'
             }
 
         if not self.window_handle:
             return None
 
         try:
+            window_title = self.win32gui.GetWindowText(self.window_handle) if self.win32gui else "N/A"
+            is_visible = self.win32gui.IsWindowVisible(self.window_handle) if self.win32gui else False
+            is_active = self.is_window_active()
+            
             info = {
-                'title': self.win32gui.GetWindowText(self.window_handle) if self.win32gui else "N/A",
+                'title': window_title,
                 'rect': self.window_rect,
-                'is_visible': self.win32gui.IsWindowVisible(self.window_handle) if self.win32gui else False,
-                'is_active': self.is_window_active(),
+                'is_visible': is_visible,
+                'is_active': is_active,
                 'process_id': getattr(self, 'window_process_id', None),
-                'placement': self.window_placement if hasattr(self, 'window_placement') else None
+                'placement': getattr(self, 'window_placement', None),
+                'style': getattr(self, 'window_style', None)
             }
+            
+            self.logger.debug(f"Window info: {info}")
             return info
 
         except Exception as e:
             self.logger.error(f"Error getting window info: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return None
 
     def load_map_data(self, map_file):
