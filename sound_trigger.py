@@ -9,16 +9,16 @@ from pathlib import Path
 from typing import Dict, Optional, Callable
 import numpy as np
 import pyaudio
-import platform
 
 class SoundTrigger:
-    def __init__(self, sample_rate: int = 44100, threshold: float = 0.75):
+    def __init__(self, sample_rate: int = 44100, threshold: float = 0.75, test_mode: bool = False):
         self.logger = logging.getLogger('SoundTrigger')
         self.sample_rate = sample_rate
         self.threshold = threshold
         self.recording = False
         self.monitoring = False
         self.playing = False
+        self.test_mode = test_mode
 
         # Audio settings
         self.chunk_size = 1024
@@ -27,10 +27,20 @@ class SoundTrigger:
 
         # Initialize PyAudio
         try:
-            self.audio = pyaudio.PyAudio()
-            self.test_mode = False
-        except (ImportError, OSError) as e:
-            self.logger.warning(f"Audio hardware not available, running in test mode: {e}")
+            if not self.test_mode:
+                self.audio = pyaudio.PyAudio()
+                # Try to get default input device
+                try:
+                    self.audio.get_default_input_device_info()
+                except (IOError, OSError):
+                    self.logger.warning("No input device found, forcing test mode")
+                    self.test_mode = True
+                    self.audio = None
+            else:
+                self.logger.info("Running in test mode")
+                self.audio = None
+        except Exception as e:
+            self.logger.warning(f"Audio hardware not available, forcing test mode: {e}")
             self.test_mode = True
             self.audio = None
 
@@ -80,6 +90,7 @@ class SoundTrigger:
                 time_points = np.linspace(0, duration, int(self.sample_rate * duration))
                 test_signal = np.sin(2 * np.pi * 440 * time_points)  # 440 Hz sine wave
                 audio_data = test_signal.astype(np.float32)
+                self.logger.info(f"Test mode: Generated {duration}s test signal")
             else:
                 frames = []
                 # Open recording stream

@@ -1,12 +1,19 @@
 """Test script for sound recording and playback"""
 import time
-import numpy as np
+import logging
+import platform
 from sound_trigger import SoundTrigger
 
 def test_record_and_play():
     """Test basic recording and playback functionality"""
-    # Initialize sound trigger system
-    sound_trigger = SoundTrigger()
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    # Initialize sound trigger system with test mode
+    test_mode = platform.system() != 'Windows'
+    headless = platform.system() != 'Windows'
+    sound_trigger = SoundTrigger(test_mode=test_mode)
 
     try:
         # Record a test sound
@@ -17,6 +24,7 @@ def test_record_and_play():
         duration = 2.0
         if sound_trigger.record_sound("test_sound", duration=duration):
             print(f"Successfully recorded {duration} seconds of audio")
+            time.sleep(1)  # Wait a moment before playback
 
             # Play back the recorded sound
             print("Playing back the recorded sound...")
@@ -29,9 +37,11 @@ def test_record_and_play():
 
     except KeyboardInterrupt:
         print("\nStopped by user")
+    except Exception as e:
+        logger.error(f"Error in test: {e}", exc_info=True)
     finally:
         # Cleanup
-        if hasattr(sound_trigger, 'audio'):
+        if hasattr(sound_trigger, 'audio') and sound_trigger.audio:
             sound_trigger.audio.terminate()
 
 if __name__ == "__main__":

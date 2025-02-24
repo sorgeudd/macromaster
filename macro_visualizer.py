@@ -26,12 +26,20 @@ class MacroVisualizer:
                                    background='white')
                 self.canvas.pack(fill=tk.BOTH, expand=True)
 
-                # Path visualization settings
-                self.path_color = "#2196F3"  # Blue
-                self.click_color = "#F44336"  # Red
-                self.scroll_color = "#4CAF50"  # Green
+                # Enhanced visualization settings
+                self.path_color = "#2196F3"  # Blue for mouse movement
+                self.click_color = "#F44336"  # Red for clicks
+                self.scroll_color = "#4CAF50"  # Green for scrolls
+                self.key_color = "#9C27B0"  # Purple for keyboard events
+                self.sound_color = "#FF9800"  # Orange for sound triggers
                 self.path_width = 2
                 self.point_radius = 4
+
+                # Add timeline visualization
+                self.timeline_height = 50
+                self.canvas.create_rectangle(0, window_size[1]-self.timeline_height, 
+                                          window_size[0], window_size[1],
+                                          fill="#EEEEEE", outline="")
 
                 # Playback controls
                 self.playback_speed = 1.0
@@ -51,76 +59,156 @@ class MacroVisualizer:
         self.playback_running = False
 
     def _create_controls(self):
-        """Create playback control panel"""
+        """Create enhanced playback control panel"""
         if self.headless:
             return
 
         control_frame = ttk.Frame(self.root)
         control_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
 
-        # Speed control
-        ttk.Label(control_frame, text="Speed:").pack(side=tk.LEFT)
+        # Speed control with label
+        speed_frame = ttk.Frame(control_frame)
+        speed_frame.pack(side=tk.LEFT, padx=5)
+        ttk.Label(speed_frame, text="Speed:").pack(side=tk.LEFT)
         speed_var = tk.StringVar(value="1.0")
-        speed_entry = ttk.Entry(control_frame, textvariable=speed_var, width=5)
+        speed_entry = ttk.Entry(speed_frame, textvariable=speed_var, width=5)
         speed_entry.pack(side=tk.LEFT, padx=5)
 
         def update_speed():
             try:
-                self.playback_speed = float(speed_var.get())
+                new_speed = float(speed_var.get())
+                if 0.1 <= new_speed <= 10.0:
+                    self.playback_speed = new_speed
+                else:
+                    speed_var.set("1.0")
+                    self.playback_speed = 1.0
             except ValueError:
                 speed_var.set("1.0")
                 self.playback_speed = 1.0
 
         speed_entry.bind('<Return>', lambda e: update_speed())
 
+        # Legend frame
+        legend_frame = ttk.Frame(control_frame)
+        legend_frame.pack(side=tk.LEFT, padx=20)
+
+        # Add colored squares for legend
+        legend_items = [
+            ("Mouse", self.path_color),
+            ("Click", self.click_color),
+            ("Scroll", self.scroll_color),
+            ("Keys", self.key_color),
+            ("Sound", self.sound_color)
+        ]
+
+        for text, color in legend_items:
+            item_frame = ttk.Frame(legend_frame)
+            item_frame.pack(side=tk.LEFT, padx=5)
+            canvas = tk.Canvas(item_frame, width=10, height=10)
+            canvas.create_rectangle(0, 0, 10, 10, fill=color, outline="")
+            canvas.pack(side=tk.LEFT)
+            ttk.Label(item_frame, text=text).pack(side=tk.LEFT)
+
         # Control buttons
-        ttk.Button(control_frame, text="Play", 
-                  command=self.start_playback).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="Stop", 
-                  command=self.stop_playback).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="Clear", 
-                  command=self.clear).pack(side=tk.LEFT, padx=5)
+        button_frame = ttk.Frame(control_frame)
+        button_frame.pack(side=tk.RIGHT, padx=5)
+        ttk.Button(button_frame, text="Play", 
+                  command=self.start_playback).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Stop", 
+                  command=self.stop_playback).pack(side=tk.LEFT, padx=2)
+        ttk.Button(button_frame, text="Clear", 
+                  command=self.clear).pack(side=tk.LEFT, padx=2)
 
-    def start_recording(self):
-        """Start recording visualization"""
-        self.recording = True
-        self.clear()
-        self.logger.info("Started recording visualization")
+    def _draw_timeline_marker(self, time_position: float, total_duration: float):
+        """Draw marker on timeline showing current position"""
+        if self.headless:
+            return
 
-    def stop_recording(self):
-        """Stop recording visualization"""
-        self.recording = False
-        self.logger.info("Stopped recording visualization")
+        # Clear previous timeline markers
+        self.canvas.delete("timeline_marker")
 
-    def add_point(self, x: int, y: int, action_type: str = 'move'):
-        """Add a point to the visualization"""
+        # Calculate position on timeline
+        window_width = self.canvas.winfo_width()
+        marker_x = (time_position / total_duration) * window_width if total_duration > 0 else 0
+        timeline_y = self.canvas.winfo_height() - self.timeline_height
+
+        # Draw marker
+        self.canvas.create_line(marker_x, timeline_y, marker_x, timeline_y + self.timeline_height,
+                              fill="red", width=2, tags="timeline_marker")
+
+    def add_point(self, x: int, y: int, action_type: str = 'move', key_info: Optional[str] = None):
+        """Add a point to the visualization with enhanced action types"""
         if not self.recording:
             return
 
         self.points.append((x, y))
-        self.actions.append({
+        action = {
             'type': action_type,
             'x': x,
             'y': y,
+            'key_info': key_info,
             'timestamp': time.time()
-        })
+        }
+        self.actions.append(action)
 
         if not self.headless:
-            # Draw the new point
+            # Draw the new point based on action type
             if len(self.points) > 1:
                 prev_x, prev_y = self.points[-2]
-                self.canvas.create_line(prev_x, prev_y, x, y,
-                                   fill=self.path_color,
-                                   width=self.path_width,
-                                   smooth=True)
+                if action_type == 'move':
+                    self.canvas.create_line(prev_x, prev_y, x, y,
+                                       fill=self.path_color,
+                                       width=self.path_width,
+                                       smooth=True)
 
             # Draw action indicators
             if action_type == 'click':
                 self._draw_click(x, y)
             elif action_type == 'scroll':
                 self._draw_scroll(x, y)
+            elif action_type in ['keydown', 'keyup']:
+                self._draw_key_event(x, y, key_info)
+            elif action_type == 'sound_trigger':
+                self._draw_sound_trigger(x, y)
+
+            # Update timeline
+            if self.actions:
+                start_time = self.actions[0]['timestamp']
+                current_time = action['timestamp']
+                self._draw_timeline_marker(current_time - start_time, 
+                                        max(action['timestamp'] for action in self.actions) - start_time)
 
             self.canvas.update()
+
+    def _draw_key_event(self, x: int, y: int, key_info: Optional[str]):
+        """Draw a keyboard event indicator"""
+        if self.headless:
+            return
+
+        r = self.point_radius
+        self.canvas.create_rectangle(x-r, y-r, x+r, y+r,
+                                fill=self.key_color,
+                                outline=self.key_color)
+        if key_info:
+            self.canvas.create_text(x, y-r-5, text=key_info,
+                               fill=self.key_color,
+                               font=('TkDefaultFont', 8))
+
+    def _draw_sound_trigger(self, x: int, y: int):
+        """Draw a sound trigger indicator"""
+        if self.headless:
+            return
+
+        r = self.point_radius * 1.5
+        points = [
+            (x, y-r),  # top
+            (x+r, y),  # right
+            (x, y+r),  # bottom
+            (x-r, y)   # left
+        ]
+        self.canvas.create_polygon(points,
+                              fill=self.sound_color,
+                              outline=self.sound_color)
 
     def _draw_click(self, x: int, y: int):
         """Draw a click indicator"""
@@ -166,7 +254,7 @@ class MacroVisualizer:
                 if not self.playback_running:
                     break
 
-                self.add_point(action['x'], action['y'], action['type'])
+                self.add_point(action['x'], action['y'], action['type'], action.get('key_info'))
 
                 if i < len(self.actions) - 1:
                     delay = (self.actions[i+1]['timestamp'] - action['timestamp']) / self.playback_speed
@@ -202,7 +290,7 @@ class MacroVisualizer:
 
             self.clear()
             for action in actions:
-                self.add_point(action['x'], action['y'], action['type'], action['timestamp'])
+                self.add_point(action['x'], action['y'], action['type'], action.get('key_info'))
 
             self.logger.info(f"Loaded visualization from {filepath}")
             return True
