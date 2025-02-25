@@ -63,7 +63,7 @@ class TestingUI:
         self.sound_manager = None
 
         try:
-            # Ensure directories exist
+            # Create required directories
             self.macro_dir = Path('macros')
             self.macro_dir.mkdir(exist_ok=True)
             self.logger.info(f"Created macros directory at {self.macro_dir}")
@@ -71,6 +71,13 @@ class TestingUI:
             self.screenshots_dir = Path('debug_screenshots')
             self.screenshots_dir.mkdir(exist_ok=True)
             self.logger.info(f"Created screenshots directory at {self.screenshots_dir}")
+
+            # Ensure hotkeys file exists
+            self.hotkeys_file = Path('macro_hotkeys.json')
+            if not self.hotkeys_file.exists():
+                with open(self.hotkeys_file, 'w') as f:
+                    json.dump({}, f, indent=2)
+                self.logger.info(f"Created hotkeys file at {self.hotkeys_file}")
 
             # Initialize sound macro manager
             self.sound_manager = SoundMacroManager(test_mode=True)
@@ -103,15 +110,6 @@ class TestingUI:
             self.logger.error(traceback.format_exc())
             return False, "", str(e)
 
-    def cleanup(self):
-        """Cleanup resources"""
-        try:
-            if self.sound_manager:
-                self.sound_manager.stop_monitoring()
-            self.logger.info("Resources cleaned up successfully")
-        except Exception as e:
-            self.logger.error(f"Error during cleanup: {e}")
-
     def _create_test_macro(self):
         """Create a test macro file if it doesn't exist"""
         test_macro_path = self.macro_dir / 'test_macro.json'
@@ -125,6 +123,15 @@ class TestingUI:
                 json.dump(test_macro, f, indent=2)
             self.logger.info(f"Created test macro at {test_macro_path}")
 
+    def cleanup(self):
+        """Cleanup resources"""
+        try:
+            if self.sound_manager:
+                self.sound_manager.stop_monitoring()
+            self.logger.info("Resources cleaned up successfully")
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+
 @app.route('/')
 def index():
     """Flask route for web interface"""
@@ -135,10 +142,18 @@ def index():
         logger.error(traceback.format_exc())
         return f"Error: {str(e)}", 500
 
+@app.route('/screenshots/<path:filename>')
+def serve_screenshot(filename):
+    """Serve screenshot files"""
+    try:
+        return send_file(str(testing_ui.screenshots_dir / filename))
+    except Exception as e:
+        logger.error(f"Error serving screenshot: {e}")
+        return f"Error: {str(e)}", 500
+
 @sock.route('/ws')
 def websocket(ws):
     """WebSocket endpoint"""
-    global testing_ui
     try:
         if not testing_ui or not testing_ui.initialized:
             ws.send(json.dumps({
@@ -174,26 +189,13 @@ def websocket(ws):
                     handle_assign_hotkey(ws, data)
                 elif data['type'] == 'clear_hotkey':
                     handle_clear_hotkey(ws, data)
-                elif data['type'] == 'start_macro_recording':
-                    handle_start_macro_recording(ws, data)
-                elif data['type'] == 'stop_macro_recording':
-                    handle_stop_macro_recording(ws)
-                elif data['type'] == 'start_sound_recording':
-                    handle_start_sound_recording(ws, data)
-                elif data['type'] == 'stop_sound_recording':
-                    handle_stop_sound_recording(ws)
 
             except json.JSONDecodeError:
                 logger.error("Invalid JSON received")
-                try:
-                    ws.send(json.dumps({
-                        'type': 'error',
-                        'message': 'Invalid message format'
-                    }))
-                except Exception:
-                    logger.error("Failed to send error response")
-                    break
-
+                ws.send(json.dumps({
+                    'type': 'error',
+                    'message': 'Invalid message format'
+                }))
             except Exception as e:
                 logger.error(f"Error processing WebSocket message: {e}")
                 logger.error(traceback.format_exc())
@@ -239,18 +241,6 @@ def handle_assign_hotkey(ws, data):
         return
 
     try:
-        # Create macro file if it doesn't exist
-        macro_path = testing_ui.macro_dir / f"{macro_name}.json"
-        if not macro_path.exists():
-            macro_data = {
-                "name": macro_name,
-                "hotkey": None,
-                "actions": []
-            }
-            with open(macro_path, 'w') as f:
-                json.dump(macro_data, f, indent=2)
-            testing_ui.logger.info(f"Created new macro file: {macro_path}")
-
         success = testing_ui.sound_manager.assign_hotkey(macro_name, hotkey)
         if success:
             ws.send(json.dumps({
@@ -290,7 +280,8 @@ def handle_clear_hotkey(ws, data):
         return
 
     try:
-        if testing_ui.sound_manager.remove_hotkey(macro_name):
+        success = testing_ui.sound_manager.remove_hotkey(macro_name)
+        if success:
             ws.send(json.dumps({
                 'type': 'log',
                 'level': 'info',
@@ -309,103 +300,11 @@ def handle_clear_hotkey(ws, data):
                 'message': 'No hotkey assigned to clear'
             }))
     except Exception as e:
-        logger.error(f"Error clearing hotkey: {e}")
+        testing_ui.logger.error(f"Error clearing hotkey: {e}")
         ws.send(json.dumps({
             'type': 'error',
             'message': f'Error clearing hotkey: {str(e)}'
         }))
-
-def handle_start_macro_recording(ws, data):
-    """Handle start macro recording command"""
-    macro_name = data.get('macro_name', '')
-    if not macro_name:
-        ws.send(json.dumps({
-            'type': 'error',
-            'message': 'Please enter a macro name'
-        }))
-        return
-
-    if testing_ui.sound_manager.record_macro(macro_name):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Started recording macro: {macro_name}'
-        }))
-
-def handle_stop_macro_recording(ws):
-    """Handle stop macro recording command"""
-    if testing_ui.sound_manager.stop_macro_recording():
-        ws.send(json.dumps({
-            'type': 'recording_complete',
-            'recording_type': 'macro'
-        }))
-
-def handle_start_sound_recording(ws, data):
-    """Handle start sound recording command"""
-    sound_name = data.get('sound_name', '')
-    if not sound_name:
-        ws.send(json.dumps({
-            'type': 'error',
-            'message': 'Please enter a sound trigger name'
-        }))
-        return
-
-    if testing_ui.sound_manager.record_sound_trigger(sound_name):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Recording started: {sound_name}'
-        }))
-
-def handle_stop_sound_recording(ws):
-    """Handle stop sound recording command"""
-    if testing_ui.sound_manager.stop_recording():
-        ws.send(json.dumps({
-            'type': 'recording_complete',
-            'recording_type': 'sound'
-        }))
-
-@app.route('/screenshots/<path:filename>')
-def serve_screenshot(filename):
-    """Serve screenshot files"""
-    global testing_ui
-    try:
-        return send_file(str(testing_ui.screenshots_dir / filename))
-    except Exception as e:
-        logger.error(f"Error serving screenshot: {e}")
-        return f"Error: {str(e)}", 500
-
-@app.route('/macros')
-def get_macros():
-    """API endpoint for getting available macros"""
-    global testing_ui
-    try:
-        if not testing_ui or not testing_ui.initialized:
-            return jsonify({'error': 'Server not initialized', 'macros': []}), 500
-
-        macro_files = [f.stem for f in testing_ui.macro_dir.glob('*.json')]
-        testing_ui.logger.info(f"Found {len(macro_files)} macros: {macro_files}")
-
-        response = jsonify({'macros': macro_files})
-        response.headers['Content-Type'] = 'application/json'
-        response.headers['Cache-Control'] = 'no-store'
-        return response
-
-    except Exception as e:
-        logger.error(f"Error loading macros: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({'error': str(e), 'macros': []}), 500
-
-def cleanup_resources():
-    """Cleanup resources"""
-    global testing_ui
-    try:
-        if testing_ui:
-            if testing_ui.sound_manager:
-                testing_ui.sound_manager.stop_monitoring()
-            logger.info("Resources cleaned up successfully")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
 
 def run():
     """Start the server"""
@@ -435,6 +334,17 @@ def run():
         logger.error(traceback.format_exc())
         cleanup_resources()
         raise
+
+def cleanup_resources():
+    """Cleanup resources"""
+    global testing_ui
+    try:
+        if testing_ui:
+            if testing_ui.sound_manager:
+                testing_ui.sound_manager.stop_monitoring()
+            logger.info("Resources cleaned up successfully")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
 
 if __name__ == "__main__":
     run()

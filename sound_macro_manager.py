@@ -4,8 +4,6 @@ import json
 import time
 from pathlib import Path
 from typing import Dict, Optional, Callable
-from test_macro import MacroTester
-from sound_trigger import SoundTrigger
 
 class SoundMacroManager:
     def __init__(self, test_mode: bool = False, headless: bool = False):
@@ -13,41 +11,30 @@ class SoundMacroManager:
         self.test_mode = test_mode
         self.headless = headless
 
-        # Initialize components
-        self.macro_tester = MacroTester(test_mode=test_mode, headless=headless)
-        self.sound_trigger = SoundTrigger(test_mode=test_mode)
-
         # Create macros directory if it doesn't exist
         self.macros_dir = Path('macros')
         self.macros_dir.mkdir(exist_ok=True)
         self.logger.info(f"Using macros directory: {self.macros_dir}")
 
-        # Load existing mappings
-        self.mappings_file = Path('sound_macro_mappings.json')
+        # Load existing hotkeys
         self.hotkeys_file = Path('macro_hotkeys.json')
-        self.mappings: Dict[str, str] = {}
         self.hotkeys: Dict[str, str] = {}  # macro_name -> hotkey
-        self._load_mappings()
         self._load_hotkeys()
-
-        # Recording state
-        self.is_recording = False
-        self.last_recorded_sound = None
-        self.current_recording_name = None
 
         self.logger.info("Sound macro manager initialized")
 
     def _load_hotkeys(self):
         """Load macro to hotkey mappings"""
-        if self.hotkeys_file.exists():
-            try:
+        try:
+            if self.hotkeys_file.exists():
                 with open(self.hotkeys_file, 'r') as f:
                     self.hotkeys = json.load(f)
                 self.logger.info(f"Loaded {len(self.hotkeys)} macro hotkey mappings")
-            except Exception as e:
-                self.logger.error(f"Error loading hotkey mappings: {e}")
+            else:
                 self.hotkeys = {}
-        else:
+                self._save_hotkeys()
+        except Exception as e:
+            self.logger.error(f"Error loading hotkey mappings: {e}")
             self.hotkeys = {}
             self._save_hotkeys()
 
@@ -57,8 +44,10 @@ class SoundMacroManager:
             with open(self.hotkeys_file, 'w') as f:
                 json.dump(self.hotkeys, f, indent=2)
             self.logger.info(f"Saved {len(self.hotkeys)} macro hotkey mappings")
+            return True
         except Exception as e:
             self.logger.error(f"Error saving hotkey mappings: {e}")
+            return False
 
     def assign_hotkey(self, macro_name: str, hotkey: str) -> bool:
         """Assign a hotkey to trigger a specific macro"""
@@ -80,7 +69,7 @@ class SoundMacroManager:
                 return False
 
             # Remove this hotkey if it was assigned to another macro
-            for existing_macro, existing_hotkey in self.hotkeys.items():
+            for existing_macro, existing_hotkey in list(self.hotkeys.items()):
                 if existing_hotkey == hotkey and existing_macro != macro_name:
                     self.logger.info(f"Removing hotkey '{hotkey}' from macro '{existing_macro}'")
                     del self.hotkeys[existing_macro]
@@ -106,12 +95,32 @@ class SoundMacroManager:
 
     def remove_hotkey(self, macro_name: str) -> bool:
         """Remove a hotkey assignment from a macro"""
-        if macro_name in self.hotkeys:
+        try:
+            if macro_name not in self.hotkeys:
+                return False
+
+            # Remove hotkey from mapping
             del self.hotkeys[macro_name]
             self._save_hotkeys()
+
+            # Update macro file
+            macro_file = self.macros_dir / f"{macro_name}.json"
+            if macro_file.exists():
+                try:
+                    with open(macro_file, 'r') as f:
+                        macro_data = json.load(f)
+                    macro_data['hotkey'] = None
+                    with open(macro_file, 'w') as f:
+                        json.dump(macro_data, f, indent=2)
+                except Exception as e:
+                    self.logger.error(f"Error updating macro file: {e}")
+                    return False
+
             self.logger.info(f"Removed hotkey for macro: {macro_name}")
             return True
-        return False
+        except Exception as e:
+            self.logger.error(f"Error removing hotkey: {e}")
+            return False
 
     def get_macro_hotkey(self, macro_name: str) -> Optional[str]:
         """Get the hotkey assigned to a macro"""
