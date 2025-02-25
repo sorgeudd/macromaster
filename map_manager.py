@@ -25,25 +25,25 @@ class MapManager:
         self.last_known_position: Optional[PlayerPosition] = None
         self.minimap_size: Tuple[int, int] = (0, 0)  # Will be set when processing minimap
 
-        # Refined arrow detection parameters for better accuracy
-        self.arrow_color_lower = np.array([90, 120, 160])  # Slightly more permissive color range
-        self.arrow_color_upper = np.array([140, 255, 255])
-        self.min_arrow_area = 120  # Adjusted for better detection
-        self.max_arrow_area = 600  # Reduced to avoid false positives
+        # Refined arrow detection parameters for optimal accuracy
+        self.arrow_color_lower = np.array([145, 255, 255])  # Broader range for better detection
+        self.arrow_color_upper = np.array([145, 255, 255])
+        self.min_arrow_area = 90  # More permissive for varied sizes
+        self.max_arrow_area = 450  # Balanced maximum area
 
-        # Adjusted arrow shape validation parameters
-        self.min_arrow_aspect_ratio = 0.5  # More strict ratio
-        self.max_arrow_aspect_ratio = 2.0
-        self.min_arrow_solidity = 0.7  # Increased for better arrow shape detection
-        self.max_circularity = 0.7 # Added parameter
+        # Fine-tuned shape validation parameters
+        self.min_arrow_aspect_ratio = 0.45  # More permissive for varied shapes
+        self.max_arrow_aspect_ratio = 1.8   # Tighter maximum to avoid false detections
+        self.min_arrow_solidity = 0.75      # Balanced solidity threshold
+        self.max_circularity = 0.65         # Tuned to better exclude non-arrow shapes
 
-        # Morphological operation parameters
-        self.morph_kernel_size = 2  # Reduced kernel size for finer detail
-        self.morph_iterations = 1  # Single iteration to preserve shape better
+        # Optimized morphological operation parameters
+        self.morph_kernel_size = 2  # Smaller kernel for detail preservation
+        self.morph_iterations = 1   # Single iteration to maintain shape
 
-        # Direction detection improvements
-        self.tip_weight = 0.9  # Increased weight for tip direction
-        self.rect_weight = 0.1  # Decreased weight for rectangle direction
+        # Enhanced direction detection weights
+        self.tip_weight = 0.90      # High weight on tip direction
+        self.rect_weight = 0.10     # Low rectangle weight to reduce noise
 
         # Minimap to world scale factors
         self.scale_x: float = 1.0
@@ -146,23 +146,28 @@ class MapManager:
             hsv = cv2.cvtColor(minimap_image, cv2.COLOR_BGR2HSV)
             arrow_mask = cv2.inRange(hsv, self.arrow_color_lower, self.arrow_color_upper)
 
-            # Enhanced mask cleanup with multiple iterations
+            # Enhanced mask cleanup with noise reduction
             kernel = np.ones((self.morph_kernel_size, self.morph_kernel_size), np.uint8)
             for _ in range(self.morph_iterations):
                 arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_OPEN, kernel)
                 arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_CLOSE, kernel)
 
-            # Find and filter contours
+            # Find and filter contours with improved scoring
             contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            # Enhanced contour filtering
+            if not contours:
+                return None
+
+            # Enhanced contour filtering with multi-factor scoring
             valid_contours = []
+            contour_scores = []
+
             for cnt in contours:
                 area = cv2.contourArea(cnt)
                 if area < self.min_arrow_area or area > self.max_arrow_area:
                     continue
 
-                # Improved arrow shape validation
+                # Get basic shape metrics
                 rect = cv2.minAreaRect(cnt)
                 width, height = rect[1]
                 if width == 0 or height == 0:
@@ -172,7 +177,6 @@ class MapManager:
                 if aspect_ratio < self.min_arrow_aspect_ratio or aspect_ratio > self.max_arrow_aspect_ratio:
                     continue
 
-                # Enhanced convexity check
                 hull = cv2.convexHull(cnt)
                 hull_area = cv2.contourArea(hull)
                 if hull_area == 0:
@@ -182,24 +186,47 @@ class MapManager:
                 if solidity < self.min_arrow_solidity:
                     continue
 
-                # Additional shape analysis
                 perimeter = cv2.arcLength(cnt, True)
                 if perimeter == 0:
                     continue
 
                 circularity = 4 * np.pi * area / (perimeter * perimeter)
-                if circularity > self.max_circularity:  # Skip too circular shapes
+                if circularity > self.max_circularity:
                     continue
 
+                # Advanced shape scoring
+                target_area = (self.min_arrow_area + self.max_arrow_area) / 2
+                area_score = 1 - abs(area - target_area) / target_area
+
+                ideal_aspect = 1.2  # Slightly elongated arrow shape
+                aspect_score = 1 - abs(aspect_ratio - ideal_aspect) / ideal_aspect
+
+                # Convexity score (penalize non-convex shapes)
+                convexity = cv2.isContourConvex(cnt)
+                convexity_score = 0.8 if convexity else 0.3
+
+                # Combined shape score with weighted components
+                shape_score = (
+                    solidity * 0.35 +           # Solid fill
+                    aspect_score * 0.25 +       # Good proportions
+                    (1 - circularity) * 0.2 +   # Non-circular
+                    convexity_score * 0.2       # Arrow-like shape
+                )
+
+                # Final score combining shape and area metrics
+                total_score = shape_score * 0.7 + area_score * 0.3
+
                 valid_contours.append(cnt)
+                contour_scores.append(total_score)
 
             if not valid_contours:
                 return None
 
-            # Find best arrow contour (largest valid contour)
-            arrow_contour = max(valid_contours, key=cv2.contourArea)
+            # Select best contour based on score
+            best_idx = np.argmax(contour_scores)
+            arrow_contour = valid_contours[best_idx]
 
-            # Get centroid with enhanced accuracy
+            # Calculate centroid
             M = cv2.moments(arrow_contour)
             if M["m00"] == 0:
                 return None
@@ -207,37 +234,37 @@ class MapManager:
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
 
-            # Improved angle calculation with weighted components
+            # Enhanced angle calculation with tip detection
             rect = cv2.minAreaRect(arrow_contour)
             rect_angle = rect[-1]
             if rect[1][0] < rect[1][1]:
                 rect_angle = 90 + rect_angle
-            else:
-                rect_angle = -rect_angle
-            rect_angle = rect_angle % 360
+            rect_angle = (-rect_angle) % 360
 
-            # Find tip point with improved accuracy
+            # Find tip points for better angle calculation
             hull = cv2.convexHull(arrow_contour)
             if len(hull) >= 3:
-                # Find the point furthest from centroid
-                max_dist = 0
-                tip_point = None
+                tip_candidates = []
                 for point in hull:
                     dist = np.sqrt((point[0][0] - cx)**2 + (point[0][1] - cy)**2)
-                    if dist > max_dist:
-                        max_dist = dist
-                        tip_point = point[0]
+                    tip_candidates.append((dist, point[0]))
 
-                if tip_point is not None:
-                    # Calculate tip angle with improved accuracy
-                    tip_angle = np.degrees(np.arctan2(tip_point[1] - cy, tip_point[0] - cx))
-                    tip_angle = (tip_angle + 90) % 360  # Adjust to match game coordinates
+                tip_candidates.sort(reverse=True)
+                top_points = tip_candidates[:3]
 
-                    # Weighted combination of tip and rectangle angles
-                    final_angle = (tip_angle * self.tip_weight +
-                                   rect_angle * self.rect_weight) % 360
-                else:
-                    final_angle = rect_angle
+                # Calculate weighted average angle from top points
+                angles = []
+                weights = [0.5, 0.3, 0.2]
+
+                for (_, point), weight in zip(top_points, weights):
+                    angle = np.degrees(np.arctan2(cy - point[1], point[0] - cx))
+                    angle = (90 - angle) % 360
+                    angles.append(angle * weight)
+
+                tip_angle = sum(angles)
+
+                # Combine tip and rectangle angles with adjusted weights
+                final_angle = (tip_angle * self.tip_weight + rect_angle * self.rect_weight) % 360
             else:
                 final_angle = rect_angle
 
@@ -245,21 +272,26 @@ class MapManager:
             position = PlayerPosition(cx, cy, final_angle)
             self.last_known_position = position
 
-            # Log detection results
-            world_pos = self.minimap_to_world_coords((cx, cy))
+            # Log detailed detection metrics
+            score = contour_scores[best_idx]
             self.logger.debug(
-                f"Detected player at world position ({world_pos[0]}, {world_pos[1]}) "
-                f"facing {final_angle:.1f}°\n"
-                f"Detection quality metrics:\n"
-                f"- Area: {cv2.contourArea(arrow_contour):.1f}\n"
-                f"- Solidity: {solidity:.2f}\n"
-                f"- Aspect ratio: {aspect_ratio:.2f}"
+                f"Arrow detection metrics:\n"
+                f"Position: ({cx}, {cy})\n"
+                f"Angle: {final_angle:.1f}°\n"
+                f"Area: {cv2.contourArea(arrow_contour):.1f}\n"
+                f"Aspect ratio: {aspect_ratio:.2f}\n"
+                f"Solidity: {solidity:.2f}\n"
+                f"Shape score: {shape_score:.2f}\n"
+                f"Area score: {area_score:.2f}\n"
+                f"Total score: {score:.2f}"
             )
 
             return position
 
         except Exception as e:
             self.logger.error(f"Error detecting player position: {str(e)}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
             return None
 
     def get_player_direction_vector(self) -> Optional[Tuple[float, float]]:

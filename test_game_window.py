@@ -132,7 +132,6 @@ def test_coordinate_translation():
                    f"passed ({viewport_success_rate:.1f}%)")
 
         return viewport_success_rate >= 80
-
     except Exception as e:
         logger.error(f"Test failed: {str(e)}")
         import traceback
@@ -193,7 +192,6 @@ def test_movement_integration():
             cv2.imwrite(f'integration_test_viewport_{offset_x}_{offset_y}.png', viz_image)
 
         return True
-
     except Exception as e:
         logger.error(f"Integration test failed: {str(e)}")
         import traceback
@@ -208,14 +206,21 @@ def test_viewport_configuration():
         # Configure with user's resolution
         game_window.configure_resolution(1280, 720, 1920, 1200)
 
-        # Test viewport offset bounds
+        # Test viewport offset bounds with edge cases
         test_offsets = [
-            (0, 0),       # Center
-            (100, 100),   # Positive offset
-            (-100, -100), # Negative offset
-            (2000, 2000), # Out of bounds (should be clamped)
+            (0, 0),           # Center
+            (100, 100),       # Positive offset
+            (-100, -100),     # Negative offset
+            (2000, 2000),     # Far out of bounds (should be clamped)
+            (1280, 720),      # Exactly window size
+            (-1280, -720),    # Negative window size
+            (1, 1),           # Minimal offset
+            (639, 359),       # Just below half
+            (640, 360),       # Exactly half
+            (641, 361),       # Just above half
         ]
 
+        passed_tests = 0
         for offset_x, offset_y in test_offsets:
             game_window.set_viewport_offset(offset_x, offset_y)
             logger.info(f"\nTesting viewport offset ({offset_x}, {offset_y}):")
@@ -226,11 +231,22 @@ def test_viewport_configuration():
             window_pos = game_window.translate_screen_to_window(test_pos)
             screen_pos = game_window.translate_window_to_screen(window_pos)
 
+            # Verify position remains within bounds
+            if (0 <= game_window.viewport_offset_x <= game_window.window_width and
+                0 <= game_window.viewport_offset_y <= game_window.window_height):
+                passed_tests += 1
+                logger.info("✓ Viewport bounds test passed")
+            else:
+                logger.error("✗ Viewport bounds test failed")
+
             # Create visualization
             viz = create_test_visualization(game_window, screen_pos)
             cv2.imwrite(f'viewport_test_{offset_x}_{offset_y}.png', viz)
 
-        return True
+        success_rate = (passed_tests / len(test_offsets)) * 100
+        logger.info(f"\nViewport Test Results: {passed_tests}/{len(test_offsets)} passed ({success_rate:.1f}%)")
+
+        return success_rate >= 90  # Require 90% success rate for stricter validation
 
     except Exception as e:
         logger.error(f"Viewport test failed: {str(e)}")
@@ -267,7 +283,6 @@ def test_view_size_update():
             cv2.imwrite(f'view_size_test_{view_width}_{view_height}.png', viz)
 
         return True
-
     except Exception as e:
         logger.error(f"View size test failed: {str(e)}")
         return False
@@ -335,7 +350,6 @@ def test_screen_metrics_update():
                    f"passed ({success_rate:.1f}%)")
 
         return success_rate >= 80
-
     except Exception as e:
         logger.error(f"Screen metrics test failed: {str(e)}")
         import traceback
