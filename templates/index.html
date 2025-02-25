@@ -105,6 +105,29 @@
             margin: 4px;
             font-size: 14px;
         }
+        button.screenshot {
+            background-color: #673AB7;
+        }
+        button.screenshot:hover:not(:disabled) {
+            background-color: #5E35B1;
+        }
+        .screenshot-flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+            animation: flash 0.5s ease-out;
+        }
+        @keyframes flash {
+            0% { opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { opacity: 0; }
+        }
     </style>
     <script src="/static/js/interface.js"></script>
 </head>
@@ -138,6 +161,7 @@
             <input type="text" id="hotkey-input" placeholder="Enter hotkey (e.g. ctrl+shift+a)">
             <button onclick="assignHotkey()" id="assign-hotkey-btn">Assign Hotkey</button>
             <button onclick="clearHotkey()" id="clear-hotkey-btn">Clear Hotkey</button>
+            <button onclick="takeScreenshot()" id="screenshot-btn" class="screenshot">📸 Take Screenshot</button>
         </div>
         <div class="control-group">
             <button onclick="startMacroRecording()" id="record-macro-btn">Record Macro</button>
@@ -169,5 +193,6 @@
             <!-- Logs will be added here -->
         </div>
     </div>
+    <div id="screenshot-flash" class="screenshot-flash"></div>
 </body>
 </html>

@@ -133,6 +133,9 @@ function handleWebSocketMessage(event) {
             case 'hotkey_updated':
                 updateHotkeyDisplay(data.macro_name, data.hotkey);
                 break;
+            case 'screenshot_taken':
+                addLog(`Screenshot saved: ${data.filename}`, 'info');
+                break;
         }
     } catch (error) {
         console.error("Error handling WebSocket message:", error);
@@ -187,7 +190,7 @@ function assignHotkey() {
         return;
     }
 
-    sendWebSocketMessage('assign_hotkey', { 
+    sendWebSocketMessage('assign_hotkey', {
         macro_name: macroName,
         hotkey: hotkey
     });
@@ -398,6 +401,25 @@ document.addEventListener("DOMContentLoaded", () => {
     updateStatus('sound', 'Ready');
 });
 
+// Add these functions to handle screenshots
+
+function takeScreenshot() {
+    const macroName = document.getElementById('macro-name').value.trim();
+    if (!macroName) {
+        addLog('Please enter a macro name before taking a screenshot', 'error');
+        return;
+    }
+
+    // Show flash effect
+    const flash = document.getElementById('screenshot-flash');
+    flash.style.animation = 'none';
+    flash.offsetHeight; // Trigger reflow
+    flash.style.animation = null;
+
+    sendWebSocketMessage('take_screenshot', { macro_name: macroName });
+}
+
+
 function setupEventListeners() {
     // Macro controls
     const recordMacroBtn = document.getElementById("record-macro-btn");
@@ -422,6 +444,9 @@ function setupEventListeners() {
     if (stopSoundBtn) stopSoundBtn.onclick = stopSoundRecording;
     if (playSoundBtn) playSoundBtn.onclick = playSound;
     if (monitoringBtn) monitoringBtn.onclick = toggleSoundMonitoring;
+
+    const screenshotBtn = document.getElementById("screenshot-btn");
+    if (screenshotBtn) screenshotBtn.onclick = takeScreenshot;
 }
 
 setupEventListeners();
