@@ -226,99 +226,110 @@ class MapManager:
                 self.logger.debug("No arrow contours found")
                 return None
 
-            # Find arrow-like shape with relaxed criteria
+            # Find arrow-like shape
             best_contour = None
             best_score = 0
+            best_tip = None
+            best_base_mid = None
 
             for cnt in contours:
+                # Filter by area
                 area = cv2.contourArea(cnt)
-                # Relaxed area constraints for test arrows
-                if area < 8 or area > 1000:  # Adjusted area range
+                if area < 10 or area > 100:  # Adjusted for test arrow size
                     continue
 
-                # Check shape properties
-                perimeter = cv2.arcLength(cnt, True)
+                # Get centroid
+                M = cv2.moments(cnt)
+                if M["m00"] == 0:
+                    continue
+
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+
+                # Find tip point (farthest from centroid)
                 hull = cv2.convexHull(cnt)
-                hull_area = cv2.contourArea(hull)
+                tip_point = None
+                max_dist = 0
+                other_points = []
 
-                if hull_area == 0:
+                for point in hull:
+                    px, py = point[0]
+                    dist = (px - cx) ** 2 + (py - cy) ** 2
+                    if dist > max_dist:
+                        max_dist = dist
+                        if tip_point is not None:
+                            other_points.append(tip_point)
+                        tip_point = point[0]
+                    else:
+                        other_points.append(point[0])
+
+                if len(other_points) < 2:
                     continue
 
-                solidity = area / hull_area
-                circularity = 4 * np.pi * area / (perimeter * perimeter)
+                # Find base points (two points furthest apart)
+                base_points = []
+                max_base_dist = 0
+                for i, p1 in enumerate(other_points):
+                    for p2 in other_points[i+1:]:
+                        dist = (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
+                        if dist > max_base_dist:
+                            max_base_dist = dist
+                            base_points = [p1, p2]
 
-                # Relaxed shape criteria
-                if 0.3 <= solidity <= 0.9 and circularity < 0.8:  # Relaxed thresholds
-                    rect = cv2.minAreaRect(cnt)
-                    width, height = rect[1]
-                    if width == 0 or height == 0:
-                        continue
+                if len(base_points) != 2:
+                    continue
 
-                    aspect_ratio = max(width, height) / min(width, height)
-                    if 1.2 <= aspect_ratio <= 5.0:  # Relaxed aspect ratio
-                        score = solidity * (1 - circularity) * min(aspect_ratio / 5.0, 1.0)
-                        if score > best_score:
-                            best_score = score
-                            best_contour = cnt
+                # Calculate base midpoint
+                base_mid = (
+                    (base_points[0][0] + base_points[1][0]) // 2,
+                    (base_points[0][1] + base_points[1][1]) // 2
+                )
+
+                # Calculate shape score
+                base_width = np.sqrt(max_base_dist)
+                tip_to_base = np.sqrt((tip_point[0] - base_mid[0])**2 + 
+                                    (tip_point[1] - base_mid[1])**2)
+
+                # Arrow should be roughly 2:1 height:width ratio
+                aspect_ratio = tip_to_base / (base_width + 1e-6)
+                shape_score = np.exp(-abs(aspect_ratio - 2.0))
+
+                if shape_score > best_score:
+                    best_score = shape_score
+                    best_contour = cnt
+                    best_tip = tip_point
+                    best_base_mid = base_mid
 
             if best_contour is None:
                 self.logger.debug("No suitable arrow shape found")
                 return None
 
-            # Find arrow direction using principal axis
-            M = cv2.moments(best_contour)
-            if M["m00"] == 0:
-                return None
+            # Calculate vector from base to tip
+            dx = best_tip[0] - best_base_mid[0]
+            dy = best_tip[1] - best_base_mid[1]  # y increases downward in image
 
-            cx = int(M["m10"] / M["m00"])
-            cy = int(M["m01"] / M["m00"])
-
-            # Calculate principal axis using covariance matrix
-            u20 = M["m20"] / M["m00"] - cx * cx
-            u02 = M["m02"] / M["m00"] - cy * cy
-            u11 = M["m11"] / M["m00"] - cx * cy
-
-            # Get angle of principal axis (pointing up is 0°, clockwise)
-            angle = 0.5 * np.arctan2(2 * u11, u20 - u02)
-
-            # Convert to game coordinate system (y axis inverted)
-            angle = -angle
-
-            # Find tip point (furthest point from centroid in principal direction)
-            tip_x = cx + np.cos(angle)
-            tip_y = cy - np.sin(angle)  # Negative since y increases downward
-            base_x = cx - np.cos(angle)
-            base_y = cy + np.sin(angle)
-
-            # Check which end is the tip by comparing distances to points
-            tip_dist = 0
-            base_dist = 0
-            for point in best_contour:
-                px, py = point[0]
-                dist_to_tip = (px - tip_x) * (px - tip_x) + (py - tip_y) * (py - tip_y)
-                dist_to_base = (px - base_x) * (px - base_x) + (py - base_y) * (py - base_y)
-                tip_dist = max(tip_dist, dist_to_tip)
-                base_dist = max(base_dist, dist_to_base)
-
-            # If base has more distant points, flip the angle
-            if base_dist > tip_dist:
-                angle += np.pi
-
-            # Convert to degrees and normalize to [0, 360)
-            # Adjust to game coordinate system where 0° is North and angles increase clockwise
-            angle_deg = (-np.degrees(angle) + 90) % 360
+            # Convert to game angle (0° is up, clockwise)
+            # 1. Swap dx and -dy since 0° is up and y is inverted
+            # 2. Convert to clockwise angle by negating the result
+            # 3. Normalize to [0, 360)
+            game_angle = (-np.degrees(np.arctan2(-dy, dx))) % 360
 
             # Save debug visualization
             debug_frame = minimap_image.copy()
             cv2.drawContours(debug_frame, [best_contour], -1, (0, 255, 0), 1)
-            cv2.circle(debug_frame, (cx, cy), 3, (0, 0, 255), -1)
-            tip_point = (int(cx + 20 * np.cos(angle)), int(cy - 20 * np.sin(angle)))
-            cv2.line(debug_frame, (cx, cy), tip_point, (255, 255, 0), 1)
+            cv2.circle(debug_frame, (int(best_base_mid[0]), int(best_base_mid[1])), 3, (0, 0, 255), -1)
+            cv2.circle(debug_frame, tuple(best_tip), 3, (255, 0, 0), -1)
+            cv2.line(debug_frame, (int(best_base_mid[0]), int(best_base_mid[1])), tuple(best_tip), (255, 255, 0), 1)
+
+            # Add angle info
+            text_pos = (10, debug_frame.shape[0] - 10)
+            cv2.putText(debug_frame, f"Angle: {game_angle:.1f}°", text_pos, 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
             cv2.imwrite('arrow_detection_debug.png', debug_frame)
 
-            position = PlayerPosition(cx, cy, angle_deg)
+            position = PlayerPosition(int(best_base_mid[0]), int(best_base_mid[1]), game_angle)
             self.last_known_position = position
-            self.logger.debug(f"Detected player at ({cx}, {cy}) facing {angle_deg:.1f}°")
+            self.logger.debug(f"Detected player at ({position.x}, {position.y}) facing {game_angle:.1f}°")
             return position
 
         except Exception as e:
