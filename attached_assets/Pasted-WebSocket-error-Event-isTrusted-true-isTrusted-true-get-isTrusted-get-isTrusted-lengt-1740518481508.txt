@@ -1,0 +1,78 @@
+WebSocket error: 
+Event {isTrusted: true}
+isTrusted: true
+get isTrusted: ƒ get isTrusted()
+length: 0
+name: "get isTrusted"
+[[Prototype]]: ƒ ()
+apply: ƒ apply()
+arguments: "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"
+get arguments: ƒ ()
+set arguments: ƒ ()
+bind: ƒ bind()
+call: ƒ call()
+caller: "'caller', 'callee', and 'arguments' properties may not be accessed on strict mode functions or the arguments objects for calls to them"
+get caller: ƒ ()
+set caller: ƒ ()
+constructor: ƒ Function()
+length: 0
+name: "get isTrusted"
+toString: ƒ toString()
+Symbol(Symbol.hasInstance): undefined
+[[Prototype]]: Object
+[[Prototype]]: Event
+AT_TARGET: 2
+BUBBLING_PHASE: 3
+CAPTURING_PHASE: 1
+NONE: 0
+bubbles: false
+get bubbles: ƒ get bubbles()
+cancelBubble: false
+get cancelBubble: ƒ get cancelBubble()
+set cancelBubble: ƒ set cancelBubble()
+cancelable: false
+get cancelable: ƒ get cancelable()
+composed: false
+get composed: ƒ get composed()
+composedPath: ƒ composedPath()
+currentTarget: WebSocket
+get currentTarget: ƒ get currentTarget()
+defaultPrevented: false
+get defaultPrevented: ƒ get defaultPrevented()
+eventPhase: 0
+get eventPhase: ƒ get eventPhase()
+initEvent: ƒ initEvent()
+preventDefault: ƒ preventDefault()
+returnValue: true
+get returnValue: ƒ get returnValue()
+set returnValue: ƒ set returnValue()
+srcElement: WebSocket
+get srcElement: ƒ get srcElement()
+stopImmediatePropagation: ƒ stopImmediatePropagation()
+stopPropagation: ƒ stopPropagation()
+target: WebSocket
+get target: ƒ get target()
+timeStamp: 508693.6999999881
+get timeStamp: ƒ get timeStamp()
+type: "error"
+get type: ƒ get type()
+constructor: ƒ Event()
+Symbol(Symbol.toStringTag): undefined
+[[Prototype]]: Object
+
+WebSocket connection closed 
+CloseEvent {isTrusted: true}
+Attempting to reconnect in 1000ms...
+WebSocket connection established
+Received message: 
+Object {type: "status_update", macro_status: "Ready", sound_status: "Ready"}
+Received message: 
+Object {type: "pong"}
+Received message: 
+Object {type: "log", level: "info", message: "Assigned hotkey alt to macro kenny"}
+Received message: 
+Object {type: "hotkey_updated", macro_name: "kenny", hotkey: "alt"}
+Received message: 
+Object {type: "pong"}
+Received message: 
+Object {type: "pong"}

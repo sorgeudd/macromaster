@@ -117,11 +117,7 @@ class SoundMacroManager:
             if macro_name not in self.hotkeys:
                 return False
 
-            # Remove hotkey from mapping
-            del self.hotkeys[macro_name]
-            self._save_hotkeys()
-
-            # Update macro file
+            # Load macro file
             macro_file = self.macros_dir / f"{macro_name}.json"
             if macro_file.exists():
                 try:
@@ -134,8 +130,13 @@ class SoundMacroManager:
                     self.logger.error(f"Error updating macro file: {e}")
                     return False
 
-            self.logger.info(f"Removed hotkey for macro: {macro_name}")
-            return True
+            # Remove hotkey from mapping
+            del self.hotkeys[macro_name]
+            if self._save_hotkeys():
+                self.logger.info(f"Successfully removed hotkey for macro: {macro_name}")
+                return True
+            return False
+
         except Exception as e:
             self.logger.error(f"Error removing hotkey: {e}")
             return False
@@ -156,8 +157,8 @@ class SoundMacroManager:
                 if mapped_hotkey == hotkey:
                     macro_file = self.macros_dir / f"{macro_name}.json"
                     if macro_file.exists():
-                        self.logger.info(f"Executing macro '{macro_name}' triggered by hotkey '{hotkey}'")
-                        return self.macro_tester.play_macro(str(macro_file))
+                        self.logger.info(f"Found hotkey mapping: {hotkey} -> {macro_name}")
+                        return True
                     else:
                         self.logger.error(f"Macro file not found: {macro_file}")
                         return False

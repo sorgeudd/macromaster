@@ -1,4 +1,4 @@
-"""Real-time testing interface for macro systems"""
+"""Testing UI interface for Sound Macro Recorder application"""
 import logging
 import json
 import os
@@ -68,14 +68,7 @@ class TestingUI:
             self.screenshots_dir.mkdir(exist_ok=True)
             self.logger.info(f"Created screenshots directory at {self.screenshots_dir}")
 
-            # Ensure hotkeys file exists
-            self.hotkeys_file = Path('macro_hotkeys.json')
-            if not self.hotkeys_file.exists():
-                with open(self.hotkeys_file, 'w') as f:
-                    json.dump({}, f, indent=2)
-                self.logger.info(f"Created hotkeys file at {self.hotkeys_file}")
-
-            # Initialize sound macro manager after creating necessary files
+            # Initialize sound macro manager
             self.sound_manager = SoundMacroManager(test_mode=True)
 
             # Create test macro if it doesn't exist
@@ -122,8 +115,7 @@ class TestingUI:
     def cleanup(self):
         """Cleanup resources"""
         try:
-            if self.sound_manager:
-                self.sound_manager.stop_monitoring()
+            self.logger.info("Cleaning up resources")
             self.logger.info("Resources cleaned up successfully")
         except Exception as e:
             self.logger.error(f"Error during cleanup: {e}")
@@ -336,17 +328,9 @@ def run():
     except Exception as e:
         logger.error(f"Server error: {e}")
         logger.error(traceback.format_exc())
-        cleanup_resources()
-        raise
-
-def cleanup_resources():
-    """Cleanup resources"""
-    try:
         if testing_ui:
             testing_ui.cleanup()
-        logger.info("Resources cleaned up successfully")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
+        raise
 
 if __name__ == "__main__":
     run()

@@ -10,6 +10,7 @@ let pingInterval = null;
 let lastPongTime = Date.now();
 let isRecordingHotkey = false;
 let currentHotkeyRecorder = null;
+let wsConnected = false;
 
 // Initialize WebSocket connection
 function initializeWebSocket() {
@@ -25,6 +26,7 @@ function initializeWebSocket() {
 
         ws.onopen = () => {
             console.log("WebSocket connection established");
+            wsConnected = true;
             reconnectAttempts = 0; // Reset reconnect attempts on successful connection
 
             // Start ping interval
@@ -39,6 +41,7 @@ function initializeWebSocket() {
 
         ws.onclose = (event) => {
             console.log("WebSocket connection closed", event);
+            wsConnected = false;
             updateStatus('system', 'Disconnected', false);
             clearInterval(pingInterval);
 
@@ -71,32 +74,37 @@ function initializeWebSocket() {
 
         ws.onerror = (error) => {
             console.error("WebSocket error:", error);
+            wsConnected = false;
             updateStatus('system', 'Error', false);
         };
 
         ws.onmessage = handleWebSocketMessage;
     } catch (error) {
         console.error("Error initializing WebSocket:", error);
+        wsConnected = false;
         updateStatus('system', 'Error', false);
         addLog("Failed to initialize WebSocket connection", "error");
     }
 }
 
 function sendPing() {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        const timeSinceLastPong = Date.now() - lastPongTime;
-        if (timeSinceLastPong > 60000) { // No pong for 60 seconds
-            console.log("No pong received for 60 seconds, reconnecting...");
-            if (ws) {
-                ws.close();
-            }
-            return;
+    if (!wsConnected || !ws || ws.readyState !== WebSocket.OPEN) {
+        return;
+    }
+
+    const timeSinceLastPong = Date.now() - lastPongTime;
+    if (timeSinceLastPong > 60000) { // No pong for 60 seconds
+        console.log("No pong received for 60 seconds, reconnecting...");
+        if (ws) {
+            ws.close();
         }
-        try {
-            sendWebSocketMessage('ping');
-        } catch (error) {
-            console.error("Error sending ping:", error);
-        }
+        return;
+    }
+
+    try {
+        sendWebSocketMessage('ping');
+    } catch (error) {
+        console.error("Error sending ping:", error);
     }
 }
 
@@ -118,12 +126,13 @@ function handleWebSocketMessage(event) {
                 break;
             case 'error':
                 addLog(data.message, 'error');
+                // If in hotkey recording state, stop it on error
+                if (isRecordingHotkey && currentHotkeyRecorder) {
+                    currentHotkeyRecorder.stop();
+                }
                 break;
-            case 'macros_updated':
-                updateMacroList(data.macros);
-                break;
-            case 'sounds_updated':
-                updateSoundList(data.sounds);
+            case 'hotkey_updated':
+                updateHotkeyDisplay(data.macro_name, data.hotkey);
                 break;
             case 'recording_complete':
                 if (data.recording_type === 'macro') {
@@ -131,9 +140,6 @@ function handleWebSocketMessage(event) {
                 } else if (data.recording_type === 'sound') {
                     handleSoundRecordingComplete();
                 }
-                break;
-            case 'hotkey_updated':
-                updateHotkeyDisplay(data.macro_name, data.hotkey);
                 break;
             case 'screenshot_taken':
                 addLog(`Screenshot saved: ${data.filename}`, 'info');
@@ -146,7 +152,7 @@ function handleWebSocketMessage(event) {
 }
 
 function sendWebSocketMessage(type, data = {}) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
+    if (!wsConnected || !ws || ws.readyState !== WebSocket.OPEN) {
         addLog("Connection lost. Attempting to reconnect...", "error");
         initializeWebSocket();
         return false;
@@ -183,6 +189,11 @@ function startHotkeyRecording() {
     const macroName = document.getElementById('macro-name').value.trim();
     if (!macroName) {
         addLog('Please enter a macro name first', 'error');
+        return;
+    }
+
+    if (!wsConnected) {
+        addLog('WebSocket connection is not ready', 'error');
         return;
     }
 
@@ -275,6 +286,21 @@ function assignHotkey() {
     });
 }
 
+function clearHotkey() {
+    const macroName = document.getElementById('macro-name').value.trim();
+    if (!macroName) {
+        addLog('Please enter a macro name', 'error');
+        return;
+    }
+
+    if (!wsConnected) {
+        addLog('WebSocket connection is not ready', 'error');
+        return;
+    }
+
+    sendWebSocketMessage('clear_hotkey', { macro_name: macroName });
+}
+
 function updateHotkeyDisplay(macroName, hotkey) {
     const hotkeyDisplay = document.getElementById('hotkey-display');
     if (hotkeyDisplay) {
@@ -285,6 +311,67 @@ function updateHotkeyDisplay(macroName, hotkey) {
     if (hotkeyInput) {
         hotkeyInput.value = hotkey || '';
     }
+}
+
+// Screenshot handling
+function takeScreenshot() {
+    const macroName = document.getElementById('macro-name').value.trim();
+    if (!macroName) {
+        addLog('Please enter a macro name before taking a screenshot', 'error');
+        return;
+    }
+
+    if (!wsConnected) {
+        addLog('WebSocket connection is not ready', 'error');
+        return;
+    }
+
+    // Show flash effect
+    const flash = document.getElementById('screenshot-flash');
+    flash.style.animation = 'none';
+    flash.offsetHeight; // Trigger reflow
+    flash.style.animation = null;
+
+    sendWebSocketMessage('take_screenshot', { macro_name: macroName });
+}
+
+function setupEventListeners() {
+    // Macro controls
+    const recordMacroBtn = document.getElementById("record-macro-btn");
+    const stopMacroBtn = document.getElementById("stop-macro-btn");
+    const playMacroBtn = document.getElementById("play-macro-btn");
+    const assignHotkeyBtn = document.getElementById("assign-hotkey-btn");
+    const clearHotkeyBtn = document.getElementById("clear-hotkey-btn");
+
+    if (recordMacroBtn) recordMacroBtn.onclick = startMacroRecording;
+    if (stopMacroBtn) stopMacroBtn.onclick = stopMacroRecording;
+    if (playMacroBtn) playMacroBtn.onclick = playMacro;
+    if (assignHotkeyBtn) {
+        assignHotkeyBtn.onclick = function() {
+            if (isRecordingHotkey) {
+                if (currentHotkeyRecorder) {
+                    currentHotkeyRecorder.stop();
+                }
+            } else {
+                startHotkeyRecording();
+            }
+        };
+    }
+    if (clearHotkeyBtn) clearHotkeyBtn.onclick = clearHotkey;
+
+    // Sound controls
+    const recordSoundBtn = document.getElementById("record-sound-btn");
+    const stopSoundBtn = document.getElementById("stop-sound-btn");
+    const playSoundBtn = document.getElementById("play-sound-btn");
+    const monitoringBtn = document.getElementById("monitor-btn");
+
+    if (recordSoundBtn) recordSoundBtn.onclick = startSoundRecording;
+    if (stopSoundBtn) stopSoundBtn.onclick = stopSoundRecording;
+    if (playSoundBtn) playSoundBtn.onclick = playSound;
+    if (monitoringBtn) monitoringBtn.onclick = toggleSoundMonitoring;
+
+    const screenshotBtn = document.getElementById("screenshot-btn");
+    if (screenshotBtn) screenshotBtn.onclick = takeScreenshot;
 }
 
 // Macro Recording Functions
@@ -473,73 +560,7 @@ document.addEventListener("DOMContentLoaded", () => {
     updateStatus('system', 'Initializing');
     updateStatus('macro', 'Ready');
     updateStatus('sound', 'Ready');
+
+    // Setup event listeners
+    setupEventListeners();
 });
-
-// Add these functions to handle screenshots
-
-function takeScreenshot() {
-    const macroName = document.getElementById('macro-name').value.trim();
-    if (!macroName) {
-        addLog('Please enter a macro name before taking a screenshot', 'error');
-        return;
-    }
-
-    // Show flash effect
-    const flash = document.getElementById('screenshot-flash');
-    flash.style.animation = 'none';
-    flash.offsetHeight; // Trigger reflow
-    flash.style.animation = null;
-
-    sendWebSocketMessage('take_screenshot', { macro_name: macroName });
-}
-
-function clearHotkey() {
-    const macroName = document.getElementById('macro-name').value.trim();
-    if (!macroName) {
-        addLog('Please enter a macro name', 'error');
-        return;
-    }
-
-    sendWebSocketMessage('clear_hotkey', { macro_name: macroName });
-}
-
-function setupEventListeners() {
-    // Macro controls
-    const recordMacroBtn = document.getElementById("record-macro-btn");
-    const stopMacroBtn = document.getElementById("stop-macro-btn");
-    const playMacroBtn = document.getElementById("play-macro-btn");
-    const assignHotkeyBtn = document.getElementById("assign-hotkey-btn");
-    const clearHotkeyBtn = document.getElementById("clear-hotkey-btn");
-
-    if (recordMacroBtn) recordMacroBtn.onclick = startMacroRecording;
-    if (stopMacroBtn) stopMacroBtn.onclick = stopMacroRecording;
-    if (playMacroBtn) playMacroBtn.onclick = playMacro;
-    if (assignHotkeyBtn) {
-        assignHotkeyBtn.onclick = function() {
-            if (isRecordingHotkey) {
-                if (currentHotkeyRecorder) {
-                    currentHotkeyRecorder.stop();
-                }
-            } else {
-                startHotkeyRecording();
-            }
-        };
-    }
-    if (clearHotkeyBtn) clearHotkeyBtn.onclick = clearHotkey;
-
-    // Sound controls
-    const recordSoundBtn = document.getElementById("record-sound-btn");
-    const stopSoundBtn = document.getElementById("stop-sound-btn");
-    const playSoundBtn = document.getElementById("play-sound-btn");
-    const monitoringBtn = document.getElementById("monitor-btn");
-
-    if (recordSoundBtn) recordSoundBtn.onclick = startSoundRecording;
-    if (stopSoundBtn) stopSoundBtn.onclick = stopSoundRecording;
-    if (playSoundBtn) playSoundBtn.onclick = playSound;
-    if (monitoringBtn) monitoringBtn.onclick = toggleSoundMonitoring;
-
-    const screenshotBtn = document.getElementById("screenshot-btn");
-    if (screenshotBtn) screenshotBtn.onclick = takeScreenshot;
-}
-
-setupEventListeners();
