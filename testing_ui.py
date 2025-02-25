@@ -117,8 +117,8 @@ def get_macros():
         testing_ui.logger.error(f"Error loading macros: {str(e)}")
         return jsonify({'error': str(e), 'macros': []}), 500
 
-@sock.route('/updates')
-def updates(ws):
+@sock.route('/ws')  # Changed from '/updates' to '/ws' to match client
+def websocket(ws):
     """WebSocket endpoint for real-time updates and commands"""
     global testing_ui
     while True:
@@ -127,15 +127,16 @@ def updates(ws):
             data = json.loads(message)
             testing_ui.logger.info(f"Received command: {data['type']}")
 
+            # Handle the different message types
             if data['type'] == 'start_sound_recording':
                 sound_name = data.get('sound_name', '')
                 if not sound_name:
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': 'Please enter a sound trigger name'
+                        'message': 'Please enter a sound trigger name'
                     }))
-                    return
+                    continue
 
                 try:
                     if testing_ui.sound_manager.record_sound_trigger(sound_name, duration=2.0, save=False):
@@ -143,20 +144,20 @@ def updates(ws):
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'info',
-                            'data': f'Recording started: {sound_name}'
+                            'message': f'Recording started: {sound_name}'
                         }))
                     else:
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'error',
-                            'data': f'Failed to start recording'
+                            'message': f'Failed to start recording'
                         }))
                 except Exception as e:
                     testing_ui.logger.error(f"Error recording sound: {str(e)}")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': f'Error recording sound: {str(e)}'
+                        'message': f'Error recording sound: {str(e)}'
                     }))
 
             elif data['type'] == 'stop_sound_recording':
@@ -170,29 +171,28 @@ def updates(ws):
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'info',
-                            'data': 'Recording stopped successfully'
+                            'message': 'Recording stopped successfully'
                         }))
                     else:
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'error',
-                            'data': 'Failed to stop recording'
+                            'message': 'Failed to stop recording'
                         }))
                 except Exception as e:
                     testing_ui.logger.error(f"Error stopping recording: {str(e)}")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': f'Error stopping recording: {str(e)}'
+                        'message': f'Error stopping recording: {str(e)}'
                     }))
-
             elif data['type'] == 'save_sound_recording':
                 sound_name = data.get('sound_name', '')
                 if not sound_name:
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': 'Please provide a sound name'
+                        'message': 'Please provide a sound name'
                     }))
                     return
 
@@ -202,7 +202,7 @@ def updates(ws):
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'info',
-                            'data': f'Sound saved successfully'
+                            'message': f'Sound saved successfully'
                         }))
                         # Refresh sound list
                         sounds = testing_ui.sound_manager.sound_trigger.get_trigger_names()
@@ -214,14 +214,14 @@ def updates(ws):
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'error',
-                            'data': f'Failed to save sound'
+                            'message': f'Failed to save sound'
                         }))
                 except Exception as e:
                     testing_ui.logger.error(f"Error saving sound: {str(e)}")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': f'Error saving sound: {str(e)}'
+                        'message': f'Error saving sound: {str(e)}'
                     }))
 
             elif data['type'] == 'start_macro_recording':
@@ -230,7 +230,7 @@ def updates(ws):
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': 'Please provide a macro name'
+                        'message': 'Please provide a macro name'
                     }))
                     return
 
@@ -240,20 +240,20 @@ def updates(ws):
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'info',
-                            'data': f'Started recording macro: {macro_name}'
+                            'message': f'Started recording macro: {macro_name}'
                         }))
                     else:
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'error',
-                            'data': 'Failed to start macro recording'
+                            'message': 'Failed to start macro recording'
                         }))
                 except Exception as e:
                     testing_ui.logger.error(f"Error starting macro recording: {str(e)}")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': f'Error starting macro recording: {str(e)}'
+                        'message': f'Error starting macro recording: {str(e)}'
                     }))
 
             elif data['type'] == 'stop_macro_recording':
@@ -267,20 +267,20 @@ def updates(ws):
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'info',
-                            'data': 'Macro recording stopped successfully'
+                            'message': 'Macro recording stopped successfully'
                         }))
                     else:
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'error',
-                            'data': 'Failed to stop macro recording'
+                            'message': 'Failed to stop macro recording'
                         }))
                 except Exception as e:
                     testing_ui.logger.error(f"Error stopping macro recording: {str(e)}")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': f'Error stopping macro recording: {str(e)}'
+                        'message': f'Error stopping macro recording: {str(e)}'
                     }))
 
             elif data['type'] == 'save_macro':
@@ -289,7 +289,7 @@ def updates(ws):
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': 'Please provide a macro name'
+                        'message': 'Please provide a macro name'
                     }))
                     return
 
@@ -307,7 +307,7 @@ def updates(ws):
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
-                        'data': f'Macro saved successfully'
+                        'message': f'Macro saved successfully'
                     }))
                     # Refresh macro list
                     macro_files = [f[:-5] for f in os.listdir(testing_ui.macro_dir) 
@@ -321,7 +321,7 @@ def updates(ws):
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': f'Error saving macro: {str(e)}'
+                        'message': f'Error saving macro: {str(e)}'
                     }))
 
             elif data['type'] == 'map_sound_to_macro':
@@ -331,7 +331,7 @@ def updates(ws):
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': 'Please select both a sound trigger and macro'
+                        'message': 'Please select both a sound trigger and macro'
                     }))
                     return
 
@@ -341,20 +341,20 @@ def updates(ws):
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'info',
-                            'data': 'Sound trigger mapped to macro successfully'
+                            'message': 'Sound trigger mapped to macro successfully'
                         }))
                     else:
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'error',
-                            'data': 'Failed to map sound trigger to macro'
+                            'message': 'Failed to map sound trigger to macro'
                         }))
                 except Exception as e:
                     testing_ui.logger.error(f"Error mapping sound to macro: {str(e)}")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': f'Error mapping sound to macro: {str(e)}'
+                        'message': f'Error mapping sound to macro: {str(e)}'
                     }))
 
             elif data['type'] in ['start_sound_monitoring', 'stop_sound_monitoring']:
@@ -365,7 +365,7 @@ def updates(ws):
                             ws.send(json.dumps({
                                 'type': 'log',
                                 'level': 'info',
-                                'data': 'Sound monitoring started'
+                                'message': 'Sound monitoring started'
                             }))
                     else:
                         testing_ui.sound_manager.stop_monitoring()
@@ -373,14 +373,14 @@ def updates(ws):
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'info',
-                            'data': 'Sound monitoring stopped'
+                            'message': 'Sound monitoring stopped'
                         }))
                 except Exception as e:
                     testing_ui.logger.error(f"Error with sound monitoring: {str(e)}")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'error',
-                        'data': f'Error with sound monitoring: {str(e)}'
+                        'message': f'Error with sound monitoring: {str(e)}'
                     }))
 
             # Bot and learning mode commands
@@ -437,7 +437,7 @@ def updates(ws):
             ws.send(json.dumps({
                 'type': 'log',
                 'level': 'error',
-                'data': f'Error processing command: {str(e)}'
+                'message': f'Error processing command: {str(e)}'
             }))
 
 def run():
