@@ -1,1 +1,28 @@
-[]
+{
+  "name": "test_macro",
+  "actions": [
+    {
+      "type": "move",
+      "x": 100,
+      "y": 100,
+      "button": "left",
+      "duration": 0.1,
+      "timestamp": 1740493145.123
+    },
+    {
+      "type": "click",
+      "x": 100,
+      "y": 100,
+      "button": "left",
+      "duration": 0.1,
+      "timestamp": 1740493145.223
+    },
+    {
+      "type": "key_press",
+      "key": "e",
+      "duration": 0.5,
+      "timestamp": 1740493145.323
+    }
+  ],
+  "created": 1740493145.123
+}
