@@ -62,25 +62,28 @@ def test_resource_routing():
         # Test different route configurations
         test_cases = [
             {
-                'name': 'Full resources only',
+                'name': 'Optimal route (priority-based)',
                 'types': ['copper_ore_full', 'limestone_full'],
                 'prefer_full': True,
                 'min_priority': 1.0,  # Only high priority nodes
-                'priority_modifiers': {'copper_ore_full': 1.2, 'limestone_full': 1.0}
+                'priority_modifiers': {'copper_ore_full': 1.2, 'limestone_full': 1.0},
+                'pattern': 'optimal'
             },
             {
-                'name': 'All copper nodes',
+                'name': 'Circular copper route',
                 'types': ['copper_ore_full', 'copper_ore_empty'],
                 'prefer_full': False,
                 'min_priority': 0.0,  # Any priority
-                'priority_modifiers': None
+                'priority_modifiers': None,
+                'pattern': 'circular'
             },
             {
-                'name': 'Mixed resources',
+                'name': 'Zigzag mixed route',
                 'types': ['copper_ore_full', 'copper_ore_empty', 'limestone_full', 'limestone_empty'],
                 'prefer_full': False,
                 'min_priority': 0.5,  # Medium priority and up
-                'priority_modifiers': {'copper_ore_full': 1.5, 'limestone_full': 1.3}
+                'priority_modifiers': {'copper_ore_full': 1.5, 'limestone_full': 1.3},
+                'pattern': 'zigzag'
             }
         ]
 
@@ -98,7 +101,8 @@ def test_resource_routing():
             route = route_manager.create_route(
                 start_pos=start_pos,
                 max_distance=None,
-                complete_cycle=True
+                complete_cycle=True,
+                pattern=test_case['pattern']
             )
 
             if route:
@@ -119,14 +123,14 @@ def test_resource_routing():
                 cv2.putText(overlay, f"Route: {test_case['name']}", 
                           (10, y_pos), font, 1, (255, 255, 255), 2)
                 y_pos += 30
+                cv2.putText(overlay, f"Pattern: {test_case['pattern']}", 
+                          (10, y_pos), font, 1, (255, 255, 255), 2)
+                y_pos += 30
                 cv2.putText(overlay, f"Distance: {route.total_distance:.1f} units", 
                           (10, y_pos), font, 1, (0, 255, 0), 2)
                 y_pos += 30
                 cv2.putText(overlay, f"Est. time: {route.estimated_time:.1f}s",
                           (10, y_pos), font, 1, (0, 255, 0), 2)
-                y_pos += 30
-                cv2.putText(overlay, f"Min priority: {test_case['min_priority']:.1f}",
-                          (10, y_pos), font, 1, (0, 255, 255), 2)
 
                 # Save result
                 output_path = f"resource_route_{test_case['name'].lower().replace(' ', '_')}.png"

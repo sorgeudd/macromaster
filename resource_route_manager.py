@@ -1,24 +1,22 @@
 """Resource route management system for automated farming"""
 import logging
-from typing import List, Tuple, Dict, Optional, Set
+from typing import List, Tuple, Dict, Optional, Set, Literal
 from pathfinding import PathFinder
 import numpy as np
 from time import time
 
 class ResourceTypeFilter:
     def __init__(self):
-        self.enabled_types: Set[str] = set()  # Empty means all types enabled
-        self.priority_modifiers: Dict[str, float] = {}  # Type-specific priority adjustments
+        self.enabled_types: Set[str] = set()
+        self.priority_modifiers: Dict[str, float] = {}
         self.minimum_priority: float = 0.0
         self.require_full_only: bool = False
-        self.cooldown_threshold: float = 300.0  # 5 minutes default
+        self.cooldown_threshold: float = 300.0
 
     def is_type_enabled(self, resource_type: str) -> bool:
-        """Check if a resource type is enabled"""
         return not self.enabled_types or resource_type in self.enabled_types
 
     def get_priority_modifier(self, resource_type: str) -> float:
-        """Get priority modifier for a resource type"""
         return self.priority_modifiers.get(resource_type, 1.0)
 
 class ResourceNode:
@@ -30,10 +28,11 @@ class ResourceNode:
         self.visit_count = 0
         self.cooldown = 300.0
         self.priority = 1.0
-        self.filtered_out = False  # New flag for filtering
+        self.filtered_out = False
+        self.respawn_time = 300.0  # Default 5 minute respawn
+        self.last_seen_full = time() if is_full else 0.0
 
     def is_available(self, filter_settings: Optional[ResourceTypeFilter] = None) -> bool:
-        """Check if node is available based on cooldown and filter settings"""
         if filter_settings:
             if not filter_settings.is_type_enabled(self.resource_type):
                 return False
@@ -46,13 +45,29 @@ class ResourceNode:
         return self.is_full and (time() - self.last_visited) >= self.cooldown
 
     def get_effective_priority(self, filter_settings: Optional[ResourceTypeFilter] = None) -> float:
-        """Calculate effective priority considering filter settings"""
         if not filter_settings:
             return self.priority
-        return self.priority * filter_settings.get_priority_modifier(self.resource_type)
+        base_priority = self.priority * filter_settings.get_priority_modifier(self.resource_type)
+
+        # Adjust priority based on respawn timing
+        time_since_visit = time() - self.last_visited
+        if time_since_visit >= self.respawn_time:
+            return base_priority * 1.2  # 20% bonus for fully respawned nodes
+        return base_priority
+
+    def update_state(self, is_full: bool):
+        """Update node state and track respawn timing"""
+        if is_full != self.is_full:
+            if is_full:
+                # Node has respawned
+                actual_respawn_time = time() - self.last_seen_full
+                # Update respawn time estimate (moving average)
+                self.respawn_time = (self.respawn_time * 0.8) + (actual_respawn_time * 0.2)
+            else:
+                self.last_seen_full = time()
+        self.is_full = is_full
 
     def visit(self):
-        """Mark node as visited"""
         self.last_visited = time()
         self.visit_count += 1
 
@@ -64,30 +79,53 @@ class ResourceRoute:
         self.estimated_time: float = 0.0
         self.cycle_complete: bool = False
         self.resource_counts: Dict[str, int] = {}
-        self.nodes: List[ResourceNode] = []  # Track actual nodes for state
-        self.terrain_penalties: Dict[Tuple[int, int], float] = {}  # Areas to avoid
+        self.nodes: List[ResourceNode] = []
+        self.terrain_penalties: Dict[Tuple[int, int], float] = {}
+        self.pattern: str = "optimal"  # optimal, circular, zigzag
+        self.density_map: Dict[Tuple[int, int], float] = {}  # Resource density heatmap
 
     def add_waypoint(self, node: ResourceNode):
-        """Add a waypoint using a ResourceNode"""
         self.waypoints.append(node.position)
         self.resource_types.append(node.resource_type)
         self.nodes.append(node)
         self.resource_counts[node.resource_type] = self.resource_counts.get(node.resource_type, 0) + 1
 
-    def optimize(self, distance_weight: float = 0.6, variety_weight: float = 0.2, priority_weight: float = 0.2):
-        """Optimize route considering multiple factors"""
+    def update_density_map(self, radius: int = 3):
+        """Update resource density heatmap"""
+        self.density_map.clear()
+        for node in self.nodes:
+            pos = node.position
+            # Add density value to surrounding area
+            for dx in range(-radius, radius + 1):
+                for dy in range(-radius, radius + 1):
+                    dist = abs(dx) + abs(dy)
+                    if dist <= radius:
+                        density_pos = (pos[0] + dx, pos[1] + dy)
+                        weight = 1.0 - (dist / (radius + 1))
+                        self.density_map[density_pos] = self.density_map.get(density_pos, 0.0) + weight
+
+    def get_density_score(self, position: Tuple[int, int]) -> float:
+        """Get resource density score for a position"""
+        return self.density_map.get(position, 0.0)
+
+    def optimize(self, pattern: str = "optimal", 
+                distance_weight: float = 0.6,
+                variety_weight: float = 0.2, 
+                priority_weight: float = 0.2,
+                density_weight: float = 0.1):
+        """Optimize route using specified pattern and weights"""
         if len(self.waypoints) <= 2:
             return
+
+        self.pattern = pattern
+        self.update_density_map()
 
         # Start with first point
         optimized_waypoints = [self.waypoints[0]]
         optimized_types = [self.resource_types[0]]
         optimized_nodes = [self.nodes[0]]
-
         remaining_indices = list(range(1, len(self.waypoints)))
         current = self.waypoints[0]
-
-        # Track visited resource types
         visited_types = {self.resource_types[0]: 1}
 
         while remaining_indices:
@@ -98,42 +136,46 @@ class ResourceRoute:
 
                 # Distance score (lower is better)
                 distance = abs(pos[0] - current[0]) + abs(pos[1] - current[1])
-                distance_score = 1.0 - min(distance / 100.0, 1.0)  # Normalize to 0-1
+                distance_score = 1.0 - min(distance / 100.0, 1.0)
 
                 # Variety score (higher is better)
                 type_count = visited_types.get(node.resource_type, 0)
                 variety_score = 1.0 / (type_count + 1)
 
-                # Priority and availability score
-                priority_score = node.priority #using effective priority here would require changes in ResourceRouteManager
-                #Consider terrain penalties
+                # Priority score
+                priority_score = node.get_effective_priority(None)
+
+                # Density score
+                density_score = self.get_density_score(pos)
+
+                # Pattern-specific scoring
+                pattern_score = self.get_pattern_score(pos, current, pattern)
+
+                # Terrain penalty
                 terrain_penalty = self.terrain_penalties.get(pos, 0.0)
 
                 # Combined score (higher is better)
                 total_score = (
                     distance_score * distance_weight +
                     variety_score * variety_weight +
-                    priority_score * priority_weight
+                    priority_score * priority_weight +
+                    density_score * density_weight +
+                    pattern_score * 0.2  # 20% weight for pattern
                 ) * (1.0 - terrain_penalty)
 
                 scores.append((total_score, i))
 
-            # Choose point with best score
             best_score, best_idx = max(scores)
             chosen_idx = remaining_indices[best_idx]
             chosen_node = self.nodes[chosen_idx]
 
-            # Update tracking
             optimized_waypoints.append(chosen_node.position)
             optimized_types.append(chosen_node.resource_type)
             optimized_nodes.append(chosen_node)
             visited_types[chosen_node.resource_type] = visited_types.get(chosen_node.resource_type, 0) + 1
             current = chosen_node.position
-
-            # Remove processed index
             remaining_indices.remove(chosen_idx)
 
-        # Complete the cycle if requested
         if self.cycle_complete and optimized_waypoints:
             optimized_waypoints.append(optimized_waypoints[0])
             optimized_types.append(optimized_types[0])
@@ -142,6 +184,33 @@ class ResourceRoute:
         self.waypoints = optimized_waypoints
         self.resource_types = optimized_types
         self.nodes = optimized_nodes
+
+    def get_pattern_score(self, pos: Tuple[int, int], current: Tuple[int, int], pattern: str) -> float:
+        """Calculate score based on how well position fits desired pattern"""
+        if pattern == "optimal":
+            return 1.0  # No pattern adjustment
+        elif pattern == "circular":
+            # Favor positions that maintain similar distance from start
+            if not self.waypoints:
+                return 1.0
+            start_pos = self.waypoints[0]
+            start_dist = abs(start_pos[0] - current[0]) + abs(start_pos[1] - current[1])
+            pos_dist = abs(start_pos[0] - pos[0]) + abs(start_pos[1] - pos[1])
+            return 1.0 - min(abs(start_dist - pos_dist) / 50.0, 1.0)
+        elif pattern == "zigzag":
+            # Favor alternating left-right movement
+            if len(self.waypoints) < 2:
+                return 1.0
+            dx = pos[0] - current[0]
+            prev_pos = self.waypoints[-1]
+            last_dx = current[0] - prev_pos[0]
+            # Higher score for direction changes (zigzag pattern)
+            direction_change = 1.0 if (dx * last_dx) <= 0 else 0.5
+            # Factor in y-movement to encourage forward progress
+            dy = pos[1] - current[1]
+            forward_progress = 0.5 if dy > 0 else 0.3
+            return direction_change * forward_progress
+        return 1.0
 
 class ResourceRouteManager:
     def __init__(self, grid_size: int = 32):
@@ -189,7 +258,7 @@ class ResourceRouteManager:
         """Add or update a resource node"""
         if position in self.nodes:
             node = self.nodes[position]
-            node.is_full = is_full
+            node.update_state(is_full)
             self.logger.debug(f"Updated {resource_type} at {position} (full: {is_full})")
         else:
             node = ResourceNode(position, resource_type, is_full)
@@ -206,16 +275,16 @@ class ResourceRouteManager:
         if self.current_route:
             self.current_route.terrain_penalties[position] = max(0.0, min(penalty, 1.0))
 
-    def create_route(self, 
+    def create_route(self,
                     resource_types: Optional[List[str]] = None,
                     start_pos: Optional[Tuple[int, int]] = None,
                     max_distance: Optional[float] = None,
                     complete_cycle: bool = True,
                     prefer_full: bool = True,
-                    min_priority: float = 0.0) -> Optional[ResourceRoute]:
+                    min_priority: float = 0.0,
+                    pattern: str = "optimal") -> Optional[ResourceRoute]:
         """Create an optimized route through specified resource types with filtering"""
         try:
-            # Validate start position
             if start_pos is None:
                 self.logger.error("Start position is required")
                 self.stats['failed_routes'] += 1
@@ -223,18 +292,16 @@ class ResourceRouteManager:
 
             route = ResourceRoute()
             route.cycle_complete = complete_cycle
+            route.pattern = pattern
 
-            # Add start position
             start_node = ResourceNode(start_pos, "start")
             route.add_waypoint(start_node)
 
-            # Apply resource type filtering if specified
             if resource_types:
                 self.configure_filtering(enabled_types=resource_types,
                                       minimum_priority=min_priority,
                                       require_full_only=prefer_full)
 
-            # Collect available nodes considering filters
             available_nodes = []
             filtered_count = 0
             for pos, node in self.nodes.items():
@@ -255,14 +322,11 @@ class ResourceRouteManager:
                 self.stats['failed_routes'] += 1
                 return None
 
-            # Add available nodes to route
             for node in available_nodes:
                 route.add_waypoint(node)
 
-            # Optimize route
-            route.optimize()
+            route.optimize(pattern=pattern)
 
-            # Calculate path and validate
             full_path = []
             bounds = self._calculate_bounds(route.waypoints)
             route_valid = True
@@ -285,21 +349,20 @@ class ResourceRouteManager:
                 self.stats['failed_routes'] += 1
                 return None
 
-            # Calculate estimated time
-            base_time = route.total_distance * 0.5  # Base movement time
-            gathering_time = sum(2.0 + (node.visit_count * 0.5) for node in route.nodes)  # Increased time for revisits
+            base_time = route.total_distance * 0.5
+            gathering_time = sum(2.0 + (node.visit_count * 0.5) for node in route.nodes)
             route.estimated_time = base_time + gathering_time
 
             self.current_route = route
             self.stats['total_routes'] += 1
 
-            # Log detailed info
             self.logger.info(
                 f"Created route with {len(route.waypoints)} waypoints "
                 f"covering {len(route.resource_counts)} resource types\n"
                 f"Distance: {route.total_distance:.1f} units\n"
                 f"Est. time: {route.estimated_time:.1f}s\n"
                 f"Resource distribution: {dict(route.resource_counts)}\n"
+                f"Pattern: {pattern}\n"
                 f"Filtered nodes: {filtered_count}"
             )
 
@@ -377,7 +440,6 @@ class ResourceRouteManager:
                     )
 
                     # Draw path with gradient color based on sequence
-                    # Use max to prevent division by zero
                     progress = i / max(1, total_points - 2)  # Prevent division by zero
                     path_color = (
                         int(255 * (1 - progress)),  # Blue decreases
