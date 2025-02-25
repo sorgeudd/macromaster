@@ -2,7 +2,6 @@
 let ws = null;
 let isRecordingMacro = false;
 let isRecordingSound = false;
-let isLearning = false;
 let monitoring = false;
 
 // Initialize WebSocket connection
@@ -58,18 +57,14 @@ function handleWebSocketMessage(event) {
 
         switch (data.type) {
             case 'status_update':
-                updateStatus('window', data.window_status, data.window_status === 'Detected');
-                updateStatus('bot', data.bot_status, data.bot_status === 'Running');
-                updateStatus('learning', data.learning_status, data.learning_status === 'Active');
                 updateStatus('macro', data.macro_status, data.macro_status === 'Recording');
                 updateStatus('sound', data.sound_status, data.sound_status === 'Recording');
-                updateStatus('monitoring', data.monitoring_status, data.monitoring_status === 'Active');
                 break;
             case 'log':
                 addLog(data.message, data.level);
                 break;
             case 'error':
-                addLog(data.error, 'error');
+                addLog(data.message, 'error');
                 break;
             case 'macros_updated':
                 updateMacroList(data.macros);
@@ -123,38 +118,6 @@ function addLog(message, level = 'info') {
     }
 }
 
-// Bot Controls
-function startBot() {
-    sendWebSocketMessage('start_bot');
-    updateStatus('bot', 'Running', true);
-}
-
-function stopBot() {
-    sendWebSocketMessage('stop_bot');
-    updateStatus('bot', 'Stopped');
-}
-
-function emergencyStop() {
-    sendWebSocketMessage('emergency_stop');
-    updateStatus('bot', 'Stopped');
-}
-
-// Position Controls
-function moveTo() {
-    const x = document.getElementById('pos-x').value;
-    const y = document.getElementById('pos-y').value;
-    sendWebSocketMessage('move_to', { x: parseInt(x), y: parseInt(y) });
-}
-
-// Resource Controls
-function loadMap(type) {
-    sendWebSocketMessage('load_map', { map_type: type });
-}
-
-function findNearby() {
-    sendWebSocketMessage('find_nearby');
-}
-
 // Macro Recording Functions
 function startMacroRecording() {
     const macroName = document.getElementById('macro-name').value.trim();
@@ -184,12 +147,10 @@ function stopMacroRecording() {
 function updateMacroStatus(recording) {
     const recordButton = document.getElementById("record-macro-btn");
     const stopButton = document.getElementById("stop-macro-btn");
-    const saveButton = document.getElementById("save-macro-btn");
 
     if (recordButton && stopButton) {
         recordButton.disabled = recording;
         stopButton.disabled = !recording;
-        if (saveButton) saveButton.disabled = recording;
         isRecordingMacro = recording;
     }
 }
@@ -199,45 +160,15 @@ function handleMacroRecordingComplete() {
     addLog('Macro recording completed', 'info');
 }
 
-function saveMacroRecording() {
-    const macroName = document.getElementById('macro-name').value.trim();
-    sendWebSocketMessage('save_macro', { macro_name: macroName });
-
-    const saveBtn = document.getElementById('save-macro-btn');
-    if (saveBtn) saveBtn.disabled = true;
-    document.getElementById('macro-name').value = '';
-    addLog('Saving macro...', 'info');
-}
-
 function playMacro() {
-    const macroName = document.getElementById('macro-list').value;
+    const macroName = document.getElementById('macro-name').value.trim();
     if (!macroName) {
-        addLog('Please select a macro', 'error');
+        addLog('Please enter a macro name', 'error');
         return;
     }
     sendWebSocketMessage('play_macro', { macro_name: macroName });
 }
 
-// Learning Functions
-function startLearning() {
-    if (!isLearning) {
-        isLearning = true;
-        sendWebSocketMessage("start_learning");
-        updateStatus('learning', 'Active', true);
-    }
-}
-
-function stopLearning() {
-    if (isLearning) {
-        isLearning = false;
-        sendWebSocketMessage("stop_learning");
-        updateStatus('learning', 'Inactive');
-    }
-}
-
-function resetLearning() {
-    sendWebSocketMessage("reset_learning");
-}
 
 // Sound Recording Functions
 function startSoundRecording() {
@@ -268,12 +199,10 @@ function stopSoundRecording() {
 function updateSoundStatus(recording) {
     const recordButton = document.getElementById("record-sound-btn");
     const stopButton = document.getElementById("stop-sound-btn");
-    const saveButton = document.getElementById("save-sound-btn");
 
     if (recordButton && stopButton) {
         recordButton.disabled = recording;
         stopButton.disabled = !recording;
-        if (saveButton) saveButton.disabled = recording;
         isRecordingSound = recording;
     }
 }
@@ -283,21 +212,10 @@ function handleSoundRecordingComplete() {
     addLog('Sound recording completed', 'info');
 }
 
-function saveSoundRecording() {
-    const soundName = document.getElementById('sound-name').value.trim();
-    sendWebSocketMessage('save_sound_recording', { sound_name: soundName });
-
-    const saveBtn = document.getElementById('save-sound-btn');
-    if (saveBtn) saveBtn.disabled = true;
-    document.getElementById('sound-name').value = '';
-    addLog('Saving sound...', 'info');
-    refreshSoundList();
-}
-
 function playSound() {
-    const soundName = document.getElementById('sound-list').value;
+    const soundName = document.getElementById('sound-name').value.trim();
     if (!soundName) {
-        addLog('Please select a sound', 'error');
+        addLog('Please enter a sound name', 'error');
         return;
     }
     sendWebSocketMessage('play_sound', { sound_name: soundName });
@@ -310,27 +228,14 @@ function toggleSoundMonitoring() {
     if (monitoring) {
         sendWebSocketMessage('start_sound_monitoring');
         btn.textContent = "Stop Monitoring";
-        updateStatus('monitoring', 'Active', true);
+        updateStatus('sound', 'Monitoring', true);
         addLog('Started sound monitoring', 'info');
     } else {
         sendWebSocketMessage('stop_sound_monitoring');
         btn.textContent = "Start Monitoring";
-        updateStatus('monitoring', 'Stopped');
+        updateStatus('sound', 'Ready');
         addLog('Stopped sound monitoring', 'info');
     }
-}
-
-function mapSoundToMacro() {
-    const soundName = document.getElementById('map-sound').value;
-    const macroName = document.getElementById('map-macro').value;
-    if (!soundName || !macroName) {
-        addLog('Please select both a sound and a macro', 'error');
-        return;
-    }
-    sendWebSocketMessage('map_sound_to_macro', {
-        sound_name: soundName,
-        macro_name: macroName
-    });
 }
 
 function updateStatus(type, status, isActive = false) {
@@ -368,31 +273,25 @@ function refreshSoundList() {
 
 function updateMacroList(macros) {
     const macroList = document.getElementById('macro-list');
-    const mapMacro = document.getElementById('map-macro');
-    [macroList, mapMacro].forEach(select => {
-        if (!select) return;
-        select.innerHTML = '<option value="">Select a macro</option>';
-        macros.forEach(macro => {
-            const option = document.createElement('option');
-            option.value = macro;
-            option.textContent = macro;
-            select.appendChild(option);
-        });
+    if (!macroList) return;
+    macroList.innerHTML = '<option value="">Select a macro</option>';
+    macros.forEach(macro => {
+        const option = document.createElement('option');
+        option.value = macro;
+        option.textContent = macro;
+        macroList.appendChild(option);
     });
 }
 
 function updateSoundList(sounds) {
     const soundList = document.getElementById('sound-list');
-    const mapSound = document.getElementById('map-sound');
-    [soundList, mapSound].forEach(select => {
-        if (!select) return;
-        select.innerHTML = '<option value="">Select a sound</option>';
-        sounds.forEach(sound => {
-            const option = document.createElement('option');
-            option.value = sound;
-            option.textContent = sound;
-            select.appendChild(option);
-        });
+    if (!soundList) return;
+    soundList.innerHTML = '<option value="">Select a sound</option>';
+    sounds.forEach(sound => {
+        const option = document.createElement('option');
+        option.value = sound;
+        option.textContent = sound;
+        soundList.appendChild(option);
     });
 }
 
@@ -403,70 +302,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Set initial status indicators
     updateStatus('system', 'Initializing');
-    updateStatus('window', 'Not Detected');
-    updateStatus('bot', 'Stopped');
-    updateStatus('learning', 'Inactive');
     updateStatus('macro', 'Ready');
     updateStatus('sound', 'Ready');
-    updateStatus('monitoring', 'Stopped');
-
-    // Initialize UI elements
-    setupEventListeners();
 });
 
 function setupEventListeners() {
-    // Bot controls
-    const startBotBtn = document.getElementById("start-bot");
-    const stopBotBtn = document.getElementById("stop-bot");
-    const emergencyStopBtn = document.getElementById("emergency-stop");
-
-    if (startBotBtn) startBotBtn.onclick = startBot;
-    if (stopBotBtn) stopBotBtn.onclick = stopBot;
-    if (emergencyStopBtn) emergencyStopBtn.onclick = emergencyStop;
-
-    // Learning controls
-    const startLearningBtn = document.getElementById("start-learning");
-    const stopLearningBtn = document.getElementById("stop-learning");
-    const resetLearningBtn = document.getElementById("reset-learning");
-
-    if (startLearningBtn) startLearningBtn.onclick = startLearning;
-    if (stopLearningBtn) stopLearningBtn.onclick = stopLearning;
-    if (resetLearningBtn) resetLearningBtn.onclick = resetLearning;
-
     // Macro controls
     const recordMacroBtn = document.getElementById("record-macro-btn");
     const stopMacroBtn = document.getElementById("stop-macro-btn");
-    const saveMacroBtn = document.getElementById("save-macro-btn");
     const playMacroBtn = document.getElementById("play-macro-btn");
 
     if (recordMacroBtn) recordMacroBtn.onclick = startMacroRecording;
     if (stopMacroBtn) stopMacroBtn.onclick = stopMacroRecording;
-    if (saveMacroBtn) saveMacroBtn.onclick = saveMacroRecording;
     if (playMacroBtn) playMacroBtn.onclick = playMacro;
 
     // Sound controls
     const recordSoundBtn = document.getElementById("record-sound-btn");
     const stopSoundBtn = document.getElementById("stop-sound-btn");
-    const saveSoundBtn = document.getElementById("save-sound-btn");
     const playSoundBtn = document.getElementById("play-sound-btn");
     const monitoringBtn = document.getElementById("monitor-btn");
-    const mapSoundMacroBtn = document.getElementById("map-sound-macro-btn");
 
     if (recordSoundBtn) recordSoundBtn.onclick = startSoundRecording;
     if (stopSoundBtn) stopSoundBtn.onclick = stopSoundRecording;
-    if (saveSoundBtn) saveSoundBtn.onclick = saveSoundRecording;
     if (playSoundBtn) playSoundBtn.onclick = playSound;
     if (monitoringBtn) monitoringBtn.onclick = toggleSoundMonitoring;
-    if (mapSoundMacroBtn) mapSoundMacroBtn.onclick = mapSoundToMacro;
-
-    // Position and Resource controls
-    const moveToBtn = document.getElementById("move-to-btn");
-    const loadFishMapBtn = document.getElementById("load-fish-map");
-    const loadOreMapBtn = document.getElementById("load-ore-map");
-    const findNearbyBtn = document.getElementById("find-nearby");
-
-    if (moveToBtn) moveToBtn.onclick = moveTo;
-    if (loadFishMapBtn) loadFishMapBtn.onclick = () => loadMap('fish');
-    if (loadOreMapBtn) loadOreMapBtn.onclick = () => loadMap('ore');
-    if (findNearbyBtn) findNearbyBtn.onclick = findNearby;
 }
