@@ -1,4 +1,19 @@
-"""Real-time testing interface for the fishing bot systems"""
+"""Real-time testing interface for the fishing bot systems
+
+This UI provides a comprehensive testing environment for:
+- Player position detection on minimap
+- Resource location detection
+- Terrain type simulation
+- Movement and navigation testing
+
+The interface includes:
+- Real-time minimap preview
+- Position testing controls
+- Terrain type selection
+- Resource map loading and testing
+- Detailed debug information panel
+"""
+
 import sys
 import logging
 import tkinter as tk
@@ -13,7 +28,7 @@ from mock_environment import MockEnvironment
 
 class TestingUI:
     def __init__(self):
-        # Setup logging
+        # Setup logging with file and console output
         self.logger = logging.getLogger('TestingUI')
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -29,31 +44,49 @@ class TestingUI:
         self.root.title("Fishing Bot Testing Interface")
         self.root.geometry("800x600")
 
-        # Initialize components
-        self.map_manager = MapManager()
-        self.mock_env = MockEnvironment()
+        # Initialize core components
+        self.map_manager = MapManager()  # Handles map and resource detection
+        self.mock_env = MockEnvironment()  # Simulates game environment
         self.mock_env.start_simulation()
 
         self.setup_ui()
         self.logger.info("Testing UI initialized successfully")
 
     def setup_ui(self):
-        """Setup the UI components"""
-        # Create main frame with padding
+        """Setup all UI components and layout"""
+        # Main frame with padding
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # Configure grid weights
+        # Configure grid weights for resizing
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(1, weight=1)
 
-        # Left control panel
-        control_frame = ttk.LabelFrame(main_frame, text="Controls", padding="5")
+        # Setup control panel
+        self._setup_control_panel(main_frame)
+
+        # Setup preview area
+        self._setup_preview_area(main_frame)
+
+        # Setup info panel
+        self._setup_info_panel(main_frame)
+
+        # Status bar at bottom
+        self.status_var = tk.StringVar(value="Ready")
+        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
+        status_bar.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E))
+
+        # Start preview updates
+        self.update_preview()
+
+    def _setup_control_panel(self, parent):
+        """Setup the left control panel with all testing controls"""
+        control_frame = ttk.LabelFrame(parent, text="Controls", padding="5")
         control_frame.grid(row=0, column=0, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # Position testing
+        # Position testing controls
         pos_frame = ttk.LabelFrame(control_frame, text="Position Testing", padding="5")
         pos_frame.pack(fill=tk.X, padx=5, pady=5)
 
@@ -68,7 +101,7 @@ class TestingUI:
         ttk.Button(pos_frame, text="Move To", 
                   command=self.test_move_to).grid(row=0, column=4, padx=5)
 
-        # Terrain testing
+        # Terrain testing controls
         terrain_frame = ttk.LabelFrame(control_frame, text="Terrain Testing", padding="5")
         terrain_frame.pack(fill=tk.X, padx=5, pady=5)
 
@@ -78,7 +111,7 @@ class TestingUI:
                           variable=self.terrain_var, value=terrain,
                           command=self.change_terrain).grid(row=i, column=0, sticky=tk.W)
 
-        # Resource detection
+        # Resource detection controls
         resource_frame = ttk.LabelFrame(control_frame, text="Resource Detection", padding="5")
         resource_frame.pack(fill=tk.X, padx=5, pady=5)
 
@@ -89,36 +122,36 @@ class TestingUI:
         ttk.Button(resource_frame, text="Find Nearby",
                   command=self.find_nearby_resources).pack(fill=tk.X, pady=2)
 
-        # Minimap preview
-        preview_frame = ttk.LabelFrame(main_frame, text="Minimap Preview", padding="5")
+    def _setup_preview_area(self, parent):
+        """Setup the minimap preview area"""
+        preview_frame = ttk.LabelFrame(parent, text="Minimap Preview", padding="5")
         preview_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         self.minimap_label = ttk.Label(preview_frame)
         self.minimap_label.pack(expand=True, fill=tk.BOTH)
 
-        # Status and debug info
-        info_frame = ttk.LabelFrame(main_frame, text="Status & Debug Info", padding="5")
+    def _setup_info_panel(self, parent):
+        """Setup the debug information panel"""
+        info_frame = ttk.LabelFrame(parent, text="Status & Debug Info", padding="5")
         info_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         self.info_text = tk.Text(info_frame, height=10, width=50)
         self.info_text.pack(expand=True, fill=tk.BOTH)
 
-        # Status bar
-        self.status_var = tk.StringVar(value="Ready")
-        status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
-        status_bar.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E))
-
-        # Setup preview update
-        self.update_preview()
-
     def update_preview(self):
-        """Update minimap preview"""
+        """Update minimap preview with current state
+
+        Shows:
+        - Current player position (green dot)
+        - Detected resources (blue dots)
+        - Current terrain effects
+        """
         try:
-            # Create test minimap
+            # Create base minimap
             minimap = np.zeros((200, 200, 3), dtype=np.uint8)
             cv2.rectangle(minimap, (0, 0), (200, 200), (20, 20, 20), -1)
 
-            # Draw current position
+            # Draw player position if available
             if self.mock_env.state.current_position:
                 x, y = self.mock_env.state.current_position
                 cv2.circle(minimap, (int(x), int(y)), 3, (0, 255, 0), -1)
@@ -129,7 +162,7 @@ class TestingUI:
                     rx, ry = resource.position
                     cv2.circle(minimap, (int(rx), int(ry)), 5, (255, 0, 0), 1)
 
-            # Convert to PhotoImage
+            # Convert to Tkinter image
             image = Image.fromarray(cv2.cvtColor(minimap, cv2.COLOR_BGR2RGB))
             photo = ImageTk.PhotoImage(image)
 
@@ -143,12 +176,12 @@ class TestingUI:
         self.root.after(100, self.update_preview)
 
     def log_info(self, message):
-        """Add message to info text"""
+        """Add message to info text panel"""
         self.info_text.insert(tk.END, f"{message}\n")
         self.info_text.see(tk.END)
 
     def test_move_to(self):
-        """Test movement to specified position"""
+        """Test movement to specified coordinates"""
         try:
             x = int(self.x_var.get())
             y = int(self.y_var.get())
@@ -165,7 +198,7 @@ class TestingUI:
             messagebox.showerror("Error", "Invalid coordinates")
 
     def change_terrain(self):
-        """Update current terrain type"""
+        """Update current terrain type and movement effects"""
         terrain = self.terrain_var.get()
         success = self.mock_env.set_game_state(terrain_type=terrain)
 
@@ -176,7 +209,7 @@ class TestingUI:
             self.log_info(f"Failed to change terrain to: {terrain}")
 
     def load_resource_map(self, resource_type):
-        """Load resource map for testing"""
+        """Load and analyze resource map"""
         try:
             map_name = f"mase knoll {resource_type}"
             success = self.map_manager.load_map(map_name)
@@ -207,115 +240,9 @@ class TestingUI:
         except Exception as e:
             self.logger.error(f"Error finding resources: {str(e)}")
             messagebox.showerror("Error", f"Failed to find resources: {str(e)}")
-            
-    def test_position_detection(self):
-        """Test minimap position detection"""
-        try:
-            self.status_var.set("Testing position detection...")
-            
-            # Generate test positions
-            test_positions = [
-                (100, 100), (50, 50), (150, 150),
-                (150, 50), (50, 150)
-            ]
-            
-            self.info_text.delete(1.0, tk.END)
-            self.log_info("Position Detection Test Results:")
-            
-            for pos in test_positions:
-                # Update mock environment
-                self.mock_env.set_game_state(current_position=pos)
-                
-                # Get minimap
-                minimap = np.zeros((200, 200, 3), dtype=np.uint8)
-                cv2.circle(minimap, pos, 3, (20, 200, 230), -1)
-                
-                # Detect position
-                detected = self.map_manager.detect_player_position(minimap)
-                if detected:
-                    error = np.sqrt((detected.x - pos[0])**2 + 
-                                  (detected.y - pos[1])**2)
-                    result = "✓" if error < 3 else "✗"
-                    self.log_info(f"{result} Position {pos}: "
-                                  f"detected at ({detected.x}, {detected.y}), "
-                                  f"error: {error:.1f}px")
-                else:
-                    self.log_info(f"✗ Position {pos}: Detection failed")
-            
-            self.status_var.set("Position detection test complete")
-            
-        except Exception as e:
-            self.logger.error(f"Error in position detection test: {str(e)}")
-            self.status_var.set("Error in position detection test")
-            
-    def test_resource_detection(self):
-        """Test resource spot detection"""
-        try:
-            self.status_var.set("Testing resource detection...")
-            
-            # Load test map
-            map_path = Path("maps/mase_knoll_fish.png")
-            if not map_path.exists():
-                self.log_info("Error: Test map not found")
-                return
-                
-            success = self.map_manager.load_map("mase knoll fish")
-            if not success:
-                self.log_info("Error: Failed to load test map")
-                return
-            
-            nodes = self.map_manager.resource_nodes.get('mase_knoll_fish', [])
-            self.info_text.delete(1.0, tk.END)
-            self.log_info("Resource Detection Results:")
-            self.log_info(f"Detected {len(nodes)} fishing spots")
-            
-            for i, node in enumerate(nodes[:5]):  # Show first 5 spots
-                self.log_info(f"Spot {i+1}: position {node.position}")
-            
-            self.status_var.set("Resource detection test complete")
-            
-        except Exception as e:
-            self.logger.error(f"Error in resource detection test: {str(e)}")
-            self.status_var.set("Error in resource detection test")
-            
-    def test_navigation(self):
-        """Test navigation system"""
-        try:
-            self.status_var.set("Testing navigation...")
-            
-            # Test navigation between points
-            start_pos = (100, 100)
-            test_targets = [
-                (150, 150), (50, 50), (150, 50), (50, 150)
-            ]
-            
-            self.info_text.delete(1.0, tk.END)
-            self.log_info("Navigation Test Results:")
-            
-            self.mock_env.set_game_state(current_position=start_pos)
-            
-            for target in test_targets:
-                # Update mock position
-                success = self.mock_env.move_to(target)
-                current_pos = self.mock_env.state.current_position
-                
-                if success:
-                    error = np.sqrt((current_pos[0] - target[0])**2 + 
-                                  (current_pos[1] - target[1])**2)
-                    result = "✓" if error < 5 else "✗"
-                    self.log_info(f"{result} Navigation to {target}: "
-                                  f"reached {current_pos}, error: {error:.1f}px")
-                else:
-                    self.log_info(f"✗ Navigation to {target} failed")
-            
-            self.status_var.set("Navigation test complete")
-            
-        except Exception as e:
-            self.logger.error(f"Error in navigation test: {str(e)}")
-            self.status_var.set("Error in navigation test")
-            
+
     def run(self):
-        """Start the UI"""
+        """Start the UI and handle cleanup"""
         try:
             self.root.mainloop()
         finally:

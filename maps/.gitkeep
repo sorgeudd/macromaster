@@ -1,0 +1,4 @@
+# This directory contains test maps for the fishing bot
+# Required maps:
+# - mase_knoll_fish.png (Fishing spot locations)
+# - mase_knoll_ore.png (Mining spot locations)

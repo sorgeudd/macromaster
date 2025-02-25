@@ -1,80 +1,81 @@
-# Sound Macro Recorder
+# Game Automation Bot
 
-A Python-based sound macro recorder that lets you trigger mouse and keyboard macros with sound.
+A Python-based game automation bot with advanced computer vision capabilities for precise resource detection and automation in Windows game environments.
 
-## Features
+## Key Components
+- Computer vision-based resource recognition
+- Direct input handling for Windows
+- Modular design for game-specific automation
+- Advanced image processing and detection algorithms
 
-- Record sound triggers
-- Record mouse and keyboard macros
-- Map sounds to macros
-- Easy-to-use GUI interface
-- Real-time sound monitoring
-- Visual macro playback
+## Testing Interface
 
-## Requirements
-
-- Windows operating system
-- Python 3.8 or later
-- Microphone for sound recording
-- Administrator privileges (for keyboard control)
-
-## Quick Installation
-
-1. Extract all files from the zip archive
-2. Run `install.bat` as Administrator
-3. Follow the on-screen instructions
-
-## Manual Installation
-
-If the automatic installation fails, you can install the required packages manually:
-
+### Quick Start
+1. Extract all components from testing_package.zip
+2. Install required packages:
 ```bash
-pip install numpy opencv-python pillow pyaudio pyautogui
+pip install opencv-python pillow numpy
+```
+3. Run the testing interface:
+```bash
+python testing_ui.py
 ```
 
-## Usage
+### Testing Features
+1. Position Testing
+   - Enter X and Y coordinates
+   - Click "Move To" to test position detection
+   - Real-time preview shows detected position
 
-1. Run the application:
-   - Double click on `start_app.bat`, OR
-   - Run `python gui_interface.py` in terminal
+2. Terrain Testing
+   - Select different terrain types (normal, water, mountain, forest)
+   - Tests movement speed and behavior in different terrains
 
-2. Record a sound trigger:
-   - Enter a name for your sound trigger
-   - Click "Record Sound"
-   - Make the sound you want to use as a trigger
+3. Resource Detection
+   - Load fish or ore map
+   - "Find Nearby" detects resources within range
+   - Blue dots on preview show detected resources
 
-3. Record a macro:
-   - Enter a name for your macro
-   - Click "Record Macro"
-   - Perform the mouse/keyboard actions you want to record
-   - The recording will stop automatically after 5 seconds
+### Debug Information
+- Status bar shows current operation status
+- Debug info panel shows detailed test results
+- Debug images saved to disk for analysis:
+  - arrow_detection_debug.png: Shows detected player position
+  - resource_detection_debug.png: Shows detected resources
 
-4. Map sound to macro:
-   - Select your recorded sound and macro from the dropdown menus
-   - Click "Map" to link them together
+### Logging
+All components write detailed logs to their respective files:
+- testing_ui.log: Testing interface logs
+- map_manager.log: Map and resource detection logs
+- mock_environment.log: Environment simulation logs
 
-5. Start monitoring:
-   - Click "Start Monitoring"
-   - Make your recorded sound to trigger the macro
-   - Click "Stop Monitoring" when done
+## Development
+- Python 3.8 or later required
+- Uses OpenCV for image processing
+- Tkinter for testing interface
+- Numpy for numerical operations
 
 ## Troubleshooting
+1. Position Detection Issues
+   - Check arrow_detection_debug.png for visual feedback
+   - Verify coordinates in debug info panel
+   - Ensure minimap preview is updating
 
-1. If sound recording doesn't work:
-   - Check your microphone settings
-   - Verify PyAudio installation
-   - Run the application as Administrator
+2. Resource Detection Issues
+   - Verify map files are in maps/ directory
+   - Check resource_detection_debug.png
+   - Review map_manager.log for detection details
 
-2. If macro playback isn't working:
-   - Run the application as Administrator
-   - Check if the target window is active
-   - Verify the macro was recorded correctly
+3. UI Issues
+   - Check testing_ui.log for errors
+   - Verify all required packages are installed
+   - Restart interface if preview freezes
 
-3. For general issues:
-   - Check all dependencies are installed
-   - Run as Administrator
-   - Review logs in the status bar
-
-## Support
+## Testing Workflow
+1. Start with basic position detection
+2. Test different terrain types
+3. Load and test resource maps
+4. Verify nearby resource detection
+5. Monitor real-time updates in preview
 
 For issues and feature requests, please file an issue in the GitHub repository.

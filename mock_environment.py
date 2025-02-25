@@ -1,4 +1,14 @@
-"""Mock environment for headless testing of fishing bot functionality"""
+"""Mock environment for headless testing of fishing bot functionality
+
+This module provides a simulated game environment for testing bot functionality without
+requiring an actual game client. It simulates:
+- Mouse and keyboard input
+- Game state tracking
+- Resource detection
+- Terrain effects
+- Combat and healing
+"""
+
 import logging
 import traceback
 from dataclasses import dataclass
@@ -26,6 +36,7 @@ class GameState:
     terrain_speed_multiplier: float = 1.0
 
     def __post_init__(self):
+        """Initialize default values for mutable fields"""
         if self.detected_resources is None:
             self.detected_resources = []
         if self.detected_obstacles is None:
@@ -44,7 +55,7 @@ class GameState:
 
 class MockEnvironment:
     def __init__(self):
-        # Initialize logging
+        # Initialize logging with file output
         self.logger = logging.getLogger('MockEnvironment')
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -62,7 +73,7 @@ class MockEnvironment:
         self.running = False
         self.min_action_interval = 0.05
 
-        # Terrain-specific settings
+        # Terrain-specific movement speeds
         self.terrain_speeds = {
             'normal': 1.0,
             'water': 0.7,
@@ -77,7 +88,7 @@ class MockEnvironment:
         self.logger.info("MockEnvironment initialized successfully")
 
     def move_mouse(self, x, y):
-        """Record mouse movement and update position"""
+        """Record mouse movement and update position with terrain effects"""
         try:
             self.logger.debug(f"Moving mouse to ({x}, {y})")
             self.state.current_position = (x, y)
@@ -103,10 +114,10 @@ class MockEnvironment:
 
             # Record click event at current position
             success = self.record_input('mouse_click', 
-                                      button=button, 
-                                      clicks=clicks,
-                                      x=pos[0],
-                                      y=pos[1])
+                                    button=button, 
+                                    clicks=clicks,
+                                    x=pos[0],
+                                    y=pos[1])
 
             # Add terrain-based delay
             speed_mult = self.terrain_speeds.get(self.state.terrain_type, 1.0)
@@ -305,7 +316,7 @@ class MockEnvironment:
     def is_mounted(self):
         """Check if character is mounted"""
         return self.state.is_mounted
-    
+
     def get_mouse_pos(self):
         """Get current mouse position"""
         recent_moves = [e for e in self.input_events if e['type'] == 'mouse_move']
