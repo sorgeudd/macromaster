@@ -1,6 +1,6 @@
 @echo off
 echo ===============================
-echo Sound Macro Recorder Setup
+echo Testing Interface Setup
 echo ===============================
 
 REM Check system architecture
@@ -33,24 +33,20 @@ echo.
 echo Installing required packages...
 echo This might take a few minutes...
 
-echo Installing numpy...
-pip install numpy
-if errorlevel 1 goto error
-
-echo Installing PyAudio...
-pip install pyaudio
+echo Installing Flask and dependencies...
+pip install flask flask-sock
 if errorlevel 1 goto error
 
 echo Installing OpenCV...
 pip install opencv-python
 if errorlevel 1 goto error
 
-echo Installing Pillow...
-pip install pillow
+echo Installing NumPy...
+pip install numpy
 if errorlevel 1 goto error
 
-echo Installing PyAutoGUI...
-pip install pyautogui
+echo Installing Pillow...
+pip install pillow
 if errorlevel 1 goto error
 
 REM Check Visual C++ Redistributable
@@ -65,7 +61,7 @@ if errorlevel 1 (
 REM Verify installations
 echo.
 echo Verifying installations...
-python -c "import numpy; import pyaudio; import cv2; import PIL; import pyautogui" > nul 2>&1
+python -c "import flask; import flask_sock; import cv2; import numpy; import PIL" > nul 2>&1
 if errorlevel 1 (
     echo Error: Some dependencies failed to install correctly
     echo Please check the error messages above and try again
@@ -77,13 +73,13 @@ echo ===================================
 echo Installation Complete!
 echo ===================================
 echo.
-echo To start the Sound Macro Recorder:
+echo To start the Testing Interface:
 echo 1. Double click on 'start_app.bat'
 echo    OR
-echo 2. Run 'python gui_interface.py' in terminal
+echo 2. Run 'python testing_ui.py' in terminal
 echo.
 echo Note: Make sure to run as Administrator
-echo for proper sound and keyboard control functionality
+echo for proper functionality
 echo.
 pause
 exit /b 0

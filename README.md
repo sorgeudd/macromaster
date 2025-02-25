@@ -1,81 +1,82 @@
-# Game Automation Bot
+# Game Automation Bot - Testing Interface
 
 A Python-based game automation bot with advanced computer vision capabilities for precise resource detection and automation in Windows game environments.
 
-## Key Components
-- Computer vision-based resource recognition
-- Direct input handling for Windows
-- Modular design for game-specific automation
-- Advanced image processing and detection algorithms
+## Quick Installation Guide for Windows 10
 
-## Testing Interface
+1. Download and extract testing_package.zip
+2. Run install.bat as Administrator
+3. Once installation completes, run start_app.bat
+4. Open your web browser and go to http://localhost:5000
 
-### Quick Start
-1. Extract all components from testing_package.zip
-2. Install required packages:
-```bash
-pip install opencv-python pillow numpy
-```
-3. Run the testing interface:
-```bash
-python testing_ui.py
-```
+## Features
+
+### Bot Control
+- Start/Stop bot operation
+- Emergency Stop (F6 hotkey)
+- Learning mode for AI player
+- Import training videos
+
+### Macro Management
+- Record new macros
+- Play existing macros
+- Name and save macros for reuse
+
+### Sound Triggers
+- Record sound triggers
+- Bind to key presses
+- Bind to mouse clicks
+- Bind to existing macros
 
 ### Testing Features
 1. Position Testing
    - Enter X and Y coordinates
-   - Click "Move To" to test position detection
-   - Real-time preview shows detected position
+   - Move to position testing
+   - Real-time preview
 
 2. Terrain Testing
-   - Select different terrain types (normal, water, mountain, forest)
-   - Tests movement speed and behavior in different terrains
+   - Normal, water, mountain, forest terrain types
+   - Tests movement speed and behavior
 
 3. Resource Detection
-   - Load fish or ore map
-   - "Find Nearby" detects resources within range
-   - Blue dots on preview show detected resources
+   - Load fish or ore maps
+   - Find nearby resources
+   - Blue dots show detected resources
 
-### Debug Information
-- Status bar shows current operation status
-- Debug info panel shows detailed test results
-- Debug images saved to disk for analysis:
-  - arrow_detection_debug.png: Shows detected player position
-  - resource_detection_debug.png: Shows detected resources
+4. Real-World Testing
+   - Arrow detection testing
+   - Resource spot verification
+   - Terrain calibration
+   - Pathfinding system tests
 
-### Logging
-All components write detailed logs to their respective files:
-- testing_ui.log: Testing interface logs
-- map_manager.log: Map and resource detection logs
-- mock_environment.log: Environment simulation logs
-
-## Development
-- Python 3.8 or later required
-- Uses OpenCV for image processing
-- Tkinter for testing interface
-- Numpy for numerical operations
+## System Requirements
+- Windows 10
+- Python 3.8 or later
+- Administrator privileges for installation
+- Microsoft Visual C++ 2015-2022 Redistributable
 
 ## Troubleshooting
-1. Position Detection Issues
-   - Check arrow_detection_debug.png for visual feedback
-   - Verify coordinates in debug info panel
-   - Ensure minimap preview is updating
 
-2. Resource Detection Issues
-   - Verify map files are in maps/ directory
-   - Check resource_detection_debug.png
-   - Review map_manager.log for detection details
+1. If installation fails:
+   - Make sure you're running install.bat as Administrator
+   - Check your internet connection
+   - Verify Python is installed and in PATH
+   - Install Visual C++ Redistributable if prompted
 
-3. UI Issues
-   - Check testing_ui.log for errors
-   - Verify all required packages are installed
-   - Restart interface if preview freezes
+2. If application won't start:
+   - Check all dependencies were installed correctly
+   - Verify port 5000 is not in use
+   - Run start_app.bat as Administrator
 
-## Testing Workflow
-1. Start with basic position detection
-2. Test different terrain types
-3. Load and test resource maps
-4. Verify nearby resource detection
-5. Monitor real-time updates in preview
+3. If game window isn't detected:
+   - Make sure the game window is open
+   - Verify the window name matches exactly
+   - Try running the application as Administrator
+
+## Logs
+Application logs are stored in:
+- testing_ui.log: Main application logs
+- map_manager.log: Resource detection logs
+- mock_environment.log: Environment simulation logs
 
 For issues and feature requests, please file an issue in the GitHub repository.

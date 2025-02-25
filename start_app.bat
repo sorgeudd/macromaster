@@ -14,7 +14,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 REM Run the application
-python gui_interface.py
+python testing_ui.py
 if %ERRORLEVEL% neq 0 (
     echo Error: Failed to start application
     echo Please ensure all dependencies are installed by running install.bat

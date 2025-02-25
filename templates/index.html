@@ -120,6 +120,13 @@
         .right-panel {
             flex: 1;
         }
+        .key-capture {
+            display: flex;
+            align-items: center;
+        }
+        .key-capture input {
+            flex-grow: 1;
+        }
     </style>
 </head>
 <body>
@@ -174,19 +181,26 @@
 
                 <div class="control-group">
                     <h3>Macro Management</h3>
-                    <input type="text" id="macro-name" placeholder="Macro Name">
+                    <select id="macro-list" style="margin-bottom: 10px;">
+                        <option value="">Select a macro to play</option>
+                        <!-- Macros will be populated dynamically -->
+                    </select>
+                    <input type="text" id="macro-name" placeholder="New Macro Name">
                     <button onclick="recordMacro()">Record Macro</button>
-                    <button onclick="playMacro()">Play Macro</button>
+                    <button onclick="playMacro()">Play Selected Macro</button>
                 </div>
 
                 <div class="control-group">
                     <h3>Sound Triggers</h3>
                     <input type="text" id="trigger-name" placeholder="Trigger Name">
-                    <select id="bind-action">
+                    <select id="bind-action" onchange="updateBindingOptions()">
                         <option value="key_press">Key Press</option>
                         <option value="mouse_click">Mouse Click</option>
-                        <option value="movement">Movement</option>
+                        <option value="macro">Play Macro</option>
                     </select>
+                    <div id="binding-options" style="margin: 10px 0;">
+                        <!-- Dynamic binding options will be inserted here -->
+                    </div>
                     <button onclick="recordSound()">Record Sound</button>
                     <button onclick="saveTrigger()">Save Trigger</button>
                 </div>
@@ -320,7 +334,7 @@
         }
 
         function playMacro() {
-            const macroName = document.getElementById('macro-name').value;
+            const macroName = document.getElementById('macro-list').value;
             ws.send(JSON.stringify({
                 type: 'play_macro',
                 data: macroName
@@ -339,11 +353,22 @@
         function saveTrigger() {
             const triggerName = document.getElementById('trigger-name').value;
             const bindAction = document.getElementById('bind-action').value;
+            let bindingValue = '';
+
+            if (bindAction === 'mouse_click') {
+                bindingValue = document.getElementById('mouse-button').value;
+            } else if (bindAction === 'macro') {
+                bindingValue = document.getElementById('trigger-macro').value;
+            } else if (bindAction === 'key_press') {
+                bindingValue = document.getElementById('key-bind').value;
+            }
+
             ws.send(JSON.stringify({
                 type: 'save_trigger',
                 data: {
                     name: triggerName,
-                    action: bindAction
+                    action: bindAction,
+                    binding: bindingValue
                 }
             }));
         }
@@ -403,6 +428,72 @@
                 updateStatus('resource', data.resource);
                 updateStatus('terrain', data.terrain);
                 updateStatus('window', data.window);
+            });
+
+
+        // Macro list management
+        function updateMacroList(macros) {
+            const macroList = document.getElementById('macro-list');
+            macroList.innerHTML = '<option value="">Select a macro to play</option>';
+            macros.forEach(macro => {
+                const option = document.createElement('option');
+                option.value = macro;
+                option.textContent = macro;
+                macroList.appendChild(option);
+            });
+        }
+
+        // Binding options management
+        function updateBindingOptions() {
+            const bindAction = document.getElementById('bind-action').value;
+            const bindingOptions = document.getElementById('binding-options');
+
+            let optionsHtml = '';
+            if (bindAction === 'mouse_click') {
+                optionsHtml = `
+                    <select id="mouse-button">
+                        <option value="left">Left Click</option>
+                        <option value="right">Right Click</option>
+                        <option value="middle">Middle Click</option>
+                    </select>`;
+            } else if (bindAction === 'macro') {
+                optionsHtml = `
+                    <select id="trigger-macro">
+                        <option value="">Select macro to trigger</option>
+                        ${Array.from(document.getElementById('macro-list').options)
+                            .map(opt => opt.outerHTML)
+                            .join('')}
+                    </select>`;
+            } else if (bindAction === 'key_press') {
+                optionsHtml = `
+                    <div class="key-capture">
+                        <input type="text" id="key-bind" 
+                               placeholder="Click here and press a key" 
+                               readonly>
+                    </div>`;
+            }
+            bindingOptions.innerHTML = optionsHtml;
+
+            // Setup key capture
+            if (bindAction === 'key_press') {
+                const keyInput = document.getElementById('key-bind');
+                keyInput.addEventListener('keydown', function(e) {
+                    e.preventDefault();
+                    keyInput.value = e.key;
+                });
+            }
+        }
+
+        // Load available macros on startup
+        fetch('/macros')
+            .then(response => response.json())
+            .then(data => {
+                if (data.macros) {
+                    updateMacroList(data.macros);
+                }
+            })
+            .catch(error => {
+                addLogEntry('Failed to load macros: ' + error, 'error');
             });
     </script>
 </body>
