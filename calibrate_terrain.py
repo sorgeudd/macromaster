@@ -19,18 +19,23 @@ def analyze_map_colors(map_path):
         # Convert to HSV
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
-        # Analyze water areas (blue tones)
-        water_mask = cv2.inRange(hsv, np.array([90, 50, 50]), np.array([130, 255, 255]))
-        water_img = cv2.bitwise_and(img, img, mask=water_mask)
-        cv2.imwrite('water_detection.png', water_img)
+        # Analyze deep water areas (darker blue)
+        deep_water_mask = cv2.inRange(hsv, np.array([95, 150, 150]), np.array([125, 255, 255]))
+        deep_water_img = cv2.bitwise_and(img, img, mask=deep_water_mask)
+        cv2.imwrite('deep_water_detection.png', deep_water_img)
+
+        # Analyze shallow water areas (lighter blue)
+        shallow_water_mask = cv2.inRange(hsv, np.array([95, 60, 180]), np.array([125, 150, 255]))
+        shallow_water_img = cv2.bitwise_and(img, img, mask=shallow_water_mask)
+        cv2.imwrite('shallow_water_detection.png', shallow_water_img)
 
         # Analyze mountain areas (dark areas)
-        mountain_mask = cv2.inRange(hsv, np.array([0, 0, 50]), np.array([30, 50, 180]))
+        mountain_mask = cv2.inRange(hsv, np.array([0, 0, 40]), np.array([30, 40, 160]))
         mountain_img = cv2.bitwise_and(img, img, mask=mountain_mask)
         cv2.imwrite('mountain_detection.png', mountain_img)
 
         # Analyze cliff areas (very dark areas)
-        cliff_mask = cv2.inRange(hsv, np.array([0, 0, 30]), np.array([180, 30, 100]))
+        cliff_mask = cv2.inRange(hsv, np.array([0, 0, 20]), np.array([180, 25, 80]))
         cliff_img = cv2.bitwise_and(img, img, mask=cliff_mask)
         cv2.imwrite('cliff_detection.png', cliff_img)
 
@@ -45,7 +50,7 @@ if __name__ == "__main__":
     map_path = Path("maps/default_map.png")
     if not map_path.exists():
         map_path = Path("attached_assets/image_1740466625160.png")
-    
+
     if analyze_map_colors(map_path):
         logger.info("Terrain color analysis complete")
     else:

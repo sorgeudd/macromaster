@@ -35,44 +35,59 @@ def test_resource_routing():
 
         # Initialize map with terrain data
         logger.info("Loading map for terrain-aware routing")
-        success = route_manager.load_area_map("test_map", img)
+        success = route_manager.map_manager.load_map("test_map", img)
         if not success:
             logger.error("Failed to load area map")
             return False
 
-        # Add resource nodes avoiding water areas
-        logger.info("Adding resource locations avoiding water")
+        # Test positions in different terrain types
         test_positions = [
-            ((20, 30), 1.5),  # High priority
-            ((50, 35), 1.2),  # Medium-high priority
-            ((45, 55), 1.0),  # Normal priority
+            ((20, 30), 1.5, "land"),      # High priority on land
+            ((50, 35), 1.2, "shallow"),   # Medium priority in shallow water
+            ((45, 55), 1.0, "land"),      # Normal priority on land
+            ((60, 40), 0.8, "deep"),      # Low priority near deep water
         ]
 
-        for pos, priority in test_positions:
+        logger.info("Testing terrain detection and resource placement:")
+        for pos, priority, expected_terrain in test_positions:
             # Check terrain before adding node
             terrain = route_manager.map_manager.detect_terrain(pos)
-            if terrain['water'] < 0.3:  # Only add if not in water
-                route_manager.add_resource_location('copper_ore_full', pos, True)
-                route_manager.set_node_priority(pos, priority)
-                logger.info(f"Added resource at {pos} with priority {priority}")
+
+            # Log terrain detection results
+            logger.info(f"\nPosition {pos} (expected {expected_terrain}):")
+            logger.info(f"Deep water: {terrain['deep_water']:.2f}")
+            logger.info(f"Shallow water: {terrain['shallow_water']:.2f}")
+            logger.info(f"Mountain: {terrain['mountain']:.2f}")
+            logger.info(f"Cliff: {terrain['cliff']:.2f}")
+
+            # Skip deep water, allow shallow water
+            if terrain['deep_water'] > 0.3:
+                logger.warning(f"Skipped position {pos} - deep water detected")
+                continue
+
+            # Add resource with appropriate priority
+            route_manager.add_resource_location('copper_ore_full', pos, True)
+            route_manager.set_node_priority(pos, priority)
+
+            # Adjust priority based on terrain
+            if terrain['shallow_water'] > 0.3:
+                # Reduce priority slightly in shallow water
+                adjusted_priority = priority * 0.8
+                route_manager.set_node_priority(pos, adjusted_priority)
+                logger.info(f"Added resource at {pos} with adjusted priority {adjusted_priority:.2f} (shallow water)")
             else:
-                logger.warning(f"Skipped position {pos} - water detected")
+                logger.info(f"Added resource at {pos} with priority {priority:.2f}")
 
         # Calculate start position from center of map
         start_pos = (img.shape[1] // (2 * route_manager.pathfinder.grid_size),
                     img.shape[0] // (2 * route_manager.pathfinder.grid_size))
 
-        # Test terrain-aware optimal route
-        logger.info("\nTesting terrain-aware optimal route")
-        logger.info("Resource types: ['copper_ore_full']")
-        logger.info("Priority modifiers: {'copper_ore_full': 1.2}")
-        logger.info("Min priority: 1.0")
-
         # Configure route settings
+        logger.info("\nCreating terrain-aware route:")
         route_manager.configure_filtering(
             enabled_types=['copper_ore_full'],
             priority_modifiers={'copper_ore_full': 1.2},
-            minimum_priority=1.0,
+            minimum_priority=0.8,  # Lower threshold to include shallow water resources
             require_full_only=True
         )
 
@@ -82,7 +97,7 @@ def test_resource_routing():
             max_distance=None,
             complete_cycle=True,
             pattern="optimal",
-            avoid_water=True
+            avoid_water=True  # This now only avoids deep water
         )
 
         if route:
@@ -118,11 +133,8 @@ def test_resource_routing():
             logger.info("\nRoute Details:")
             logger.info(f"Total distance: {route.total_distance:.1f} units")
             logger.info(f"Estimated time: {route.estimated_time:.1f}s")
-            logger.info("Resource distribution:")
-            for res_type, count in route.resource_counts.items():
-                logger.info(f"  {res_type}: {count} nodes")
-            logger.info(f"Terrain penalties encountered: {len(route.terrain_penalties)}")
-            logger.info(f"Waypoints: {len(route.waypoints)}")
+            logger.info(f"Nodes in shallow water: {sum(1 for pos in route.waypoints if route_manager.map_manager.detect_terrain(pos)['shallow_water'] > 0.3)}")
+            logger.info(f"Total waypoints: {len(route.waypoints)}")
 
             return True
         else:
