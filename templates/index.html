@@ -128,6 +128,52 @@
             50% { opacity: 0.8; }
             100% { opacity: 0; }
         }
+        input[type="text"].recording {
+            background-color: #fff3cd;
+            border-color: #ffeeba;
+            animation: pulse 2s infinite;
+        }
+        button.recording {
+            background-color: #dc3545 !important;
+            animation: pulse 2s infinite;
+        }
+        .hotkey-display {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #e3f2fd;
+            border-radius: 4px;
+            margin: 4px;
+            font-size: 14px;
+        }
+        .hotkey-combo {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            font-family: monospace;
+            margin: 0 2px;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+        .hotkey-section {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        .hotkey-section .input-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .hotkey-section .input-group input {
+            flex: 1;
+        }
     </style>
     <script src="/static/js/interface.js"></script>
 </head>
@@ -157,10 +203,14 @@
         </div>
         <div class="control-group">
             <input type="text" id="macro-name" placeholder="Enter macro name">
-            <div class="hotkey-display" id="hotkey-display">Hotkey: None</div>
-            <input type="text" id="hotkey-input" placeholder="Enter hotkey (e.g. ctrl+shift+a)">
-            <button onclick="assignHotkey()" id="assign-hotkey-btn">Assign Hotkey</button>
-            <button onclick="clearHotkey()" id="clear-hotkey-btn">Clear Hotkey</button>
+            <div class="hotkey-section">
+                <div class="hotkey-display" id="hotkey-display">Current Hotkey: None</div>
+                <div class="input-group">
+                    <input type="text" id="hotkey-input" placeholder="Enter hotkey (e.g. ctrl+shift+a)" readonly>
+                    <button onclick="startHotkeyRecording()" id="assign-hotkey-btn">Assign Hotkey</button>
+                    <button onclick="clearHotkey()" id="clear-hotkey-btn">Clear Hotkey</button>
+                </div>
+            </div>
             <button onclick="takeScreenshot()" id="screenshot-btn" class="screenshot">📸 Take Screenshot</button>
         </div>
         <div class="control-group">

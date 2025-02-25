@@ -8,6 +8,8 @@ let maxReconnectAttempts = 5;
 let reconnectTimeout = null;
 let pingInterval = null;
 let lastPongTime = Date.now();
+let isRecordingHotkey = false;
+let currentHotkeyRecorder = null;
 
 // Initialize WebSocket connection
 function initializeWebSocket() {
@@ -177,6 +179,73 @@ function addLog(message, level = 'info') {
 }
 
 // Hotkey Management Functions
+function startHotkeyRecording() {
+    const macroName = document.getElementById('macro-name').value.trim();
+    if (!macroName) {
+        addLog('Please enter a macro name first', 'error');
+        return;
+    }
+
+    isRecordingHotkey = true;
+    const hotkeyInput = document.getElementById('hotkey-input');
+    const assignButton = document.getElementById('assign-hotkey-btn');
+
+    hotkeyInput.value = '';
+    hotkeyInput.placeholder = 'Press keys...';
+    hotkeyInput.classList.add('recording');
+    assignButton.textContent = 'Recording...';
+    assignButton.classList.add('recording');
+
+    // Store the keys being pressed
+    let pressedKeys = new Set();
+
+    function handleKeyDown(e) {
+        e.preventDefault();
+        const key = e.key.toLowerCase();
+        if (!pressedKeys.has(key)) {
+            pressedKeys.add(key);
+            updateHotkeyDisplay();
+        }
+    }
+
+    function handleKeyUp(e) {
+        e.preventDefault();
+        const key = e.key.toLowerCase();
+        pressedKeys.delete(key);
+
+        // If no keys are pressed, stop recording
+        if (pressedKeys.size === 0) {
+            stopHotkeyRecording();
+        } else {
+            updateHotkeyDisplay();
+        }
+    }
+
+    function updateHotkeyDisplay() {
+        const hotkey = Array.from(pressedKeys).join('+');
+        hotkeyInput.value = hotkey;
+    }
+
+    function stopHotkeyRecording() {
+        document.removeEventListener('keydown', handleKeyDown);
+        document.removeEventListener('keyup', handleKeyUp);
+        isRecordingHotkey = false;
+        hotkeyInput.placeholder = 'Enter hotkey (e.g. ctrl+shift+a)';
+        hotkeyInput.classList.remove('recording');
+        assignButton.textContent = 'Assign Hotkey';
+        assignButton.classList.remove('recording');
+
+        // If we have a valid hotkey combination, assign it
+        if (hotkeyInput.value) {
+            assignHotkey();
+        }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    currentHotkeyRecorder = { stop: stopHotkeyRecording };
+}
+
 function assignHotkey() {
     const macroName = document.getElementById('macro-name').value.trim();
     const hotkey = document.getElementById('hotkey-input').value.trim();
@@ -190,20 +259,20 @@ function assignHotkey() {
         return;
     }
 
+    // Validate the hotkey format
+    const hotkeyParts = hotkey.toLowerCase().split('+');
+    const validModifiers = ['ctrl', 'alt', 'shift'];
+    const hasValidModifier = hotkeyParts.some(part => validModifiers.includes(part));
+
+    if (!hasValidModifier) {
+        addLog('Hotkey must include at least one modifier key (Ctrl, Alt, or Shift)', 'error');
+        return;
+    }
+
     sendWebSocketMessage('assign_hotkey', {
         macro_name: macroName,
         hotkey: hotkey
     });
-}
-
-function clearHotkey() {
-    const macroName = document.getElementById('macro-name').value.trim();
-    if (!macroName) {
-        addLog('Please enter a macro name', 'error');
-        return;
-    }
-
-    sendWebSocketMessage('clear_hotkey', { macro_name: macroName });
 }
 
 function updateHotkeyDisplay(macroName, hotkey) {
@@ -431,7 +500,17 @@ function setupEventListeners() {
     if (recordMacroBtn) recordMacroBtn.onclick = startMacroRecording;
     if (stopMacroBtn) stopMacroBtn.onclick = stopMacroRecording;
     if (playMacroBtn) playMacroBtn.onclick = playMacro;
-    if (assignHotkeyBtn) assignHotkeyBtn.onclick = assignHotkey;
+    if (assignHotkeyBtn) {
+        assignHotkeyBtn.onclick = function() {
+            if (isRecordingHotkey) {
+                if (currentHotkeyRecorder) {
+                    currentHotkeyRecorder.stop();
+                }
+            } else {
+                startHotkeyRecording();
+            }
+        };
+    }
     if (clearHotkeyBtn) clearHotkeyBtn.onclick = clearHotkey;
 
     // Sound controls

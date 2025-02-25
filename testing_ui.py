@@ -49,6 +49,7 @@ def verify_port_available(port):
     """Check if a port is available"""
     try:
         test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        test_socket.settimeout(1)
         test_socket.bind(('0.0.0.0', port))
         test_socket.close()
         return True
@@ -115,17 +116,8 @@ class TestingUI:
         if not test_macro_path.exists():
             test_macro = {
                 "name": "test_macro",
-                "actions": [
-                    {
-                        "type": "move",
-                        "x": 100,
-                        "y": 100,
-                        "button": "left",
-                        "duration": 0.1,
-                        "timestamp": 0
-                    }
-                ],
-                "created": 0
+                "hotkey": None,
+                "actions": []
             }
             with open(test_macro_path, 'w') as f:
                 json.dump(test_macro, f, indent=2)
@@ -175,19 +167,7 @@ def websocket(ws):
                     continue
 
                 if data['type'] == 'take_screenshot':
-                    macro_name = data.get('macro_name')
-                    success, filepath, filename = testing_ui.take_screenshot(macro_name)
-                    if success:
-                        ws.send(json.dumps({
-                            'type': 'screenshot_taken',
-                            'filepath': filepath,
-                            'filename': filename
-                        }))
-                    else:
-                        ws.send(json.dumps({
-                            'type': 'error',
-                            'message': f'Failed to take screenshot: {filename}'
-                        }))
+                    handle_take_screenshot(ws, data)
                 elif data['type'] == 'assign_hotkey':
                     handle_assign_hotkey(ws, data)
                 elif data['type'] == 'clear_hotkey':
@@ -228,16 +208,118 @@ def websocket(ws):
         logger.error(f"WebSocket error: {e}")
         logger.error(traceback.format_exc())
 
-def cleanup_resources():
-    """Cleanup resources"""
-    global testing_ui
-    try:
-        if testing_ui:
-            if testing_ui.sound_manager:
-                testing_ui.sound_manager.stop_monitoring()
-            logger.info("Resources cleaned up successfully")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
+def handle_take_screenshot(ws, data):
+    """Handle screenshot capture request"""
+    macro_name = data.get('macro_name')
+    success, filepath, filename = testing_ui.take_screenshot(macro_name)
+    if success:
+        ws.send(json.dumps({
+            'type': 'screenshot_taken',
+            'filepath': filepath,
+            'filename': filename
+        }))
+    else:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': f'Failed to take screenshot: {filename}'
+        }))
+
+def handle_assign_hotkey(ws, data):
+    """Handle hotkey assignment command"""
+    macro_name = data.get('macro_name', '')
+    hotkey = data.get('hotkey', '')
+
+    if not macro_name or not hotkey:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Please provide both macro name and hotkey'
+        }))
+        return
+
+    if testing_ui.sound_manager.assign_hotkey(macro_name, hotkey):
+        ws.send(json.dumps({
+            'type': 'log',
+            'level': 'info',
+            'message': f'Assigned hotkey {hotkey} to macro {macro_name}'
+        }))
+    else:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Failed to assign hotkey'
+        }))
+
+def handle_clear_hotkey(ws, data):
+    """Handle clear hotkey command"""
+    macro_name = data.get('macro_name', '')
+
+    if not macro_name:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Please provide a macro name'
+        }))
+        return
+
+    if testing_ui.sound_manager.remove_hotkey(macro_name):
+        ws.send(json.dumps({
+            'type': 'log',
+            'level': 'info',
+            'message': f'Cleared hotkey for macro {macro_name}'
+        }))
+    else:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'No hotkey assigned to clear'
+        }))
+
+def handle_start_macro_recording(ws, data):
+    """Handle start macro recording command"""
+    macro_name = data.get('macro_name', '')
+    if not macro_name:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Please enter a macro name'
+        }))
+        return
+
+    if testing_ui.sound_manager.record_macro(macro_name):
+        ws.send(json.dumps({
+            'type': 'log',
+            'level': 'info',
+            'message': f'Started recording macro: {macro_name}'
+        }))
+
+def handle_stop_macro_recording(ws):
+    """Handle stop macro recording command"""
+    if testing_ui.sound_manager.stop_macro_recording():
+        ws.send(json.dumps({
+            'type': 'recording_complete',
+            'recording_type': 'macro'
+        }))
+
+def handle_start_sound_recording(ws, data):
+    """Handle start sound recording command"""
+    sound_name = data.get('sound_name', '')
+    if not sound_name:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Please enter a sound trigger name'
+        }))
+        return
+
+    if testing_ui.sound_manager.record_sound_trigger(sound_name):
+        ws.send(json.dumps({
+            'type': 'log',
+            'level': 'info',
+            'message': f'Recording started: {sound_name}'
+        }))
+
+def handle_stop_sound_recording(ws):
+    """Handle stop sound recording command"""
+    if testing_ui.sound_manager.stop_recording():
+        ws.send(json.dumps({
+            'type': 'recording_complete',
+            'recording_type': 'sound'
+        }))
 
 @app.route('/screenshots/<path:filename>')
 def serve_screenshot(filename):
@@ -270,108 +352,16 @@ def get_macros():
         logger.error(traceback.format_exc())
         return jsonify({'error': str(e), 'macros': []}), 500
 
-def handle_assign_hotkey(ws, data):
-    """Handle hotkey assignment command"""
+def cleanup_resources():
+    """Cleanup resources"""
     global testing_ui
-    macro_name = data.get('macro_name', '')
-    hotkey = data.get('hotkey', '')
-
-    if not macro_name or not hotkey:
-        ws.send(json.dumps({
-            'type': 'error',
-            'message': 'Please provide both macro name and hotkey'
-        }))
-        return
-
-    if testing_ui.sound_manager.assign_hotkey(macro_name, hotkey):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Assigned hotkey {hotkey} to macro {macro_name}'
-        }))
-    else:
-        ws.send(json.dumps({
-            'type': 'error',
-            'message': 'Failed to assign hotkey'
-        }))
-
-def handle_clear_hotkey(ws, data):
-    """Handle clear hotkey command"""
-    global testing_ui
-    macro_name = data.get('macro_name', '')
-
-    if not macro_name:
-        ws.send(json.dumps({
-            'type': 'error',
-            'message': 'Please provide a macro name'
-        }))
-        return
-
-    if testing_ui.sound_manager.remove_hotkey(macro_name):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Cleared hotkey for macro {macro_name}'
-        }))
-    else:
-        ws.send(json.dumps({
-            'type': 'error',
-            'message': 'No hotkey assigned to clear'
-        }))
-
-def handle_start_macro_recording(ws, data):
-    """Handle start macro recording command"""
-    global testing_ui
-    macro_name = data.get('macro_name', '')
-    if not macro_name:
-        ws.send(json.dumps({
-            'type': 'error',
-            'message': 'Please enter a macro name'
-        }))
-        return
-
-    if testing_ui.sound_manager.record_macro(macro_name):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Started recording macro: {macro_name}'
-        }))
-
-def handle_stop_macro_recording(ws):
-    """Handle stop macro recording command"""
-    global testing_ui
-    if testing_ui.sound_manager.stop_macro_recording():
-        ws.send(json.dumps({
-            'type': 'recording_complete',
-            'recording_type': 'macro'
-        }))
-
-def handle_start_sound_recording(ws, data):
-    """Handle start sound recording command"""
-    global testing_ui
-    sound_name = data.get('sound_name', '')
-    if not sound_name:
-        ws.send(json.dumps({
-            'type': 'error',
-            'message': 'Please enter a sound trigger name'
-        }))
-        return
-
-    if testing_ui.sound_manager.record_sound_trigger(sound_name):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Recording started: {sound_name}'
-        }))
-
-def handle_stop_sound_recording(ws):
-    """Handle stop sound recording command"""
-    global testing_ui
-    if testing_ui.sound_manager.stop_recording():
-        ws.send(json.dumps({
-            'type': 'recording_complete',
-            'recording_type': 'sound'
-        }))
+    try:
+        if testing_ui:
+            if testing_ui.sound_manager:
+                testing_ui.sound_manager.stop_monitoring()
+            logger.info("Resources cleaned up successfully")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
 
 def run():
     """Start the server"""
