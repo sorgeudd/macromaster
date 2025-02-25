@@ -8,7 +8,8 @@ let monitoring = false;
 // Initialize WebSocket connection
 function initializeWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    // Use port 5001 to match our server configuration
+    const wsUrl = `${protocol}//${window.location.host.split(':')[0]}:5001/ws`;
 
     try {
         ws = new WebSocket(wsUrl);
