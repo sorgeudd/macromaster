@@ -23,16 +23,15 @@ class MapManager:
         self.last_known_position: Optional[PlayerPosition] = None
         self.minimap_size: Tuple[int, int] = (0, 0)
 
-        # Arrow detection parameters (scaled for test minimap)
-        self.arrow_color_lower = np.array([95, 150, 150])  # From footage analysis
-        self.arrow_color_upper = np.array([125, 255, 255])
-        self.min_arrow_area = 8     # Scaled from high-res: ~3x5 pixels
-        self.max_arrow_area = 20    # Allow some variation
+        # Arrow detection parameters (relative to minimap size)
+        self.arrow_color_lower = np.array([90, 160, 180])
+        self.arrow_color_upper = np.array([110, 200, 255])
 
-        # Cardinal direction snapping threshold
-        self.cardinal_snap_threshold = 15.0  # Degrees
+        # Area thresholds will be calculated relative to minimap size
+        self.min_area_ratio = 0.0001  # 0.01% of minimap area
+        self.max_area_ratio = 0.001   # 0.1% of minimap area
 
-        # Scale factors
+        # Scale factors for coordinate translation
         self.scale_x: float = 1.0
         self.scale_y: float = 1.0
 
@@ -41,35 +40,48 @@ class MapManager:
         try:
             if self.minimap_size == (0, 0):
                 self.minimap_size = minimap_image.shape[:2]
+                self.logger.debug(f"Set minimap size to {self.minimap_size}")
 
-            # Convert to HSV for better color detection
+            # Calculate adaptive area thresholds
+            minimap_area = self.minimap_size[0] * self.minimap_size[1]
+            min_area = int(minimap_area * self.min_area_ratio)
+            max_area = int(minimap_area * self.max_area_ratio)
+            self.logger.debug(f"Area thresholds: {min_area} to {max_area} pixels")
+
+            # Convert to HSV and apply adaptive thresholding
             hsv = cv2.cvtColor(minimap_image, cv2.COLOR_BGR2HSV)
             arrow_mask = cv2.inRange(hsv, self.arrow_color_lower, self.arrow_color_upper)
 
-            # Find contours (no morphological operations to preserve shape)
-            contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            # Find contours with shape preservation
+            contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
 
             if not contours:
                 self.logger.debug("No contours found")
                 return None
 
-            # Filter contours by area
+            # Filter contours by area and shape
             valid_contours = []
             for cnt in contours:
                 area = cv2.contourArea(cnt)
-                if self.min_arrow_area <= area <= self.max_arrow_area:
-                    valid_contours.append(cnt)
-                    self.logger.debug(f"Found valid contour with area: {area}")
+                if min_area <= area <= max_area:
+                    # Check if the shape is arrow-like using aspect ratio
+                    _, (width, height), _ = cv2.minAreaRect(cnt)
+                    aspect_ratio = max(width, height) / min(width, height)
+
+                    if 1.5 <= aspect_ratio <= 3.0:  # Arrow-like shape
+                        valid_contours.append(cnt)
+                        self.logger.debug(f"Valid contour - Area: {area}, Aspect ratio: {aspect_ratio:.2f}")
 
             if not valid_contours:
-                self.logger.debug("No valid contours within area range")
+                self.logger.debug("No valid arrow-shaped contours found")
                 return None
 
             # Use largest valid contour
             arrow_contour = max(valid_contours, key=cv2.contourArea)
 
-            # Get oriented rectangle for angle detection
+            # Get oriented minimum area rectangle
             rect = cv2.minAreaRect(arrow_contour)
+            angle = rect[2]
 
             # Calculate centroid
             M = cv2.moments(arrow_contour)
@@ -80,30 +92,59 @@ class MapManager:
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
 
-            # Get angle from oriented rectangle (more stable for high-res)
-            angle = rect[2]
-            if rect[1][0] < rect[1][1]:  # Ensure longer side is used
+            # Determine arrow direction using oriented rectangle
+            if rect[1][0] < rect[1][1]:  # Ensure longer side is used for angle
                 angle += 90
             game_angle = (90 - angle) % 360  # Convert to game coordinates
 
-            # Snap to cardinal directions if close
-            for cardinal in [0, 90, 180, 270]:
-                if abs(game_angle - cardinal) < self.cardinal_snap_threshold:
-                    game_angle = float(cardinal)
-                    self.logger.debug(f"Snapped to cardinal angle: {game_angle}°")
-                    break
+            # Verify angle using contour points
+            tip_point = self._find_arrow_tip(arrow_contour, (cx, cy))
+            if tip_point is not None:
+                # Calculate angle from tip to center
+                dx = tip_point[0] - cx
+                dy = cy - tip_point[1]
+                tip_angle = np.degrees(np.arctan2(dx, dy)) % 360
+
+                # Use tip angle if it's significantly different
+                angle_diff = abs(game_angle - tip_angle)
+                if angle_diff > 30 and angle_diff < 330:
+                    game_angle = tip_angle
+                    self.logger.debug(f"Using tip angle: {tip_angle}°")
 
             # Create position object
             position = PlayerPosition(cx, cy, game_angle)
             self.last_known_position = position
 
-            self.logger.debug(f"Detection details: pos=({cx}, {cy}), angle={game_angle}°")
+            self.logger.debug(f"Detected arrow at ({cx}, {cy}) angle {game_angle}°")
             return position
 
         except Exception as e:
             self.logger.error(f"Error detecting player position: {str(e)}")
             import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
+            return None
+
+    def _find_arrow_tip(self, contour: np.ndarray, center: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+        """Find the tip point of the arrow using convex hull"""
+        try:
+            # Get convex hull
+            hull = cv2.convexHull(contour)
+
+            # Find point furthest from center
+            max_dist = 0
+            tip_point = None
+
+            for point in hull:
+                pt = point[0]
+                dist = np.sqrt((pt[0] - center[0])**2 + (pt[1] - center[1])**2)
+                if dist > max_dist:
+                    max_dist = dist
+                    tip_point = pt
+
+            return tip_point if tip_point is not None else None
+
+        except Exception as e:
+            self.logger.error(f"Error finding arrow tip: {str(e)}")
             return None
 
     def load_map(self, map_name: str, map_image: Optional[np.ndarray] = None) -> bool:

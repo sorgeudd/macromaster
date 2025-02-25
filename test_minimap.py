@@ -15,44 +15,46 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
         arrow_pos: (x, y) position of arrow center
         arrow_angle: angle in degrees (0 is North, clockwise)
     """
-    # Create black background - sized for test environment
-    minimap_size = (250, 250, 3)
+    # Create black background with consistent size
+    minimap_size = (200, 200, 3)
     minimap = np.zeros(minimap_size, dtype=np.uint8)
 
-    # Add varied terrain features
-    cv2.rectangle(minimap, (50, 50), (150, 150), (40, 40, 40), -1)
-    cv2.circle(minimap, (120, 80), 30, (80, 60, 40), -1)
-    cv2.rectangle(minimap, (20, 150), (70, 180), (120, 60, 20), -1)
-    cv2.rectangle(minimap, (80, 150), (130, 180), (160, 100, 40), -1)
+    # Create higher contrast background
+    cv2.rectangle(minimap, (0, 0), (200, 200), (30, 30, 30), -1)
 
-    # Arrow dimensions (scaled down from high-res footage proportions)
-    arrow_length = 3  # Scaled from 14
-    arrow_width = 5   # Scaled from 27
+    # Calculate arrow dimensions relative to minimap size
+    minimap_area = minimap_size[0] * minimap_size[1]
+    target_area = minimap_area * 0.0005  # Target 0.05% of minimap area
+    arrow_length = int(np.sqrt(target_area * 2))  # Make length ~sqrt(2) times width
+    arrow_width = int(np.sqrt(target_area / 2))
 
     # Convert game angle to drawing angle (0° is up, increases clockwise)
     draw_angle = np.radians(arrow_angle)
 
-    # Create arrow points
-    arrow_points = []
-
-    # Tip point
+    # Create arrow shape
     tip_x = int(arrow_pos[0] + arrow_length * np.sin(draw_angle))
     tip_y = int(arrow_pos[1] - arrow_length * np.cos(draw_angle))
-    arrow_points.append([tip_x, tip_y])
 
-    # Base points - create triangular shape
-    for offset in [-2.0944, 2.0944]:  # ±120 degrees
-        base_angle = draw_angle + offset
-        base_x = int(arrow_pos[0] + arrow_width/2 * np.sin(base_angle))
-        base_y = int(arrow_pos[1] - arrow_width/2 * np.cos(base_angle))
-        arrow_points.append([base_x, base_y])
+    base1_x = int(arrow_pos[0] + arrow_width * np.sin(draw_angle + 2.0944))  # +120°
+    base1_y = int(arrow_pos[1] - arrow_width * np.cos(draw_angle + 2.0944))
 
-    # Convert to numpy array and reshape for fillPoly
-    pts = np.array(arrow_points, dtype=np.int32)
+    base2_x = int(arrow_pos[0] + arrow_width * np.sin(draw_angle - 2.0944))  # -120°
+    base2_y = int(arrow_pos[1] - arrow_width * np.cos(draw_angle - 2.0944))
+
+    # Create arrow points
+    pts = np.array([[tip_x, tip_y], [base1_x, base1_y], [base2_x, base2_y]], dtype=np.int32)
     pts = pts.reshape((-1, 1, 2))
 
-    # Fill arrow with exact game color
-    cv2.fillPoly(minimap, [pts], (105, 210, 210))  # BGR format from footage
+    # Draw arrow with exact HSV color that matches detection thresholds
+    arrow_color = (105, 185, 210)  # BGR format matching HSV thresholds
+    cv2.fillPoly(minimap, [pts], arrow_color)
+
+    # Save raw minimap for debugging
+    cv2.imwrite('test_minimap_raw.png', minimap)
+
+    # Debug visualization in HSV
+    hsv = cv2.cvtColor(minimap, cv2.COLOR_BGR2HSV)
+    cv2.imwrite('test_minimap_hsv.png', hsv)
 
     return minimap
 

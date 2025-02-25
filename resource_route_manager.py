@@ -1,10 +1,11 @@
-"""Resource route management system for automated farming"""
+"""Resource route management system with AI integration"""
 import logging
 from typing import List, Tuple, Dict, Optional, Set, Literal
 from pathfinding import PathFinder
 import numpy as np
 from time import time
 from map_manager import MapManager
+from gameplay_learner import GameplayLearner
 
 class ResourceTypeFilter:
     def __init__(self):
@@ -82,8 +83,9 @@ class ResourceRoute:
         self.resource_counts: Dict[str, int] = {}
         self.nodes: List[ResourceNode] = []
         self.terrain_penalties: Dict[Tuple[int, int], float] = {}
-        self.pattern: str = "optimal"  # optimal, circular, zigzag
-        self.density_map: Dict[Tuple[int, int], float] = {}  # Resource density heatmap
+        self.pattern: str = "optimal"
+        self.density_map: Dict[Tuple[int, int], float] = {}
+        self.success_probabilities: Dict[Tuple[int, int], float] = {}  # Added for AI integration
 
     def add_waypoint(self, node: ResourceNode):
         self.waypoints.append(node.position)
@@ -113,7 +115,8 @@ class ResourceRoute:
                 distance_weight: float = 0.6,
                 variety_weight: float = 0.2, 
                 priority_weight: float = 0.2,
-                density_weight: float = 0.1):
+                density_weight: float = 0.1,
+                success_weight: float = 0.1): # Added success_weight
         """Optimize route using specified pattern and weights"""
         if len(self.waypoints) <= 2:
             return
@@ -164,13 +167,17 @@ class ResourceRoute:
                 # Terrain penalty
                 terrain_penalty = self.terrain_penalties.get(pos, 0.0)
 
+                # Success probability score (higher is better)
+                success_score = self.success_probabilities.get(pos, 0.5) # Default 0.5 if not found
+
                 # Combined score (higher is better)
                 total_score = (
                     distance_score * distance_weight +
                     variety_score * variety_weight +
                     priority_score * priority_weight +
                     density_score * density_weight +
-                    pattern_score * pattern_weight
+                    pattern_score * pattern_weight +
+                    success_score * success_weight # Add success_score
                 ) * (1.0 - terrain_penalty)
 
                 scores.append((total_score, i))
@@ -237,6 +244,8 @@ class ResourceRouteManager:
         self.map_manager = MapManager()
         self.current_route: Optional[ResourceRoute] = None
         self.nodes: Dict[Tuple[int, int], ResourceNode] = {}
+        self.gameplay_learner = GameplayLearner()  # Initialize AI learning system
+
         self.stats: Dict[str, Dict] = {
             'total_routes': 0,
             'resources_collected': {},
@@ -280,14 +289,13 @@ class ResourceRouteManager:
                     min_priority: float = 0.0,
                     pattern: str = "optimal",
                     avoid_water: bool = True) -> Optional[ResourceRoute]:
-        """Create terrain-aware resource route"""
+        """Create AI-enhanced resource route"""
         try:
             if start_pos is None:
                 self.logger.error("Start position is required")
                 self.stats['failed_routes'] += 1
                 return None
 
-            # Check if starting position is in water
             if avoid_water:
                 terrain = self.map_manager.detect_terrain(start_pos)
                 if terrain['water'] > 0.5:
@@ -297,7 +305,7 @@ class ResourceRouteManager:
 
             route = ResourceRoute()
             route.cycle_complete = complete_cycle
-            route.pattern = "optimal"  # Force optimal pattern as selected
+            route.pattern = pattern
 
             start_node = ResourceNode(start_pos, "start")
             route.add_waypoint(start_node)
@@ -310,11 +318,9 @@ class ResourceRouteManager:
             available_nodes = []
             filtered_count = 0
             for pos, node in self.nodes.items():
-                # Check terrain penalties
                 terrain = self.map_manager.detect_terrain(pos)
                 terrain_penalty = self.map_manager.get_terrain_penalty(pos)
 
-                # Skip nodes in impassable terrain
                 if terrain['water'] > 0.5 or terrain_penalty > 0.9:
                     filtered_count += 1
                     continue
@@ -329,27 +335,38 @@ class ResourceRouteManager:
                         filtered_count += 1
                         continue
 
-                # Add terrain penalty to node
-                self.add_terrain_penalty(pos, terrain_penalty)
-                available_nodes.append(node)
+                success_prob = self.gameplay_learner.predict_success({
+                    'resource_type': node.resource_type,
+                    'distance': distance if max_distance is not None else 0,
+                    'visit_count': node.visit_count,
+                    'terrain_penalty': terrain_penalty
+                })
+
+                if success_prob > 0.6:  # 60% threshold
+                    self.add_terrain_penalty(pos, terrain_penalty)
+                    node.priority *= success_prob  # Adjust priority based on AI prediction
+                    available_nodes.append(node)
+                    route.success_probabilities[pos] = success_prob
+                else:
+                    filtered_count += 1
 
             self.stats['filtered_nodes'] = filtered_count
 
             if not available_nodes:
-                self.logger.warning("No suitable resources found after filtering")
+                self.logger.warning("No suitable resources found after AI filtering")
                 self.stats['failed_routes'] += 1
                 return None
 
             for node in available_nodes:
                 route.add_waypoint(node)
 
-            # Enhanced optimization weights for terrain awareness
             route.optimize(
-                pattern="optimal",
-                distance_weight=0.5,  # Reduced to give more weight to terrain
+                pattern=pattern,
+                distance_weight=0.4,
                 variety_weight=0.2,
                 priority_weight=0.2,
-                density_weight=0.1
+                density_weight=0.1,
+                success_weight=0.1
             )
 
             full_path = []
@@ -357,7 +374,6 @@ class ResourceRouteManager:
             route_valid = True
 
             for i in range(len(route.waypoints) - 1):
-                # Find path considering terrain
                 path = self.pathfinder.find_path(
                     route.waypoints[i],
                     route.waypoints[i + 1],
@@ -375,7 +391,6 @@ class ResourceRouteManager:
                 self.stats['failed_routes'] += 1
                 return None
 
-            # Adjust time estimates based on terrain
             base_time = route.total_distance * 0.5
             terrain_modifier = 1.0 + sum(penalty for penalty in route.terrain_penalties.values()) / len(route.terrain_penalties) if route.terrain_penalties else 1.0
             gathering_time = sum(2.0 + (node.visit_count * 0.5) for node in route.nodes)
@@ -400,7 +415,7 @@ class ResourceRouteManager:
             self.stats['failed_routes'] += 1
             return None
 
-    def record_completion(self, route: ResourceRoute, actual_time: float):
+    def record_completion(self, route: ResourceRoute, actual_time: float, success: bool = True):
         """Record statistics for completed route"""
         self.stats['average_completion_time'] = (
             (self.stats['average_completion_time'] * (self.stats['total_routes'] - 1) + actual_time) / 
@@ -414,20 +429,29 @@ class ResourceRouteManager:
                 )
                 node.visit()  # Update node state
 
+        # Update AI model with route results
+        for node in route.nodes:
+            if node.resource_type != 'start':
+                self.gameplay_learner.update_model({
+                    'resource_type': node.resource_type,
+                    'distance': route.total_distance,
+                    'terrain_penalty': self.map_manager.get_terrain_penalty(node.position),
+                    'success': success,
+                    'time_taken': actual_time
+                })
+
+
     def visualize_route(self, image_size: Tuple[int, int]) -> np.ndarray:
         """Enhanced visualization with terrain overlay"""
         try:
             import cv2
             visualization = np.zeros((image_size[1], image_size[0], 3), dtype=np.uint8)
 
-            # Add terrain overlay if map is loaded
             if self.map_manager.current_map is not None:
-                # Scale map to match visualization size
                 terrain_overlay = cv2.resize(
                     self.map_manager.current_map,
                     (image_size[0], image_size[1])
                 )
-                # Blend with 30% opacity
                 visualization = cv2.addWeighted(
                     visualization, 0.7,
                     terrain_overlay, 0.3,
@@ -435,13 +459,11 @@ class ResourceRouteManager:
                 )
 
             if not self.current_route or not self.current_route.waypoints:
-                # Draw message when no route is available
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 cv2.putText(visualization, "No valid route available", 
                           (10, 30), font, 1, (255, 255, 255), 2)
                 return visualization
 
-            # Define colors for different resource types
             type_colors = {
                 'start': (255, 255, 255),  # White
                 'copper_ore_full': (0, 165, 255),  # Orange
@@ -454,7 +476,6 @@ class ResourceRouteManager:
                 'hide': (210, 105, 30),  # Chocolate
             }
 
-            # Draw terrain penalties if any
             for pos, penalty in self.current_route.terrain_penalties.items():
                 pos_scaled = (
                     int(pos[0] * image_size[0] / self.pathfinder.grid_size),
@@ -463,9 +484,7 @@ class ResourceRouteManager:
                 color = (0, 0, int(255 * penalty))  # Red with alpha based on penalty
                 cv2.circle(visualization, pos_scaled, 10, color, -1)
 
-            # Draw pattern-specific visualization
             if self.current_route.pattern == "circular":
-                # Draw circular guide
                 if len(self.current_route.waypoints) > 1:
                     center = self.current_route.waypoints[0]
                     center_scaled = (
@@ -479,14 +498,12 @@ class ResourceRouteManager:
                     radius_scaled = int(avg_radius * image_size[0] / self.pathfinder.grid_size)
                     cv2.circle(visualization, center_scaled, radius_scaled, (50, 50, 50), 1)
 
-            # Draw connections between waypoints
             total_points = len(self.current_route.waypoints)
-            if total_points > 1:  # Only draw connections if we have more than one point
+            if total_points > 1:
                 for i in range(total_points - 1):
                     start = self.current_route.waypoints[i]
                     end = self.current_route.waypoints[i + 1]
 
-                    # Scale coordinates
                     start_scaled = (
                         int(start[0] * image_size[0] / self.pathfinder.grid_size),
                         int(start[1] * image_size[1] / self.pathfinder.grid_size)
@@ -496,45 +513,36 @@ class ResourceRouteManager:
                         int(end[1] * image_size[1] / self.pathfinder.grid_size)
                     )
 
-                    # Draw path with gradient color based on sequence
-                    progress = i / max(1, total_points - 2)  # Prevent division by zero
+                    progress = i / max(1, total_points - 2)
                     path_color = (
-                        int(255 * (1 - progress)),  # Blue decreases
-                        int(255 * progress),        # Green increases
+                        int(255 * (1 - progress)),
+                        int(255 * progress),
                         0
                     )
                     cv2.line(visualization, start_scaled, end_scaled, path_color, 2)
 
-                    # Draw direction arrows for zigzag pattern
                     if self.current_route.pattern == "zigzag":
                         dx = end[0] - start[0]
                         dy = end[1] - start[1]
                         mid_x = (start_scaled[0] + end_scaled[0]) // 2
                         mid_y = (start_scaled[1] + end_scaled[1]) // 2
-                        arrow_color = (200, 200, 0)  # Yellow arrows
-                        # Draw arrowhead
+                        arrow_color = (200, 200, 0)
                         cv2.arrowedLine(visualization, 
                                       (mid_x - 5, mid_y), 
                                       (mid_x + 5, mid_y), 
                                       arrow_color, 1, tipLength=0.5)
 
-                    # Draw resource markers
                     node = self.current_route.nodes[i]
                     base_color = type_colors.get(node.resource_type, (0, 255, 255))
-
-                    # Modify color based on priority
                     priority_factor = node.get_effective_priority(self.filter_settings)
-                    color = tuple(int(min(c * priority_factor, 255)) for c in base_color)  # Clamp to 255
+                    color = tuple(int(min(c * priority_factor, 255)) for c in base_color)
 
-                    # Draw markers
                     if node.resource_type == 'start':
                         cv2.circle(visualization, start_scaled, 8, color, -1)
-                        # Draw start label
                         cv2.putText(visualization, "S", 
                                   (start_scaled[0] - 5, start_scaled[1] + 5),
                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                     else:
-                        # Draw node with visit count indicator
                         if node.is_available(self.filter_settings):
                             cv2.circle(visualization, start_scaled, 6, color, -1)
                         else:
@@ -545,7 +553,6 @@ class ResourceRouteManager:
                                       (start_scaled[0] - 5, start_scaled[1] - 8),
                                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1)
 
-            # Draw final point if it exists
             if self.current_route.nodes:
                 final_node = self.current_route.nodes[-1]
                 final_color = type_colors.get(final_node.resource_type, (0, 255, 255))
@@ -556,11 +563,9 @@ class ResourceRouteManager:
                 )
                 cv2.circle(visualization, final_scaled, 6, final_color, -1)
 
-            # Add legend
             legend_y = 20
             font = cv2.FONT_HERSHEY_SIMPLEX
 
-            # Route Statistics
             cv2.putText(visualization, "Route Statistics:", (10, legend_y),
                       font, 0.5, (255, 255, 255), 1)
             legend_y += 20
@@ -571,7 +576,6 @@ class ResourceRouteManager:
                       (10, legend_y), font, 0.5, (255, 255, 255), 1)
             legend_y += 20
 
-            # Filter Status
             cv2.putText(visualization, "Filter Status:", (10, legend_y),
                       font, 0.5, (255, 255, 255), 1)
             legend_y += 20
