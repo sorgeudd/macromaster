@@ -278,7 +278,12 @@ function assignHotkey() {
 function updateHotkeyDisplay(macroName, hotkey) {
     const hotkeyDisplay = document.getElementById('hotkey-display');
     if (hotkeyDisplay) {
-        hotkeyDisplay.textContent = `Hotkey: ${hotkey || 'None'}`;
+        hotkeyDisplay.textContent = `Current Hotkey: ${hotkey || 'None'}`;
+    }
+
+    const hotkeyInput = document.getElementById('hotkey-input');
+    if (hotkeyInput) {
+        hotkeyInput.value = hotkey || '';
     }
 }
 
@@ -488,6 +493,15 @@ function takeScreenshot() {
     sendWebSocketMessage('take_screenshot', { macro_name: macroName });
 }
 
+function clearHotkey() {
+    const macroName = document.getElementById('macro-name').value.trim();
+    if (!macroName) {
+        addLog('Please enter a macro name', 'error');
+        return;
+    }
+
+    sendWebSocketMessage('clear_hotkey', { macro_name: macroName });
+}
 
 function setupEventListeners() {
     // Macro controls

@@ -36,7 +36,7 @@ logging.basicConfig(
 logger = logging.getLogger('TestingUI')
 
 # Initialize Flask and WebSocket
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static')
 sock = Sock(app)
 
 # Enable WebSocket support through proxy
@@ -60,10 +60,9 @@ class TestingUI:
     def __init__(self):
         self.logger = logger
         self.initialized = False
-        try:
-            # Initialize sound macro manager
-            self.sound_manager = SoundMacroManager(test_mode=True)
+        self.sound_manager = None
 
+        try:
             # Ensure directories exist
             self.macro_dir = Path('macros')
             self.macro_dir.mkdir(exist_ok=True)
@@ -72,6 +71,9 @@ class TestingUI:
             self.screenshots_dir = Path('debug_screenshots')
             self.screenshots_dir.mkdir(exist_ok=True)
             self.logger.info(f"Created screenshots directory at {self.screenshots_dir}")
+
+            # Initialize sound macro manager
+            self.sound_manager = SoundMacroManager(test_mode=True)
 
             # Create test macro if it doesn't exist
             self._create_test_macro()
@@ -236,16 +238,30 @@ def handle_assign_hotkey(ws, data):
         }))
         return
 
-    if testing_ui.sound_manager.assign_hotkey(macro_name, hotkey):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Assigned hotkey {hotkey} to macro {macro_name}'
-        }))
-    else:
+    try:
+        if testing_ui.sound_manager.assign_hotkey(macro_name, hotkey):
+            ws.send(json.dumps({
+                'type': 'log',
+                'level': 'info',
+                'message': f'Assigned hotkey {hotkey} to macro {macro_name}'
+            }))
+
+            # Send hotkey update event
+            ws.send(json.dumps({
+                'type': 'hotkey_updated',
+                'macro_name': macro_name,
+                'hotkey': hotkey
+            }))
+        else:
+            ws.send(json.dumps({
+                'type': 'error',
+                'message': 'Failed to assign hotkey'
+            }))
+    except Exception as e:
+        logger.error(f"Error assigning hotkey: {e}")
         ws.send(json.dumps({
             'type': 'error',
-            'message': 'Failed to assign hotkey'
+            'message': f'Error assigning hotkey: {str(e)}'
         }))
 
 def handle_clear_hotkey(ws, data):
@@ -259,16 +275,30 @@ def handle_clear_hotkey(ws, data):
         }))
         return
 
-    if testing_ui.sound_manager.remove_hotkey(macro_name):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Cleared hotkey for macro {macro_name}'
-        }))
-    else:
+    try:
+        if testing_ui.sound_manager.remove_hotkey(macro_name):
+            ws.send(json.dumps({
+                'type': 'log',
+                'level': 'info',
+                'message': f'Cleared hotkey for macro {macro_name}'
+            }))
+
+            # Send hotkey update event
+            ws.send(json.dumps({
+                'type': 'hotkey_updated',
+                'macro_name': macro_name,
+                'hotkey': None
+            }))
+        else:
+            ws.send(json.dumps({
+                'type': 'error',
+                'message': 'No hotkey assigned to clear'
+            }))
+    except Exception as e:
+        logger.error(f"Error clearing hotkey: {e}")
         ws.send(json.dumps({
             'type': 'error',
-            'message': 'No hotkey assigned to clear'
+            'message': f'Error clearing hotkey: {str(e)}'
         }))
 
 def handle_start_macro_recording(ws, data):
@@ -368,6 +398,11 @@ def run():
     try:
         global testing_ui
         logger.info("Initializing Testing UI server...")
+
+        # First clean up any existing instance
+        if testing_ui:
+            testing_ui.cleanup()
+
         testing_ui = TestingUI()
 
         if not testing_ui.initialized:
