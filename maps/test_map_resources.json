@@ -1,0 +1,22 @@
+{
+  "nodes": [
+    {
+      "x": 50,
+      "y": 50,
+      "type": "herb",
+      "priority": 1.0
+    },
+    {
+      "x": 150,
+      "y": 150,
+      "type": "fish",
+      "priority": 0.8
+    },
+    {
+      "x": 100,
+      "y": 100,
+      "type": "ore",
+      "priority": 1.2
+    }
+  ]
+}
