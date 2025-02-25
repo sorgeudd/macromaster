@@ -8,7 +8,7 @@ import socket
 from pathlib import Path
 
 try:
-    from flask import Flask, render_template, jsonify
+    from flask import Flask, render_template
     from flask_sock import Sock
 except ImportError as e:
     print(f"Failed to import Flask dependencies: {e}")
@@ -36,6 +36,9 @@ logger = logging.getLogger('TestingUI')
 # Initialize Flask and WebSocket
 app = Flask(__name__)
 sock = Sock(app)
+
+# Enable WebSocket support through proxy
+app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': 25}
 
 # Global TestingUI instance
 testing_ui = None
@@ -200,10 +203,15 @@ def websocket(ws):
 
             except json.JSONDecodeError:
                 logger.error("Invalid JSON received")
-                ws.send(json.dumps({
-                    'type': 'error',
-                    'message': 'Invalid message format'
-                }))
+                try:
+                    ws.send(json.dumps({
+                        'type': 'error',
+                        'message': 'Invalid message format'
+                    }))
+                except Exception:
+                    logger.error("Failed to send error response")
+                    break
+
             except Exception as e:
                 logger.error(f"Error processing WebSocket message: {e}")
                 logger.error(traceback.format_exc())
@@ -212,7 +220,7 @@ def websocket(ws):
                         'type': 'error',
                         'message': f'Error processing command: {str(e)}'
                     }))
-                except:
+                except Exception:
                     logger.error("Failed to send error message to client")
                     break
 

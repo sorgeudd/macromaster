@@ -16,15 +16,13 @@ function initializeWebSocket() {
     }
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // ALWAYS use port 5000 as it's the only port that works with Replit
-    const wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
 
     try {
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
             console.log("WebSocket connection established");
-            updateConnectionStatus(true);
             reconnectAttempts = 0; // Reset reconnect attempts on successful connection
 
             // Start ping interval
@@ -34,14 +32,22 @@ function initializeWebSocket() {
             pingInterval = setInterval(sendPing, 30000); // Send ping every 30 seconds
             lastPongTime = Date.now();
 
-            refreshMacroList();
-            refreshSoundList();
+            updateStatus('system', 'Connected', true);
         };
 
         ws.onclose = (event) => {
             console.log("WebSocket connection closed", event);
-            updateConnectionStatus(false);
+            updateStatus('system', 'Disconnected', false);
             clearInterval(pingInterval);
+
+            // Clean up the existing WebSocket
+            if (ws) {
+                ws.onopen = null;
+                ws.onclose = null;
+                ws.onerror = null;
+                ws.onmessage = null;
+                ws = null;
+            }
 
             // Try to reconnect with exponential backoff
             if (reconnectAttempts < maxReconnectAttempts) {
@@ -63,13 +69,13 @@ function initializeWebSocket() {
 
         ws.onerror = (error) => {
             console.error("WebSocket error:", error);
-            updateConnectionStatus(false);
+            updateStatus('system', 'Error', false);
         };
 
         ws.onmessage = handleWebSocketMessage;
     } catch (error) {
         console.error("Error initializing WebSocket:", error);
-        updateConnectionStatus(false);
+        updateStatus('system', 'Error', false);
         addLog("Failed to initialize WebSocket connection", "error");
     }
 }
@@ -79,10 +85,16 @@ function sendPing() {
         const timeSinceLastPong = Date.now() - lastPongTime;
         if (timeSinceLastPong > 60000) { // No pong for 60 seconds
             console.log("No pong received for 60 seconds, reconnecting...");
-            ws.close();
+            if (ws) {
+                ws.close();
+            }
             return;
         }
-        sendWebSocketMessage('ping');
+        try {
+            sendWebSocketMessage('ping');
+        } catch (error) {
+            console.error("Error sending ping:", error);
+        }
     }
 }
 
@@ -95,54 +107,6 @@ function handleWebSocketMessage(event) {
             case 'pong':
                 lastPongTime = Date.now();
                 break;
-            case 'status_update':
-                updateStatus('macro', data.macro_status, data.macro_status === 'Recording');
-                updateStatus('sound', data.sound_status, data.sound_status === 'Recording');
-                break;
-            case 'log':
-                addLog(data.message, data.level);
-                break;
-            case 'error':
-                addLog(data.message, 'error');
-                break;
-            case 'macros_updated':
-                updateMacroList(data.macros);
-                break;
-            case 'sounds_updated':
-                updateSoundList(data.sounds);
-                break;
-            case 'recording_complete':
-                if (data.recording_type === 'macro') {
-                    handleMacroRecordingComplete();
-                } else if (data.recording_type === 'sound') {
-                    handleSoundRecordingComplete();
-                }
-                break;
-            case 'hotkey_updated':
-                updateHotkeyDisplay(data.macro_name, data.hotkey);
-                break;
-        }
-    } catch (error) {
-        console.error("Error handling WebSocket message:", error);
-        addLog("Error processing server message", "error");
-    }
-}
-
-function updateConnectionStatus(connected) {
-    const statusElement = document.getElementById("system-status");
-    const indicator = document.getElementById("system-status-indicator");
-    if (statusElement && indicator) {
-        statusElement.textContent = connected ? "Connected" : "Disconnected";
-        indicator.className = `status-indicator ${connected ? 'active' : 'error'}`;
-    }
-}
-
-function handleWebSocketMessage(event) {
-    try {
-        const data = JSON.parse(event.data);
-        console.log("Received message:", data);
-
-        switch (data.type) {
             case 'status_update':
                 updateStatus('macro', data.macro_status, data.macro_status === 'Recording');
                 updateStatus('sound', data.sound_status, data.sound_status === 'Recording');
@@ -370,7 +334,7 @@ function updateStatus(type, status, isActive = false) {
     const indicator = document.getElementById(`${type}-status-indicator`);
     const text = document.getElementById(`${type}-status`);
     if (indicator && text) {
-        indicator.className = `status-indicator ${isActive ? 'active' : status === 'error' ? 'error' : 'ready'}`;
+        indicator.className = `status-indicator ${isActive ? 'active' : status.toLowerCase() === 'error' ? 'error' : 'ready'}`;
         text.textContent = status;
     }
 }
