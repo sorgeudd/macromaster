@@ -6,22 +6,96 @@
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
+            background-color: #f5f5f5;
         }
-        .status {
-            padding: 10px;
+        .status-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status-item {
             margin: 10px 0;
+            padding: 10px;
             border-radius: 5px;
             background-color: #f0f0f0;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .active { background-color: #4CAF50; }
+        .ready { background-color: #2196F3; }
+        .error { background-color: #f44336; }
+        .log-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
         }
     </style>
 </head>
 <body>
     <h1>Fishing Bot Testing Interface</h1>
-    <div class="status">
+
+    <div class="status-panel">
         <h2>Testing Status</h2>
-        <p>Position Testing: <span id="position-status">Active</span></p>
-        <p>Resource Detection: <span id="resource-status">Ready</span></p>
-        <p>Terrain Testing: <span id="terrain-status">Ready</span></p>
+        <div class="status-item">
+            <span class="status-indicator active"></span>
+            <span>Position Testing: </span>
+            <span id="position-status">Active</span>
+        </div>
+        <div class="status-item">
+            <span class="status-indicator ready"></span>
+            <span>Resource Detection: </span>
+            <span id="resource-status">Ready</span>
+        </div>
+        <div class="status-item">
+            <span class="status-indicator ready"></span>
+            <span>Terrain Testing: </span>
+            <span id="terrain-status">Ready</span>
+        </div>
     </div>
+
+    <div class="log-panel">
+        <h2>Test Results</h2>
+        <div id="test-logs">
+            <!-- Test logs will be added here -->
+        </div>
+    </div>
+
+    <script>
+        // Placeholder for real-time updates
+        function updateStatus(component, status) {
+            const element = document.getElementById(component + '-status');
+            if (element) {
+                element.textContent = status;
+                // Update indicator class based on status
+                const indicator = element.parentElement.querySelector('.status-indicator');
+                indicator.className = 'status-indicator ' + 
+                    (status === 'Active' ? 'active' : 
+                     status === 'Ready' ? 'ready' : 'error');
+            }
+        }
+
+        function addLogEntry(message) {
+            const logs = document.getElementById('test-logs');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            logs.insertBefore(entry, logs.firstChild);
+        }
+    </script>
 </body>
 </html>
