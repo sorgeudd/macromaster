@@ -19,19 +19,18 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
     minimap_size = (200, 200, 3)
     minimap = np.zeros(minimap_size, dtype=np.uint8)
 
-    # Create higher contrast background
-    cv2.rectangle(minimap, (0, 0), (200, 200), (30, 30, 30), -1)
+    # Create darker background for better contrast
+    cv2.rectangle(minimap, (0, 0), (200, 200), (20, 20, 20), -1)
 
-    # Calculate arrow dimensions relative to minimap size
-    minimap_area = minimap_size[0] * minimap_size[1]
-    target_area = minimap_area * 0.0005  # Target 0.05% of minimap area
-    arrow_length = int(np.sqrt(target_area * 2))  # Make length ~sqrt(2) times width
+    # Calculate arrow dimensions to match target area (12-25 pixels)
+    target_area = 18  # Target middle of our range
+    arrow_length = int(np.sqrt(target_area * 2))  # Length ~sqrt(2) times width
     arrow_width = int(np.sqrt(target_area / 2))
 
     # Convert game angle to drawing angle (0° is up, increases clockwise)
     draw_angle = np.radians(arrow_angle)
 
-    # Create arrow shape
+    # Create arrow shape with specific aspect ratio (2:1)
     tip_x = int(arrow_pos[0] + arrow_length * np.sin(draw_angle))
     tip_y = int(arrow_pos[1] - arrow_length * np.cos(draw_angle))
 
@@ -49,12 +48,18 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
     arrow_color = (105, 185, 210)  # BGR format matching HSV thresholds
     cv2.fillPoly(minimap, [pts], arrow_color)
 
-    # Save raw minimap for debugging
+    # Save intermediate results for debugging
     cv2.imwrite('test_minimap_raw.png', minimap)
 
     # Debug visualization in HSV
     hsv = cv2.cvtColor(minimap, cv2.COLOR_BGR2HSV)
     cv2.imwrite('test_minimap_hsv.png', hsv)
+
+    # Save arrow mask for debugging
+    lower = np.array([95, 170, 200])
+    upper = np.array([105, 190, 255])
+    mask = cv2.inRange(hsv, lower, upper)
+    cv2.imwrite('test_minimap_mask.png', mask)
 
     return minimap
 
