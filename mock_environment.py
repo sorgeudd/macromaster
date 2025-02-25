@@ -20,8 +20,10 @@ class GameState:
     window_active: bool = True
     screen_content: np.ndarray = None
     combat_start_time: float = None
-    last_action_time: float = None  # Track timing of last action
-    ability_cooldowns: dict = None  # Track ability cooldowns
+    last_action_time: float = None
+    ability_cooldowns: dict = None
+    terrain_type: str = 'normal'
+    terrain_speed_multiplier: float = 1.0
 
     def __post_init__(self):
         if self.detected_resources is None:
@@ -29,11 +31,10 @@ class GameState:
         if self.detected_obstacles is None:
             self.detected_obstacles = []
         if self.screen_content is None:
-            # Create a mock screen content (black screen)
             self.screen_content = np.zeros((600, 800, 3), dtype=np.uint8)
         if self.ability_cooldowns is None:
             self.ability_cooldowns = {
-                'e': 0.0,  # Last use time for each ability
+                'e': 0.0,
                 'w': 0.0,
                 'q': 0.0,
                 'space': 0.0
@@ -48,11 +49,179 @@ class MockEnvironment:
         self.input_events = []
         self.fish_bite_event = Event()
         self.running = False
-        self.min_action_interval = 0.05  # Reduced for more responsive testing
+        self.min_action_interval = 0.05
+
+        # Terrain-specific settings
+        self.terrain_speeds = {
+            'normal': 1.0,
+            'water': 0.7,
+            'mountain': 0.5,
+            'forest': 0.8
+        }
 
         # Initialize mock screen
         self.window_size = (800, 600)
         self.state.screen_content = np.zeros((*self.window_size, 3), dtype=np.uint8)
+
+    def move_mouse(self, x, y):
+        """Record mouse movement and update position"""
+        try:
+            self.logger.debug(f"Moving mouse to ({x}, {y})")
+            self.state.current_position = (x, y)
+            success = self.record_input('mouse_move', x=x, y=y)
+
+            # Add terrain-based delay
+            speed_mult = self.terrain_speeds.get(self.state.terrain_type, 1.0)
+            move_delay = 0.05 / speed_mult
+            time.sleep(move_delay * 0.1)  # Scale down for tests
+
+            return success
+        except Exception as e:
+            self.logger.error(f"Error in move_mouse: {str(e)}")
+            return False
+
+    def click(self, button='left', clicks=1):
+        """Record mouse click with terrain-based delays"""
+        try:
+            self.logger.debug(f"Processing click: button={button}, clicks={clicks}")
+            pos = self.state.current_position
+
+            # Record click event at current position
+            success = self.record_input('mouse_click', 
+                                      button=button, 
+                                      clicks=clicks,
+                                      x=pos[0],
+                                      y=pos[1])
+
+            # Add terrain-based delay
+            speed_mult = self.terrain_speeds.get(self.state.terrain_type, 1.0)
+            click_delay = 0.1 / speed_mult
+            time.sleep(click_delay * 0.1)  # Scale down for tests
+
+            self.logger.debug(f"Click recorded at {pos}")
+            return success
+        except Exception as e:
+            self.logger.error(f"Error recording click: {str(e)}")
+            return False
+
+    def move_to(self, position):
+        """Move to position with terrain-aware navigation"""
+        try:
+            start_pos = self.state.current_position
+            if not start_pos:
+                start_pos = (0, 0)
+
+            # Calculate distance
+            dx = position[0] - start_pos[0]
+            dy = position[1] - start_pos[1]
+            distance = np.sqrt(dx*dx + dy*dy)
+
+            # Move mouse to new position
+            success = self.move_mouse(position[0], position[1])
+            if not success:
+                return False
+
+            # Click at destination
+            success = self.click(button='left')
+            if not success:
+                return False
+
+            # Additional delay based on distance and terrain
+            speed_mult = self.terrain_speeds.get(self.state.terrain_type, 1.0)
+            move_time = distance * 0.001 / speed_mult
+            time.sleep(move_time * 0.1)  # Scale down for tests
+
+            self.logger.debug(f"Moved to {position} (terrain: {self.state.terrain_type})")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error in move_to: {str(e)}")
+            return False
+
+    def record_input(self, input_type, **kwargs):
+        """Record input events with terrain information"""
+        try:
+            event = {
+                'type': input_type,
+                'timestamp': time.time(),
+                'terrain_type': self.state.terrain_type,
+                **kwargs
+            }
+
+            self.input_events.append(event)
+            self.logger.debug(f"Recorded input event: {event}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error recording input: {str(e)}")
+            return False
+
+    def press_key(self, key, duration=None):
+        """Record key press with detailed logging"""
+        try:
+            self.logger.debug(f"Processing key press: {key} (duration: {duration})")
+
+            # Record key press
+            success = self.record_input('key_press', key=key, duration=duration)
+
+            # Handle special keys
+            if key == 'a':
+                self.state.is_mounted = not self.state.is_mounted
+            elif key == 'r' and self.state.fish_bite_active:
+                self.fish_bite_event.clear()
+            elif key in self.state.ability_cooldowns:
+                self.state.ability_cooldowns[key] = time.time()
+
+            # Add delay if duration specified
+            if duration:
+                time.sleep(duration * 0.1)  # Scale down for tests
+
+            return success
+        except Exception as e:
+            self.logger.error(f"Error recording key press: {str(e)}")
+            return False
+
+    def get_screen_region(self):
+        """Get current game state data"""
+        try:
+            state_data = {
+                'health': self.state.health,
+                'current_position': self.state.current_position,
+                'in_combat': self.state.is_in_combat,
+                'resources': self.state.detected_resources,
+                'obstacles': self.state.detected_obstacles,
+                'fish_bite_active': self.state.fish_bite_active,
+                'screen_content': self.state.screen_content,
+                'is_mounted': self.state.is_mounted,
+                'ability_cooldowns': self.state.ability_cooldowns,
+                'terrain_type': self.state.terrain_type
+            }
+            return state_data
+        except Exception as e:
+            self.logger.error(f"Error getting screen region: {str(e)}")
+            return None
+
+    def set_game_state(self, **kwargs):
+        """Update game state with terrain handling"""
+        try:
+            for key, value in kwargs.items():
+                if hasattr(self.state, key):
+                    if key == 'terrain_type':
+                        # Update speed multiplier when terrain changes
+                        self.state.terrain_speed_multiplier = self.terrain_speeds.get(value, 1.0)
+                    setattr(self.state, key, value)
+
+            self.logger.info(f"Updated game state: {kwargs}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error updating game state: {str(e)}")
+            return False
+
+    def get_current_health(self):
+        """Get current health value"""
+        return self.state.health
+
+    def is_mounted(self):
+        """Check if character is mounted"""
+        return self.state.is_mounted
 
     def start_simulation(self):
         """Start background simulation"""
@@ -94,95 +263,6 @@ class MockEnvironment:
             self.simulate_combat_damage() #Added combat simulation
             time.sleep(0.05)  # Reduced CPU usage while maintaining responsiveness
 
-    def record_input(self, input_type, **kwargs):
-        """Record input events for verification"""
-        try:
-            # Create event with current timestamp
-            event = {
-                'type': input_type,
-                'timestamp': time.time(),
-                **kwargs
-            }
-
-            # Always record event in test mode
-            self.input_events.append(event)
-            self.logger.debug(f"Recorded input event: {event}")
-
-            return True
-        except Exception as e:
-            self.logger.error(f"Error recording input: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
-
-    def move_mouse(self, x, y):
-        """Record mouse movement"""
-        try:
-            self.logger.debug(f"Recording mouse move to ({x}, {y})")
-            return self.record_input('mouse_move', x=x, y=y)
-        except Exception as e:
-            self.logger.error(f"Error recording mouse move: {str(e)}")
-            return False
-
-    def click(self, button='left', clicks=1):
-        """Record mouse click with detailed logging"""
-        try:
-            self.logger.debug(f"Processing click: button={button}, clicks={clicks}")
-            before_count = len(self.input_events)
-
-            # Always record click events
-            success = self.record_input('mouse_click', button=button, clicks=clicks)
-
-            after_count = len(self.input_events)
-            self.logger.debug(f"Click event recorded: before={before_count}, after={after_count}")
-
-            return success
-        except Exception as e:
-            self.logger.error(f"Error recording click: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
-
-    def press_key(self, key, duration=None):
-        """Record key press with detailed logging"""
-        try:
-            self.logger.debug(f"Processing key press: {key} (duration: {duration})")
-            before_count = len(self.input_events)
-
-            # Always record key press event
-            success = self.record_input('key_press', key=key, duration=duration)
-
-            after_count = len(self.input_events)
-            self.logger.debug(f"Key press recorded: before={before_count}, after={after_count}")
-
-            # Handle special key actions
-            if key == 'a':
-                self.state.is_mounted = not self.state.is_mounted
-                self.logger.debug(f"Mount state toggled: {'mounted' if self.state.is_mounted else 'dismounted'}")
-            elif key == 'r' and self.state.fish_bite_active:
-                self.logger.debug("Reeling triggered on fish bite")
-            elif key in self.state.ability_cooldowns:
-                self.state.ability_cooldowns[key] = time.time()
-                self.logger.debug(f"Updated cooldown for ability '{key}'")
-
-            return success
-        except Exception as e:
-            self.logger.error(f"Error recording key press: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
-
-    def get_screen_region(self):
-        """Get current game state data"""
-        return {
-            'health': self.state.health,
-            'current_position': self.state.current_position,
-            'in_combat': self.state.is_in_combat,
-            'resources': self.state.detected_resources,
-            'obstacles': self.state.detected_obstacles,
-            'fish_bite_active': self.state.fish_bite_active,
-            'screen_content': self.state.screen_content,
-            'is_mounted': self.state.is_mounted,
-            'ability_cooldowns': self.state.ability_cooldowns
-        }
-
     def get_mouse_pos(self):
         """Get current mouse position"""
         recent_moves = [e for e in self.input_events if e['type'] == 'mouse_move']
@@ -190,36 +270,6 @@ class MockEnvironment:
             latest = recent_moves[-1]
             return (latest['x'], latest['y'])
         return (0, 0)
-
-    def set_game_state(self, **kwargs):
-        """Update game state for testing"""
-        try:
-            current_time = time.time()
-            for key, value in kwargs.items():
-                if hasattr(self.state, key):
-                    setattr(self.state, key, value)
-                    if key == 'is_in_combat' and value:
-                        self.state.combat_start_time = current_time
-                    elif key == 'fish_bite_active':
-                        if value:
-                            self.fish_bite_event.set()
-                            self.logger.debug("Fish bite event set")
-                        else:
-                            self.fish_bite_event.clear()
-                            self.logger.debug("Fish bite event cleared")
-            self.logger.info(f"Updated game state: {kwargs}")
-            return True
-        except Exception as e:
-            self.logger.error(f"Error updating game state: {str(e)}")
-            return False
-
-    def get_current_health(self):
-        """Get current health value"""
-        return self.state.health
-
-    def is_mounted(self):
-        """Check if character is mounted"""
-        return self.state.is_mounted
 
     def simulate_combat_damage(self):
         """Simulate taking damage in combat"""
@@ -236,7 +286,7 @@ class MockEnvironment:
 
 
 def create_test_environment():
-    """Create and return a mock environment instance"""
+    """Create and initialize mock environment"""
     env = MockEnvironment()
     env.min_action_interval = 0.0  # Disable timing restrictions for testing
     return env
