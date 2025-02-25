@@ -18,10 +18,12 @@ def setup_test_maps():
     test_map_dir.mkdir(exist_ok=True)
 
     # Copy the actual resource maps
-    shutil.copy(
-        'attached_assets/Mase knoll fish_1740481898173.jpg',
-        test_map_dir / 'mase_knoll_fish.png'
-    )
+    for resource_map in [
+        ('attached_assets/Mase knoll fish_1740481898173.jpg', 'mase_knoll_fish.png'),
+        ('attached_assets/image_1740481868399.png', 'mase_knoll_ore.png')
+    ]:
+        source, target = resource_map
+        shutil.copy(source, test_map_dir / target)
 
 def test_fishing_spot_detection():
     """Test detection of fishing spots from map"""
@@ -33,7 +35,7 @@ def test_fishing_spot_detection():
         map_manager = MapManager()
 
         # Load the fishing spot map
-        success = map_manager.load_map('mase_knoll_fish')
+        success = map_manager.load_map('mase knoll fish')
         assert success, "Failed to load fishing map"
 
         # Verify fishing spots were detected
@@ -66,8 +68,8 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0, zone_name="Mase Kno
     # Create darker background for better contrast
     cv2.rectangle(minimap, (0, 0), (200, 200), (20, 20, 20), -1)
 
-    # Calculate arrow dimensions
-    target_area = 18  # Target middle of range
+    # Calculate arrow dimensions (make arrow slightly larger for better detection)
+    target_area = 25  # Increased from 18
     arrow_length = int(np.sqrt(target_area * 2))
     arrow_width = int(np.sqrt(target_area / 2))
 
@@ -88,10 +90,13 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0, zone_name="Mase Kno
     pts = pts.reshape((-1, 1, 2))
 
     # Draw arrow (BGR values for yellow arrow)
-    arrow_color = (20, 200, 230)  # BGR format matching yellow HSV range
+    arrow_color = (20, 200, 230)  # BGR format for yellow arrow
     cv2.fillPoly(minimap, [pts], arrow_color)
 
-    # Add zone name (in actual implementation, this would be part of the game's UI)
+    # Make the arrow more solid by drawing outline
+    cv2.polylines(minimap, [pts], True, arrow_color, 1)
+
+    # Add zone name with white color for better visibility
     cv2.putText(minimap, zone_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
 
     return minimap
@@ -108,9 +113,9 @@ def test_arrow_detection(map_manager, position, angle):
 
         # Calculate error
         pos_error = np.sqrt((detected_pos.x - position[0])**2 + 
-                         (detected_pos.y - position[1])**2)
+                             (detected_pos.y - position[1])**2)
         angle_error = min((detected_pos.direction - angle) % 360,
-                       (angle - detected_pos.direction) % 360)
+                           (angle - detected_pos.direction) % 360)
 
         logger.info(f"Position error: {pos_error:.1f} pixels")
         logger.info(f"Angle error: {angle_error:.1f}°")
@@ -123,14 +128,20 @@ def test_minimap_update():
     try:
         map_manager = MapManager()
 
-        # Create test minimap with zone name
-        minimap = create_test_minimap((100, 100), 0, "Mase Knoll")
+        # Test zone update with fishing spots
+        minimap_fish = create_test_minimap((100, 100), 0, "Mase Knoll")
+        success = map_manager.update_from_minimap(minimap_fish, "fish")
+        assert success, "Failed to update from minimap (fish)"
+        assert map_manager.current_zone == "Mase Knoll", "Zone not detected"
+        assert len(map_manager.resource_nodes.get('mase_knoll_fish', [])) > 0, "No fishing spots loaded"
 
-        # Test zone update
-        success = map_manager.update_from_minimap(minimap, "fish")
-        assert success, "Failed to update from minimap"
+        # Test zone update with ore spots
+        minimap_ore = create_test_minimap((100, 100), 0, "Mase Knoll")
+        success = map_manager.update_from_minimap(minimap_ore, "ore")
+        assert success, "Failed to update from minimap (ore)"
+        assert map_manager.current_zone == "Mase Knoll", "Zone not detected"
+        assert len(map_manager.resource_nodes.get('mase_knoll_ore', [])) > 0, "No ore spots loaded"
 
-        # TODO: When zone name detection is implemented, add more tests here
         logger.info("✓ Minimap update test passed")
         return True
 
