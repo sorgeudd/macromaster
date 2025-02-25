@@ -191,13 +191,15 @@
 
                 <div class="control-group">
                     <h3>Macro Management</h3>
-                    <select id="macro-list" style="margin-bottom: 10px;">
-                        <option value="">Select a macro to play</option>
-                        <!-- Macros will be populated dynamically -->
-                    </select>
-                    <input type="text" id="macro-name" placeholder="New Macro Name">
-                    <button onclick="recordMacro()">Record Macro</button>
-                    <button onclick="playMacro()">Play Selected Macro</button>
+                    <div id="macro-controls">
+                        <input type="text" id="macro-name" placeholder="New Macro Name">
+                        <button onclick="recordMacro()">Record Macro</button>
+                        <button onclick="refreshMacroList()">Refresh Macros</button>
+                        <select id="macro-list" style="margin: 10px 0;">
+                            <option value="">Select a macro to play</option>
+                        </select>
+                        <button onclick="playMacro()">Play Selected Macro</button>
+                    </div>
                 </div>
 
                 <div class="control-group">
@@ -279,6 +281,8 @@
                 updateStatus('learning', data.data.learning ? 'Active' : 'Inactive');
             } else if (data.type === 'log') {
                 addLogEntry(data.data, data.level || 'info');
+            } else if (data.type === 'macros_updated') {
+                updateMacroList(data.macros);
             }
         };
 
@@ -287,10 +291,10 @@
             if (element) {
                 element.textContent = status;
                 const indicator = element.parentElement.querySelector('.status-indicator');
-                indicator.className = 'status-indicator ' + 
-                    (status === 'Active' || status === 'Running' ? 'active' : 
-                     status === 'Ready' || status === 'Idle' || status === 'Inactive' || 
-                     (component === 'window' && status !== 'Not Detected') ? 'ready' : 
+                indicator.className = 'status-indicator ' +
+                    (status === 'Active' || status === 'Running' ? 'active' :
+                     status === 'Ready' || status === 'Idle' || status === 'Inactive' ||
+                     (component === 'window' && status !== 'Not Detected') ? 'ready' :
                      'error');
             }
         }
@@ -340,19 +344,31 @@
 
         // Macro Controls
         function recordMacro() {
-            const macroName = document.getElementById('macro-name').value;
+            const macroName = document.getElementById('macro-name').value.trim();
+            if (!macroName) {
+                addLogEntry('Please enter a macro name', 'error');
+                return;
+            }
+
             ws.send(JSON.stringify({
-                type: 'record_macro',
-                data: macroName
+                type: 'start_macro_recording',
+                data: { macro_name: macroName }
             }));
+            addLogEntry(`Started recording macro: ${macroName}`, 'info');
         }
 
         function playMacro() {
             const macroName = document.getElementById('macro-list').value;
+            if (!macroName) {
+                addLogEntry('Please select a macro to play', 'error');
+                return;
+            }
+
             ws.send(JSON.stringify({
                 type: 'play_macro',
-                data: macroName
+                data: { macro_name: macroName }
             }));
+            addLogEntry(`Playing macro: ${macroName}`, 'info');
         }
 
         // Sound Controls
@@ -457,6 +473,7 @@
                 option.textContent = macro;
                 macroList.appendChild(option);
             });
+            console.log('Updated macro list with:', macros); // Debug log
         }
 
         // Binding options management
@@ -483,8 +500,8 @@
             } else if (bindAction === 'key_press') {
                 optionsHtml = `
                     <div class="key-capture">
-                        <input type="text" id="key-bind" 
-                               placeholder="Click here and press a key" 
+                        <input type="text" id="key-bind"
+                               placeholder="Click here and press a key"
                                readonly>
                     </div>`;
             }
@@ -500,17 +517,33 @@
             }
         }
 
-        // Load available macros on startup
-        fetch('/macros')
-            .then(response => response.json())
-            .then(data => {
-                if (data.macros) {
-                    updateMacroList(data.macros);
-                }
-            })
-            .catch(error => {
-                addLogEntry('Failed to load macros: ' + error, 'error');
-            });
+        // Update macro list function
+        function refreshMacroList() {
+            fetch('/macros')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received macros:', data); // Debug log
+                    if (data.macros) {
+                        updateMacroList(data.macros);
+                        addLogEntry('Macro list refreshed successfully', 'info');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching macros:', error);
+                    addLogEntry('Failed to load macros: ' + error.message, 'error');
+                });
+        }
+
+        // Initial loading of macros
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Loading initial macro list...'); // Debug log
+            refreshMacroList();
+        });
     </script>
 </body>
 </html>

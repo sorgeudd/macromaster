@@ -1,5 +1,4 @@
 """Real-time testing interface for the fishing bot systems"""
-
 import logging
 import json
 import os
@@ -39,20 +38,34 @@ def get_macros():
     """API endpoint for getting available macros"""
     global testing_ui
     try:
+        if not testing_ui:
+            logging.error("TestingUI instance not initialized")
+            response = jsonify({
+                'error': 'Server not initialized',
+                'macros': []
+            })
+            response.headers['Content-Type'] = 'application/json'
+            return response, 500
+
         if not os.path.exists(testing_ui.macro_dir):
             os.makedirs(testing_ui.macro_dir)
             testing_ui.logger.info(f"Created macros directory")
 
+        # List all .json files in the macros directory
         macro_files = [f[:-5] for f in os.listdir(testing_ui.macro_dir) 
                       if f.endswith('.json')]
 
         testing_ui.logger.info(f"Found {len(macro_files)} macros: {macro_files}")
+
+        # Create response with explicit headers
         response = jsonify({
             'macros': macro_files
         })
         response.headers['Content-Type'] = 'application/json'
+        response.headers['Cache-Control'] = 'no-store'
         testing_ui.logger.info("Returning macros list as JSON")
         return response
+
     except Exception as e:
         testing_ui.logger.error(f"Error loading macros: {str(e)}")
         response = jsonify({
@@ -60,7 +73,8 @@ def get_macros():
             'macros': []
         })
         response.headers['Content-Type'] = 'application/json'
-        return response, 500  # Return 500 status code for server errors
+        response.headers['Cache-Control'] = 'no-store'
+        return response, 500
 
 @app.route('/macro/<name>', methods=['GET'])
 def get_macro(name):
@@ -304,7 +318,7 @@ def updates(ws):
             elif data['type'] == 'stop_macro_recording':
                 macro_name = data.get('macro_name', 'unnamed_macro')
                 actions = data.get('actions', [])
-                if testing_ui.save_macro(macro_name, actions):
+                if testing_ui and testing_ui.save_macro(macro_name, actions):
                     TestingUI.logger.info(f"Saved macro: {macro_name}")
                     ws.send(json.dumps({
                         'type': 'log',
@@ -322,20 +336,21 @@ def updates(ws):
             elif data['type'] == 'play_macro':
                 macro_name = data.get('macro_name')
                 if macro_name:
-                    macro_data = testing_ui.load_macro(macro_name)
-                    if macro_data:
-                        TestingUI.logger.info(f"Playing macro: {macro_name}")
-                        ws.send(json.dumps({
-                            'type': 'log',
-                            'level': 'info',
-                            'data': f'Playing macro: {macro_name}'
-                        }))
-                    else:
-                        ws.send(json.dumps({
-                            'type': 'log',
-                            'level': 'error',
-                            'data': f'Failed to load macro: {macro_name}'
-                        }))
+                    if testing_ui:
+                        macro_data = testing_ui.load_macro(macro_name)
+                        if macro_data:
+                            TestingUI.logger.info(f"Playing macro: {macro_name}")
+                            ws.send(json.dumps({
+                                'type': 'log',
+                                'level': 'info',
+                                'data': f'Playing macro: {macro_name}'
+                            }))
+                        else:
+                            ws.send(json.dumps({
+                                'type': 'log',
+                                'level': 'error',
+                                'data': f'Failed to load macro: {macro_name}'
+                            }))
 
             # Send updated status after each command
             ws.send(json.dumps({
@@ -369,11 +384,13 @@ def run():
         testing_ui.logger.info("Starting Testing UI server with full system access")
         app.run(host='0.0.0.0', port=5000)
     except Exception as e:
-        testing_ui.logger.error(f"Server error: {str(e)}")
+        if testing_ui:
+            testing_ui.logger.error(f"Server error: {str(e)}")
     finally:
-        if TestingUI.mock_env and TestingUI.mock_env.is_running:
+        if testing_ui and TestingUI.mock_env and TestingUI.mock_env.is_running:
             TestingUI.mock_env.stop_simulation()
-        testing_ui.logger.info("Testing UI server stopped")
+        if testing_ui:
+            testing_ui.logger.info("Testing UI server stopped")
 
 if __name__ == "__main__":
     # Setup logging
