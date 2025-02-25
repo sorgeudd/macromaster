@@ -50,11 +50,11 @@ class MapManager:
         self.max_angle_deviation = 35.0     # Tighter maximum deviation
 
         # Cardinal direction snapping threshold (in degrees)
-        self.cardinal_snap_threshold = 5.0  # Snap to cardinal directions if within threshold
+        self.cardinal_snap_threshold = 7.0  # Slightly increased snap threshold
 
         # Additional angular thresholds
-        self.angle_noise_threshold = 15.0   # Filter out noisy angle measurements
-        self.tip_angle_threshold = 30.0     # Maximum allowed tip angle deviation
+        self.angle_noise_threshold = 12.0   # Tighter noise filtering
+        self.tip_angle_threshold = 25.0     # Stricter tip angle deviation limit
 
         # Minimap to world scale factors
         self.scale_x: float = 1.0
