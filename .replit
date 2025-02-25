@@ -63,6 +63,14 @@ args = "Route Test"
 task = "workflow.run"
 args = "Terrain Calibration"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Minimap Test"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Game Window Test"
+
 [[workflows.workflow]]
 name = "Fishing Bot"
 author = "agent"
@@ -244,6 +252,34 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python calibrate_terrain.py"
+
+[[workflows.workflow]]
+name = "Minimap Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python test_minimap.py"
+
+[[workflows.workflow]]
+name = "Game Window Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python test_game_window.py"
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]
