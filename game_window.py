@@ -2,10 +2,25 @@
 import cv2
 import numpy as np
 import logging
-from typing import Tuple, Optional, Dict
-from pathlib import Path
+from typing import Tuple, Optional, Dict, List
 
 class GameWindow:
+    # Supported resolutions as class constants
+    SUPPORTED_RESOLUTIONS = [
+        (1280, 720),   # HD
+        (1366, 768),   # HD+
+        (1600, 900),   # HD+ Widescreen
+        (1920, 1080),  # Full HD
+        (2560, 1440),  # QHD
+        (3440, 1440),  # Ultrawide
+        (3840, 2160)   # 4K UHD
+    ]
+
+    MIN_SYSTEM_WIDTH = 1024
+    MIN_SYSTEM_HEIGHT = 768
+    MAX_SYSTEM_WIDTH = 7680  # Support up to 8K
+    MAX_SYSTEM_HEIGHT = 4320
+
     def __init__(self):
         self.logger = logging.getLogger('GameWindow')
 
@@ -37,49 +52,68 @@ class GameWindow:
         self.viewport_offset_x = 0  # Offset from center of game window
         self.viewport_offset_y = 0
 
-    def configure_resolution(self, game_width: int = None, game_height: int = None, system_width: int = None, system_height: int = None):
+    @classmethod
+    def get_supported_resolutions(cls) -> List[Tuple[int, int]]:
+        """Get list of supported game window resolutions"""
+        return cls.SUPPORTED_RESOLUTIONS
+
+    @classmethod
+    def get_system_resolution_bounds(cls) -> Dict[str, int]:
+        """Get minimum and maximum supported system resolutions"""
+        return {
+            'min_width': cls.MIN_SYSTEM_WIDTH,
+            'min_height': cls.MIN_SYSTEM_HEIGHT,
+            'max_width': cls.MAX_SYSTEM_WIDTH,
+            'max_height': cls.MAX_SYSTEM_HEIGHT
+        }
+
+    def is_resolution_supported(self, width: int, height: int) -> bool:
+        """Check if a given resolution is supported"""
+        return (width, height) in self.SUPPORTED_RESOLUTIONS
+
+    def get_closest_supported_resolution(self, width: int, height: int) -> Tuple[int, int]:
+        """Find the closest supported resolution to the given dimensions"""
+        if (width, height) in self.SUPPORTED_RESOLUTIONS:
+            return (width, height)
+
+        closest = min(self.SUPPORTED_RESOLUTIONS, 
+                     key=lambda x: abs(x[0] - width) + abs(x[1] - height))
+        return closest
+
+    def configure_resolution(self, game_width: int = None, game_height: int = None, 
+                           system_width: int = None, system_height: int = None) -> bool:
         """Configure window and system resolutions with validation"""
         try:
             # Update system resolution if provided
             if system_width and system_height:
                 # Strict resolution validation
-                if system_width < 1024 or system_height < 768:
-                    self.logger.error(f"System resolution {system_width}x{system_height} too small, minimum is 1024x768")
+                if system_width < self.MIN_SYSTEM_WIDTH or system_height < self.MIN_SYSTEM_HEIGHT:
+                    self.logger.error(f"System resolution {system_width}x{system_height} too small, "
+                                    f"minimum is {self.MIN_SYSTEM_WIDTH}x{self.MIN_SYSTEM_HEIGHT}")
                     return False
 
-                if system_width > 7680 or system_height > 4320:
-                    self.logger.error(f"System resolution {system_width}x{system_height} too large, maximum is 7680x4320")
+                if system_width > self.MAX_SYSTEM_WIDTH or system_height > self.MAX_SYSTEM_HEIGHT:
+                    self.logger.error(f"System resolution {system_width}x{system_height} too large, "
+                                    f"maximum is {self.MAX_SYSTEM_WIDTH}x{self.MAX_SYSTEM_HEIGHT}")
                     return False
 
-                # Validate aspect ratio more strictly
+                # Validate aspect ratio
                 aspect_ratio = system_width / system_height
-                if aspect_ratio < 1.3 or aspect_ratio > 2.35: # Added stricter bounds
-                    self.logger.warning(f"Unusual aspect ratio {aspect_ratio:.2f}, might cause display issues.  Recommended range: 1.3 - 2.35")
+                if aspect_ratio < 1.3 or aspect_ratio > 2.35:
+                    self.logger.warning(f"Unusual aspect ratio {aspect_ratio:.2f}, might cause display issues. "
+                                      f"Recommended range: 1.3 - 2.35")
 
                 self.system_width = system_width
                 self.system_height = system_height
                 self.logger.info(f"Updated system resolution to {self.system_width}x{self.system_height}")
 
-            # Validate and update game window resolution
-            supported_resolutions = [
-                (1280, 720),   # HD
-                (1366, 768),   # HD+
-                (1600, 900),   # HD+ Widescreen
-                (1920, 1080),  # Full HD
-                (2560, 1440),  # QHD
-                (3440, 1440),  # Ultrawide
-                (3840, 2160)   # 4K UHD
-            ] # Added 4K resolution
-
-            # Find closest supported resolution
+            # Update game window resolution if provided
             if game_width and game_height:
-                if (game_width, game_height) not in supported_resolutions:
-                    closest = min(supported_resolutions, 
-                                key=lambda x: abs(x[0] - game_width) + abs(x[1] - game_height))
-                    self.logger.warning(
-                        f"Unsupported resolution {game_width}x{game_height}. "
-                        f"Using closest supported resolution {closest[0]}x{closest[1]}"
-                    )
+                # Find closest supported resolution
+                if not self.is_resolution_supported(game_width, game_height):
+                    closest = self.get_closest_supported_resolution(game_width, game_height)
+                    self.logger.warning(f"Unsupported resolution {game_width}x{game_height}. "
+                                      f"Using closest supported resolution {closest[0]}x{closest[1]}")
                     game_width, game_height = closest
 
                 # Update game window parameters
@@ -92,11 +126,12 @@ class GameWindow:
 
                 # Ensure window fits within system bounds
                 if self.window_width > self.system_width or self.window_height > self.system_height:
-                    self.logger.warning(f"Window size {self.window_width}x{self.window_height} larger than system resolution, adjusting...")
+                    self.logger.warning(f"Window size {self.window_width}x{self.window_height} larger than "
+                                      f"system resolution, adjusting...")
 
                     # Maintain aspect ratio while scaling down
                     scale = min(self.system_width / self.window_width,
-                             self.system_height / self.window_height)
+                              self.system_height / self.window_height)
 
                     self.window_width = int(self.window_width * scale)
                     self.window_height = int(self.window_height * scale)
@@ -306,25 +341,21 @@ class GameWindow:
             import traceback
             self.logger.error(f"Traceback: {traceback.format_exc()}")
             return False
-
+    
     def update_screen_metrics(self, system_width: int = None, system_height: int = None):
         """Update system screen metrics and recalculate window position"""
         try:
             if system_width and system_height:
-                # Strict resolution validation
-                if system_width < 1024 or system_height < 768:
-                    self.logger.error(f"System resolution {system_width}x{system_height} too small, minimum is 1024x768")
+                # Validate resolution
+                if system_width < self.MIN_SYSTEM_WIDTH or system_height < self.MIN_SYSTEM_HEIGHT:
+                    self.logger.error(f"System resolution {system_width}x{system_height} too small, minimum is {self.MIN_SYSTEM_WIDTH}x{self.MIN_SYSTEM_HEIGHT}")
                     return False
 
-                if system_width > 7680 or system_height > 4320:
-                    self.logger.error(f"System resolution {system_width}x{system_height} too large, maximum is 7680x4320")
+                if system_width > self.MAX_SYSTEM_WIDTH or system_height > self.MAX_SYSTEM_HEIGHT:
+                    self.logger.error(f"System resolution {system_width}x{system_height} too large, maximum is {self.MAX_SYSTEM_WIDTH}x{self.MAX_SYSTEM_HEIGHT}")
                     return False
 
-                # Validate aspect ratio more strictly
-                aspect_ratio = system_width / system_height
-                if aspect_ratio < 1.3 or aspect_ratio > 2.35: # Added stricter bounds
-                    self.logger.warning(f"Unusual aspect ratio {aspect_ratio:.2f}, might cause display issues. Recommended range: 1.3 - 2.35")
-
+                # Update metrics
                 self.system_width = system_width
                 self.system_height = system_height
 
@@ -338,7 +369,7 @@ class GameWindow:
 
                     # Maintain aspect ratio while scaling down
                     scale = min(self.system_width / self.window_width,
-                             self.system_height / self.window_height)
+                              self.system_height / self.window_height)
 
                     self.window_width = int(self.window_width * scale)
                     self.window_height = int(self.window_height * scale)
@@ -348,10 +379,6 @@ class GameWindow:
                     # Recenter after scaling
                     self.window_x = (self.system_width - self.window_width) // 2
                     self.window_y = (self.system_height - self.window_height) // 2
-
-                # Update viewport center
-                self.center_x = self.view_width // 2
-                self.center_y = self.view_height // 2
 
                 self.logger.info(f"Updated system metrics to {system_width}x{system_height}")
                 self.logger.debug(f"New window position: ({self.window_x}, {self.window_y})")

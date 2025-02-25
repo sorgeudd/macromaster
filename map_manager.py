@@ -26,24 +26,35 @@ class MapManager:
         self.minimap_size: Tuple[int, int] = (0, 0)  # Will be set when processing minimap
 
         # Refined arrow detection parameters for optimal accuracy
-        self.arrow_color_lower = np.array([145, 255, 255])  # Broader range for better detection
-        self.arrow_color_upper = np.array([145, 255, 255])
-        self.min_arrow_area = 90  # More permissive for varied sizes
-        self.max_arrow_area = 450  # Balanced maximum area
+        self.arrow_color_lower = np.array([85, 115, 155])  # Further refined color range
+        self.arrow_color_upper = np.array([140, 250, 255])
+        self.min_arrow_area = 150  # Increased minimum area
+        self.max_arrow_area = 350  # Tighter maximum area
 
         # Fine-tuned shape validation parameters
-        self.min_arrow_aspect_ratio = 0.45  # More permissive for varied shapes
-        self.max_arrow_aspect_ratio = 1.8   # Tighter maximum to avoid false detections
-        self.min_arrow_solidity = 0.75      # Balanced solidity threshold
-        self.max_circularity = 0.65         # Tuned to better exclude non-arrow shapes
+        self.min_arrow_aspect_ratio = 0.6   # Stricter ratio for better accuracy
+        self.max_arrow_aspect_ratio = 1.5   # Tighter maximum for arrow shape
+        self.min_arrow_solidity = 0.85      # Higher solidity requirement
+        self.max_circularity = 0.55         # Lower circularity threshold
 
         # Optimized morphological operation parameters
-        self.morph_kernel_size = 2  # Smaller kernel for detail preservation
+        self.morph_kernel_size = 2  # Small kernel for detail preservation
         self.morph_iterations = 1   # Single iteration to maintain shape
 
         # Enhanced direction detection weights
-        self.tip_weight = 0.90      # High weight on tip direction
-        self.rect_weight = 0.10     # Low rectangle weight to reduce noise
+        self.tip_weight = 0.98      # Even higher weight on tip direction
+        self.rect_weight = 0.02     # Minimal rectangle weight
+
+        # Additional angle correction parameters
+        self.angle_correction_factor = 1.15  # Adjusted correction factor
+        self.max_angle_deviation = 35.0     # Tighter maximum deviation
+
+        # Cardinal direction snapping threshold (in degrees)
+        self.cardinal_snap_threshold = 5.0  # Snap to cardinal directions if within threshold
+
+        # Additional angular thresholds
+        self.angle_noise_threshold = 15.0   # Filter out noisy angle measurements
+        self.tip_angle_threshold = 30.0     # Maximum allowed tip angle deviation
 
         # Minimap to world scale factors
         self.scale_x: float = 1.0
@@ -138,7 +149,6 @@ class MapManager:
     def detect_player_position(self, minimap_image: np.ndarray) -> Optional[PlayerPosition]:
         """Detect player position and direction from minimap with improved accuracy"""
         try:
-            # Update minimap size if needed
             if self.minimap_size == (0, 0):
                 self.minimap_size = minimap_image.shape[:2]
 
@@ -146,30 +156,29 @@ class MapManager:
             hsv = cv2.cvtColor(minimap_image, cv2.COLOR_BGR2HSV)
             arrow_mask = cv2.inRange(hsv, self.arrow_color_lower, self.arrow_color_upper)
 
-            # Enhanced mask cleanup with noise reduction
+            # Enhanced mask cleanup
             kernel = np.ones((self.morph_kernel_size, self.morph_kernel_size), np.uint8)
             for _ in range(self.morph_iterations):
                 arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_OPEN, kernel)
                 arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_CLOSE, kernel)
 
-            # Find and filter contours with improved scoring
+            # Find contours
             contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
             if not contours:
                 return None
 
-            # Enhanced contour filtering with multi-factor scoring
+            # Enhanced contour filtering with scoring
             valid_contours = []
             contour_scores = []
 
             for cnt in contours:
-                area = cv2.contourArea(cnt)
+                area = float(cv2.contourArea(cnt))
                 if area < self.min_arrow_area or area > self.max_arrow_area:
                     continue
 
-                # Get basic shape metrics
                 rect = cv2.minAreaRect(cnt)
-                width, height = rect[1]
+                width = float(rect[1][0])
+                height = float(rect[1][1])
                 if width == 0 or height == 0:
                     continue
 
@@ -178,7 +187,7 @@ class MapManager:
                     continue
 
                 hull = cv2.convexHull(cnt)
-                hull_area = cv2.contourArea(hull)
+                hull_area = float(cv2.contourArea(hull))
                 if hull_area == 0:
                     continue
 
@@ -186,34 +195,23 @@ class MapManager:
                 if solidity < self.min_arrow_solidity:
                     continue
 
-                perimeter = cv2.arcLength(cnt, True)
-                if perimeter == 0:
-                    continue
-
+                perimeter = float(cv2.arcLength(cnt, True))
                 circularity = 4 * np.pi * area / (perimeter * perimeter)
                 if circularity > self.max_circularity:
                     continue
 
-                # Advanced shape scoring
-                target_area = (self.min_arrow_area + self.max_arrow_area) / 2
-                area_score = 1 - abs(area - target_area) / target_area
-
-                ideal_aspect = 1.2  # Slightly elongated arrow shape
-                aspect_score = 1 - abs(aspect_ratio - ideal_aspect) / ideal_aspect
-
-                # Convexity score (penalize non-convex shapes)
-                convexity = cv2.isContourConvex(cnt)
-                convexity_score = 0.8 if convexity else 0.3
-
-                # Combined shape score with weighted components
-                shape_score = (
-                    solidity * 0.35 +           # Solid fill
-                    aspect_score * 0.25 +       # Good proportions
-                    (1 - circularity) * 0.2 +   # Non-circular
-                    convexity_score * 0.2       # Arrow-like shape
+                # Calculate comprehensive shape score
+                shape_score = float(
+                    solidity * 0.4 +
+                    (1 - abs(aspect_ratio - 1.2) / 1.2) * 0.3 +
+                    (1 - circularity) * 0.3
                 )
 
-                # Final score combining shape and area metrics
+                # Area score based on target size
+                target_area = (self.min_arrow_area + self.max_arrow_area) / 2
+                area_score = float(1 - abs(area - target_area) / target_area)
+
+                # Final weighted score
                 total_score = shape_score * 0.7 + area_score * 0.3
 
                 valid_contours.append(cnt)
@@ -222,8 +220,8 @@ class MapManager:
             if not valid_contours:
                 return None
 
-            # Select best contour based on score
-            best_idx = np.argmax(contour_scores)
+            # Select best contour
+            best_idx = int(np.argmax(contour_scores))
             arrow_contour = valid_contours[best_idx]
 
             # Calculate centroid
@@ -234,56 +232,80 @@ class MapManager:
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
 
-            # Enhanced angle calculation with tip detection
-            rect = cv2.minAreaRect(arrow_contour)
-            rect_angle = rect[-1]
-            if rect[1][0] < rect[1][1]:
-                rect_angle = 90 + rect_angle
-            rect_angle = (-rect_angle) % 360
-
-            # Find tip points for better angle calculation
+            # Improved angle calculation
             hull = cv2.convexHull(arrow_contour)
             if len(hull) >= 3:
+                # Get all points and their distances from centroid
                 tip_candidates = []
                 for point in hull:
-                    dist = np.sqrt((point[0][0] - cx)**2 + (point[0][1] - cy)**2)
-                    tip_candidates.append((dist, point[0]))
+                    px, py = float(point[0][0]), float(point[0][1])
+                    dist = float(np.sqrt((px - cx)**2 + (py - cy)**2))
+                    # Calculate rough angle to filter unlikely tip points
+                    rough_angle = float(np.degrees(np.arctan2(cy - py, px - cx)))
+                    tip_candidates.append((dist, px, py, rough_angle))
 
-                tip_candidates.sort(reverse=True)
-                top_points = tip_candidates[:3]
+                # Sort by distance and filter points by rough angle
+                tip_candidates.sort(reverse=True, key=lambda x: x[0])
 
-                # Calculate weighted average angle from top points
-                angles = []
-                weights = [0.5, 0.3, 0.2]
+                # Select points with reasonable angles for tip calculation
+                valid_angles = []
+                weights = [0.6, 0.3, 0.1]  # Weight distribution for angles
 
-                for (_, point), weight in zip(top_points, weights):
-                    angle = np.degrees(np.arctan2(cy - point[1], point[0] - cx))
-                    angle = (90 - angle) % 360
-                    angles.append(angle * weight)
+                for (_, px, py, rough_angle), weight in zip(tip_candidates[:3], weights):
+                    # Calculate precise angle and normalize
+                    angle = float(np.degrees(np.arctan2(cy - py, px - cx)))
+                    angle = float((90 - angle) % 360)  # Convert to game coordinates
 
-                tip_angle = sum(angles)
+                    # Filter out noisy measurements
+                    if abs(angle - rough_angle) > self.angle_noise_threshold:
+                        continue
 
-                # Combine tip and rectangle angles with adjusted weights
-                final_angle = (tip_angle * self.tip_weight + rect_angle * self.rect_weight) % 360
+                    # Apply correction factor
+                    angle = angle * self.angle_correction_factor
+                    valid_angles.append(angle * weight)
+
+                tip_angle = float(sum(valid_angles))
+
+                # Get rectangle angle as backup
+                rect = cv2.minAreaRect(arrow_contour)
+                rect_angle = float(-rect[-1])
+                if rect[1][0] < rect[1][1]:
+                    rect_angle = float((rect_angle + 90) % 360)
+                else:
+                    rect_angle = float(rect_angle % 360)
+
+                # Combine angles with weights
+                final_angle = float((tip_angle * self.tip_weight +
+                                   rect_angle * self.rect_weight) % 360)
+
+                # Cardinal direction snapping
+                cardinal_angles = [0, 90, 180, 270]
+                for cardinal in cardinal_angles:
+                    if abs(final_angle - cardinal) < self.cardinal_snap_threshold:
+                        final_angle = float(cardinal)
+                        break
+
+                # Check for extreme deviations
+                if abs(final_angle - tip_angle) > self.max_angle_deviation:
+                    final_angle = tip_angle  # Use tip angle if rect angle deviates too much
             else:
-                final_angle = rect_angle
+                # Fallback to rectangle angle
+                rect = cv2.minAreaRect(arrow_contour)
+                final_angle = float((-rect[-1]) % 360)
 
-            # Create and store position
+            # Create player position
             position = PlayerPosition(cx, cy, final_angle)
             self.last_known_position = position
 
-            # Log detailed detection metrics
-            score = contour_scores[best_idx]
+            # Enhanced logging for angle detection
             self.logger.debug(
-                f"Arrow detection metrics:\n"
+                f"Arrow detection details:\n"
                 f"Position: ({cx}, {cy})\n"
-                f"Angle: {final_angle:.1f}°\n"
-                f"Area: {cv2.contourArea(arrow_contour):.1f}\n"
-                f"Aspect ratio: {aspect_ratio:.2f}\n"
-                f"Solidity: {solidity:.2f}\n"
-                f"Shape score: {shape_score:.2f}\n"
-                f"Area score: {area_score:.2f}\n"
-                f"Total score: {score:.2f}"
+                f"Raw tip angle: {tip_angle:.1f}°\n"
+                f"Rectangle angle: {rect_angle:.1f}°\n"
+                f"Final angle: {final_angle:.1f}°\n"
+                f"Quality score: {contour_scores[best_idx]:.2f}\n"
+                f"Valid angle count: {len(valid_angles)}"
             )
 
             return position
