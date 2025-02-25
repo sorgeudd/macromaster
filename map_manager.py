@@ -4,17 +4,19 @@ import numpy as np
 import logging
 import traceback
 from pathlib import Path
-from typing import Dict, Tuple, Optional, NamedTuple, List
+from typing import Dict, Tuple, Optional, List, NamedTuple
+from dataclasses import dataclass
 
 class ResourceNode(NamedTuple):
     position: Tuple[int, int]
     resource_type: str
     priority: float = 1.0
 
-class PlayerPosition(NamedTuple):
+@dataclass
+class PlayerPosition:
+    """Represents the current player position"""
     x: int
     y: int
-    direction: float  # in degrees, 0 is North, 90 is East, etc.
 
 class MapManager:
     def __init__(self, maps_directory: str = "maps"):
@@ -34,12 +36,7 @@ class MapManager:
         self.minimap_size: Tuple[int, int] = (0, 0)
         self.current_zone: str = ""
 
-        # Scale factors for coordinate translation
-        self.scale_x: float = 1.0
-        self.scale_y: float = 1.0
-
-        # Arrow detection parameters for gameplay window
-        # Adjusted thresholds for test minimap arrow (BGR: 20, 200, 230)
+        # Arrow detection parameters
         self.arrow_color_ranges = [
             # Yellow arrow in HSV
             (np.array([25, 100, 150]), np.array([35, 255, 255])),
@@ -196,7 +193,7 @@ class MapManager:
             return False
 
     def detect_player_position(self, minimap_image: np.ndarray) -> Optional[PlayerPosition]:
-        """Detect player position and direction from game window minimap"""
+        """Detect player position from minimap"""
         try:
             if self.minimap_size == (0, 0):
                 self.minimap_size = minimap_image.shape[:2]
@@ -216,9 +213,6 @@ class MapManager:
             arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_OPEN, kernel)
             arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_CLOSE, kernel)
 
-            # Save mask for debugging
-            cv2.imwrite('arrow_mask_debug.png', arrow_mask)
-
             # Find contours
             contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -226,14 +220,12 @@ class MapManager:
                 self.logger.debug("No arrow contours found")
                 return None
 
-            # Find arrow-like shape
+            # Find best arrow-like shape using simple area/perimeter ratio
             best_contour = None
             best_score = 0
-            best_tip = None
-            best_base_mid = None
+            best_centroid = None
 
             for cnt in contours:
-                # Filter by area
                 area = cv2.contourArea(cnt)
                 if area < 10 or area > 100:  # Adjusted for test arrow size
                     continue
@@ -246,90 +238,29 @@ class MapManager:
                 cx = int(M["m10"] / M["m00"])
                 cy = int(M["m01"] / M["m00"])
 
-                # Find tip point (farthest from centroid)
-                hull = cv2.convexHull(cnt)
-                tip_point = None
-                max_dist = 0
-                other_points = []
-
-                for point in hull:
-                    px, py = point[0]
-                    dist = (px - cx) ** 2 + (py - cy) ** 2
-                    if dist > max_dist:
-                        max_dist = dist
-                        if tip_point is not None:
-                            other_points.append(tip_point)
-                        tip_point = point[0]
-                    else:
-                        other_points.append(point[0])
-
-                if len(other_points) < 2:
-                    continue
-
-                # Find base points (two points furthest apart)
-                base_points = []
-                max_base_dist = 0
-                for i, p1 in enumerate(other_points):
-                    for p2 in other_points[i+1:]:
-                        dist = (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
-                        if dist > max_base_dist:
-                            max_base_dist = dist
-                            base_points = [p1, p2]
-
-                if len(base_points) != 2:
-                    continue
-
-                # Calculate base midpoint
-                base_mid = (
-                    (base_points[0][0] + base_points[1][0]) // 2,
-                    (base_points[0][1] + base_points[1][1]) // 2
-                )
-
-                # Calculate shape score
-                base_width = np.sqrt(max_base_dist)
-                tip_to_base = np.sqrt((tip_point[0] - base_mid[0])**2 + 
-                                    (tip_point[1] - base_mid[1])**2)
-
-                # Arrow should be roughly 2:1 height:width ratio
-                aspect_ratio = tip_to_base / (base_width + 1e-6)
-                shape_score = np.exp(-abs(aspect_ratio - 2.0))
+                # Basic shape scoring
+                perimeter = cv2.arcLength(cnt, True)
+                shape_score = area / (perimeter * perimeter)  # Compactness ratio
 
                 if shape_score > best_score:
                     best_score = shape_score
                     best_contour = cnt
-                    best_tip = tip_point
-                    best_base_mid = base_mid
+                    best_centroid = (cx, cy)
 
             if best_contour is None:
                 self.logger.debug("No suitable arrow shape found")
                 return None
 
-            # Calculate vector from base to tip
-            dx = best_tip[0] - best_base_mid[0]
-            dy = best_tip[1] - best_base_mid[1]  # y increases downward in image
-
-            # Convert to game angle (0° is up, clockwise)
-            # 1. Swap dx and -dy since 0° is up and y is inverted
-            # 2. Convert to clockwise angle by negating the result
-            # 3. Normalize to [0, 360)
-            game_angle = (-np.degrees(np.arctan2(-dy, dx))) % 360
-
             # Save debug visualization
             debug_frame = minimap_image.copy()
             cv2.drawContours(debug_frame, [best_contour], -1, (0, 255, 0), 1)
-            cv2.circle(debug_frame, (int(best_base_mid[0]), int(best_base_mid[1])), 3, (0, 0, 255), -1)
-            cv2.circle(debug_frame, tuple(best_tip), 3, (255, 0, 0), -1)
-            cv2.line(debug_frame, (int(best_base_mid[0]), int(best_base_mid[1])), tuple(best_tip), (255, 255, 0), 1)
-
-            # Add angle info
-            text_pos = (10, debug_frame.shape[0] - 10)
-            cv2.putText(debug_frame, f"Angle: {game_angle:.1f}°", text_pos, 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+            cv2.circle(debug_frame, best_centroid, 3, (0, 0, 255), -1)
             cv2.imwrite('arrow_detection_debug.png', debug_frame)
 
-            position = PlayerPosition(int(best_base_mid[0]), int(best_base_mid[1]), game_angle)
+            # Create position using centroid coordinates
+            position = PlayerPosition(best_centroid[0], best_centroid[1])
             self.last_known_position = position
-            self.logger.debug(f"Detected player at ({position.x}, {position.y}) facing {game_angle:.1f}°")
+            self.logger.debug(f"Detected player at ({position.x}, {position.y})")
             return position
 
         except Exception as e:
@@ -364,13 +295,3 @@ class MapManager:
         minimap_x = int(world_pos[0] / self.scale_x)
         minimap_y = int(world_pos[1] / self.scale_y)
         return (minimap_x, minimap_y)
-
-    def get_player_direction_vector(self) -> Optional[Tuple[float, float]]:
-        """Get normalized direction vector based on player's facing direction"""
-        if not self.last_known_position:
-            return None
-
-        angle_rad = np.radians(self.last_known_position.direction)
-        dx = np.sin(angle_rad)
-        dy = -np.cos(angle_rad)  # Negative because y increases downward
-        return (dx, dy)
