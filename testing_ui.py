@@ -65,20 +65,6 @@ class TestingUI:
                         "button": "left",
                         "duration": 0.1,
                         "timestamp": time.time()
-                    },
-                    {
-                        "type": "click",
-                        "x": 100,
-                        "y": 100,
-                        "button": "left",
-                        "duration": 0.1,
-                        "timestamp": time.time() + 0.1
-                    },
-                    {
-                        "type": "key_press",
-                        "key": "e",
-                        "duration": 0.5,
-                        "timestamp": time.time() + 0.2
                     }
                 ],
                 "created": time.time()
@@ -253,6 +239,58 @@ def updates(ws):
                             'level': 'error',
                             'data': f'Error saving sound: {str(e)}'
                         }))
+
+            elif data['type'] == 'map_sound_to_macro':
+                sound_name = data.get('sound_name')
+                macro_name = data.get('macro_name')
+                if not sound_name or not macro_name:
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'level': 'error',
+                        'data': 'Please select both a sound trigger and macro'
+                    }))
+                    return
+
+                if testing_ui:
+                    if testing_ui.sound_manager.assign_macro_to_sound(sound_name, macro_name):
+                        TestingUI.logger.info(f"Successfully mapped sound '{sound_name}' to macro '{macro_name}'")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'info',
+                            'data': f'Successfully mapped sound to macro'
+                        }))
+                    else:
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'error',
+                            'data': 'Failed to map sound to macro'
+                        }))
+
+            elif data['type'] == 'start_sound_monitoring':
+                if testing_ui:
+                    if testing_ui.sound_manager.start_monitoring():
+                        TestingUI.logger.info("Started sound monitoring")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'info',
+                            'data': 'Started sound monitoring'
+                        }))
+                    else:
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'error',
+                            'data': 'Failed to start sound monitoring'
+                        }))
+
+            elif data['type'] == 'stop_sound_monitoring':
+                if testing_ui:
+                    testing_ui.sound_manager.stop_monitoring()
+                    TestingUI.logger.info("Stopped sound monitoring")
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'level': 'info',
+                        'data': 'Stopped sound monitoring'
+                    }))
 
             elif data['type'] == 'save_macro':
                 macro_name = data.get('macro_name', '')

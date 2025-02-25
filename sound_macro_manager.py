@@ -32,6 +32,9 @@ class SoundMacroManager:
         # Store callback reference
         self.on_sound_detected = self._handle_sound_detected
 
+        # Store last recorded sound data
+        self.last_recorded_sound = None
+
     def _handle_sound_detected(self, sound_name: str):
         """Internal method to handle detected sounds"""
         self.logger.info(f"Sound trigger detected: {sound_name}")
@@ -71,9 +74,28 @@ class SoundMacroManager:
         except Exception as e:
             self.logger.error(f"Error saving mappings: {e}")
 
-    def record_sound_trigger(self, name: str, duration: float = 2.0) -> bool:
+    def record_sound_trigger(self, name: str, duration: float = 2.0, save: bool = True) -> bool:
         """Record a new sound trigger"""
-        return self.sound_trigger.record_sound(name, duration)
+        try:
+            self.last_recorded_sound = self.sound_trigger.record_sound(name, duration)
+            if save and self.last_recorded_sound is not None:
+                return self.save_sound_trigger(name)
+            return self.last_recorded_sound is not None
+        except Exception as e:
+            self.logger.error(f"Error recording sound trigger: {e}")
+            return False
+
+    def save_sound_trigger(self, name: str) -> bool:
+        """Save the last recorded sound trigger"""
+        try:
+            if self.last_recorded_sound is None:
+                self.logger.error("No sound data to save")
+                return False
+
+            return self.sound_trigger.save_trigger(name, self.last_recorded_sound)
+        except Exception as e:
+            self.logger.error(f"Error saving sound trigger: {e}")
+            return False
 
     def record_macro(self, name: str, duration: float = 10.0) -> bool:
         """Record a new macro"""

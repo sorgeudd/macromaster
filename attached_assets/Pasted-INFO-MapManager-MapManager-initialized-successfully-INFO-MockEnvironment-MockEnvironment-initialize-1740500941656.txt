@@ -1,0 +1,33 @@
+INFO:MapManager:MapManager initialized successfully
+INFO:MockEnvironment:MockEnvironment initialized successfully
+INFO:MacroVisualizer:Running in headless mode
+2025-02-25 16:14:20,609 - MacroTester - INFO - Visualization initialized (headless: True)
+INFO:MacroTester:Visualization initialized (headless: True)
+INFO:DirectInput:Running in test mode with default screen metrics
+2025-02-25 16:14:20,609 - MacroTester - INFO - DirectInput initialized successfully
+INFO:MacroTester:DirectInput initialized successfully
+INFO:SoundTrigger:Running in test mode
+INFO:SoundTrigger:Loaded 1 sound triggers
+INFO:SoundTrigger:Sound trigger system initialized (test mode: True, source: mic)
+INFO:SoundMacroManager:Using macros directory: macros
+INFO:SoundMacroManager:Loaded 1 sound-macro mappings
+INFO:SoundMacroManager:Sound macro manager initialized
+2025-02-25 16:14:20,610 - TestingUI - INFO - Testing UI initialized successfully
+INFO:TestingUI:Testing UI initialized successfully
+2025-02-25 16:14:20,610 - TestingUI - INFO - Starting Testing UI server with full system access
+INFO:TestingUI:Starting Testing UI server with full system access
+ * Serving Flask app 'testing_ui'
+ * Debug mode: off
+INFO:werkzeug:WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://172.31.128.58:5000
+INFO:werkzeug:Press CTRL+C to quit
+INFO:werkzeug:172.31.128.58 - - [25/Feb/2025 16:14:21] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.58 - - [25/Feb/2025 16:14:22] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:172.31.128.58 - - [25/Feb/2025 16:14:22] "GET / HTTP/1.1" 200 -
+2025-02-25 16:28:12,185 - TestingUI - INFO - Found 1 macros: ['test_macro']
+INFO:TestingUI:Found 1 macros: ['test_macro']
+2025-02-25 16:28:12,186 - TestingUI - INFO - Returning macros list as JSON
+INFO:TestingUI:Returning macros list as JSON
+INFO:werkzeug:172.31.128.58 - - [25/Feb/2025 16:28:12] "GET /macros HTTP/1.1" 200 -
