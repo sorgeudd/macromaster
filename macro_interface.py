@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 import keyboard
 import logging
+import traceback
 from sound_macro_manager import SoundMacroManager
 
 # Configure logging
@@ -41,13 +42,15 @@ class MacroInterface:
 
     def setup_hotkey_listener(self):
         """Setup global hotkey listener"""
-        def on_hotkey(event):
-            if not self.is_recording_hotkey:
-                # Only trigger macros if we're not recording a new hotkey
-                hotkey = event.name
-                self.sound_manager.trigger_macro_by_hotkey(hotkey)
+        keyboard.on_press(self.handle_hotkey)
 
-        keyboard.on_press(on_hotkey)
+    def handle_hotkey(self, event):
+        """Handle hotkey press events"""
+        if not self.is_recording_hotkey:
+            # Only trigger macros if we're not recording a new hotkey
+            hotkey = event.name
+            if self.sound_manager.trigger_macro_by_hotkey(hotkey):
+                self.add_log(f"Triggered macro with hotkey: {hotkey}")
 
     def setup_gui(self):
         """Setup the GUI elements"""
@@ -65,30 +68,41 @@ class MacroInterface:
         macro_frame = ttk.LabelFrame(self.root, text="Macro Management", padding="5")
         macro_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        ttk.Label(macro_frame, text="Macro Name:").pack(fill=tk.X)
-        self.macro_name = ttk.Entry(macro_frame)
-        self.macro_name.pack(fill=tk.X, padx=5, pady=2)
+        # Macro name and status
+        name_frame = ttk.Frame(macro_frame)
+        name_frame.pack(fill=tk.X, padx=5, pady=2)
 
-        # Hotkey assignment frame
+        ttk.Label(name_frame, text="Macro Name:").pack(side=tk.LEFT)
+        self.macro_name = ttk.Entry(name_frame)
+        self.macro_name.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=5)
+
+        # Hotkey display and controls
         hotkey_frame = ttk.Frame(macro_frame)
         hotkey_frame.pack(fill=tk.X, padx=5, pady=2)
 
         self.hotkey_label = ttk.Label(hotkey_frame, text="Hotkey: None")
-        self.hotkey_label.pack(side=tk.LEFT, padx=5)
+        self.hotkey_label.pack(side=tk.LEFT)
 
-        self.assign_hotkey_btn = ttk.Button(hotkey_frame, text="Assign Hotkey", command=self.start_hotkey_assignment)
+        self.assign_hotkey_btn = ttk.Button(hotkey_frame, text="Assign Hotkey", 
+                                          command=self.start_hotkey_assignment)
         self.assign_hotkey_btn.pack(side=tk.LEFT, padx=5)
 
-        self.clear_hotkey_btn = ttk.Button(hotkey_frame, text="Clear Hotkey", command=self.clear_hotkey)
-        self.clear_hotkey_btn.pack(side=tk.LEFT, padx=5)
+        self.clear_hotkey_btn = ttk.Button(hotkey_frame, text="Clear Hotkey",
+                                         command=self.clear_hotkey)
+        self.clear_hotkey_btn.pack(side=tk.LEFT)
 
-        self.record_macro_btn = ttk.Button(macro_frame, text="Record Macro", command=self.start_macro_recording)
+        # Macro recording controls
+        self.record_macro_btn = ttk.Button(macro_frame, text="Record Macro", 
+                                         command=self.start_macro_recording)
         self.record_macro_btn.pack(fill=tk.X, padx=5, pady=2)
 
-        self.stop_macro_btn = ttk.Button(macro_frame, text="Stop Recording", command=self.stop_macro_recording, state='disabled')
+        self.stop_macro_btn = ttk.Button(macro_frame, text="Stop Recording",
+                                       command=self.stop_macro_recording, 
+                                       state='disabled')
         self.stop_macro_btn.pack(fill=tk.X, padx=5, pady=2)
 
-        self.play_macro_btn = ttk.Button(macro_frame, text="Play Macro", command=self.play_macro)
+        self.play_macro_btn = ttk.Button(macro_frame, text="Play Macro",
+                                       command=self.play_macro)
         self.play_macro_btn.pack(fill=tk.X, padx=5, pady=2)
 
         # Sound Control Frame
@@ -99,16 +113,21 @@ class MacroInterface:
         self.sound_name = ttk.Entry(sound_frame)
         self.sound_name.pack(fill=tk.X, padx=5, pady=2)
 
-        self.record_sound_btn = ttk.Button(sound_frame, text="Record Sound", command=self.start_sound_recording)
+        self.record_sound_btn = ttk.Button(sound_frame, text="Record Sound",
+                                         command=self.start_sound_recording)
         self.record_sound_btn.pack(fill=tk.X, padx=5, pady=2)
 
-        self.stop_sound_btn = ttk.Button(sound_frame, text="Stop Recording", command=self.stop_sound_recording, state='disabled')
+        self.stop_sound_btn = ttk.Button(sound_frame, text="Stop Recording",
+                                       command=self.stop_sound_recording,
+                                       state='disabled')
         self.stop_sound_btn.pack(fill=tk.X, padx=5, pady=2)
 
-        self.play_sound_btn = ttk.Button(sound_frame, text="Play Sound", command=self.play_sound)
+        self.play_sound_btn = ttk.Button(sound_frame, text="Play Sound",
+                                       command=self.play_sound)
         self.play_sound_btn.pack(fill=tk.X, padx=5, pady=2)
 
-        self.monitor_btn = ttk.Button(sound_frame, text="Start Monitoring", command=self.toggle_monitoring)
+        self.monitor_btn = ttk.Button(sound_frame, text="Start Monitoring",
+                                    command=self.toggle_monitoring)
         self.monitor_btn.pack(fill=tk.X, padx=5, pady=2)
 
         # Log Frame
@@ -117,6 +136,62 @@ class MacroInterface:
 
         self.log_text = tk.Text(log_frame, height=10)
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+    def start_hotkey_assignment(self):
+        """Start recording a new hotkey assignment"""
+        macro_name = self.macro_name.get().strip()
+        if not macro_name:
+            self.add_log("Please enter a macro name", "ERROR")
+            return
+
+        self.is_recording_hotkey = True
+        self.assign_hotkey_btn.config(text="Press any key...", state='disabled')
+        self.add_log("Press any key to assign as hotkey...")
+
+        def on_key(event):
+            if self.is_recording_hotkey:
+                self.is_recording_hotkey = False
+                hotkey = event.name
+
+                # Assign the hotkey and update UI
+                if self.sound_manager.assign_hotkey(macro_name, hotkey):
+                    self.current_hotkey = hotkey
+                    self.hotkey_label.config(text=f"Hotkey: {hotkey}")
+                    self.add_log(f"Assigned hotkey '{hotkey}' to macro '{macro_name}'")
+                else:
+                    self.add_log("Failed to assign hotkey", "ERROR")
+
+                # Reset button state
+                self.assign_hotkey_btn.config(text="Assign Hotkey", state='normal')
+                keyboard.unhook(on_key)
+
+        keyboard.on_press(on_key)
+
+    def clear_hotkey(self):
+        """Clear the currently assigned hotkey"""
+        macro_name = self.macro_name.get().strip()
+        if not macro_name:
+            self.add_log("Please enter a macro name", "ERROR")
+            return
+
+        if self.sound_manager.remove_hotkey(macro_name):
+            self.current_hotkey = None
+            self.hotkey_label.config(text="Hotkey: None")
+            self.add_log(f"Cleared hotkey for macro '{macro_name}'")
+        else:
+            self.add_log("No hotkey assigned to clear")
+
+    def update_hotkey_display(self):
+        """Update the hotkey display for the current macro"""
+        macro_name = self.macro_name.get().strip()
+        if macro_name:
+            hotkey = self.sound_manager.get_macro_hotkey(macro_name)
+            if hotkey:
+                self.current_hotkey = hotkey
+                self.hotkey_label.config(text=f"Hotkey: {hotkey}")
+            else:
+                self.current_hotkey = None
+                self.hotkey_label.config(text="Hotkey: None")
 
     def add_log(self, message, level="INFO"):
         """Add a message to the log window"""
@@ -219,60 +294,6 @@ class MacroInterface:
         except Exception as e:
             self.add_log(f"Error toggling monitoring: {e}", "ERROR")
 
-    def start_hotkey_assignment(self):
-        """Start recording a new hotkey assignment"""
-        macro_name = self.macro_name.get().strip()
-        if not macro_name:
-            self.add_log("Please enter a macro name", "ERROR")
-            return
-
-        self.is_recording_hotkey = True
-        self.assign_hotkey_btn.config(text="Press any key...", state='disabled')
-        self.add_log("Press any key to assign as hotkey...")
-
-        def on_key(event):
-            if self.is_recording_hotkey:
-                self.is_recording_hotkey = False
-                hotkey = event.name
-                if self.sound_manager.assign_hotkey(macro_name, hotkey):
-                    self.current_hotkey = hotkey
-                    self.hotkey_label.config(text=f"Hotkey: {hotkey}")
-                    self.add_log(f"Assigned hotkey '{hotkey}' to macro '{macro_name}'")
-                else:
-                    self.add_log("Failed to assign hotkey", "ERROR")
-
-                self.assign_hotkey_btn.config(text="Assign Hotkey", state='normal')
-                keyboard.unhook(on_key)
-
-        keyboard.on_press(on_key)
-
-    def clear_hotkey(self):
-        """Clear the currently assigned hotkey"""
-        macro_name = self.macro_name.get().strip()
-        if not macro_name:
-            self.add_log("Please enter a macro name", "ERROR")
-            return
-
-        if self.sound_manager.remove_hotkey(macro_name):
-            self.current_hotkey = None
-            self.hotkey_label.config(text="Hotkey: None")
-            self.add_log(f"Cleared hotkey for macro '{macro_name}'")
-        else:
-            self.add_log("No hotkey assigned to clear")
-
-    def update_hotkey_display(self):
-        """Update the hotkey display for the current macro"""
-        macro_name = self.macro_name.get().strip()
-        if macro_name:
-            hotkey = self.sound_manager.get_macro_hotkey(macro_name)
-            if hotkey:
-                self.current_hotkey = hotkey
-                self.hotkey_label.config(text=f"Hotkey: {hotkey}")
-            else:
-                self.current_hotkey = None
-                self.hotkey_label.config(text="Hotkey: None")
-
-
     def run(self):
         """Start the application"""
         self.root.mainloop()
@@ -283,4 +304,4 @@ if __name__ == "__main__":
         app.run()
     except Exception as e:
         logger.error(f"Application error: {e}")
-        logger.error(logging.traceback.format_exc())
+        logger.error(traceback.format_exc())
