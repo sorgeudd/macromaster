@@ -175,7 +175,8 @@ def websocket(ws):
             try:
                 message = ws.receive()
                 if not message:
-                    continue
+                    logger.info("Client disconnected")
+                    break
 
                 data = json.loads(message)
                 testing_ui.logger.info(f"Received command: {data['type']}")
@@ -193,6 +194,12 @@ def websocket(ws):
                 elif data['type'] == 'stop_sound_recording':
                     handle_stop_sound_recording(ws)
 
+            except json.JSONDecodeError:
+                logger.error("Invalid JSON received")
+                ws.send(json.dumps({
+                    'type': 'error',
+                    'message': 'Invalid message format'
+                }))
             except Exception as e:
                 logger.error(f"Error processing WebSocket message: {e}")
                 logger.error(traceback.format_exc())

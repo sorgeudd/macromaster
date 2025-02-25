@@ -3,9 +3,16 @@ let ws = null;
 let isRecordingMacro = false;
 let isRecordingSound = false;
 let monitoring = false;
+let reconnectAttempts = 0;
+let maxReconnectAttempts = 5;
+let reconnectTimeout = null;
 
 // Initialize WebSocket connection
 function initializeWebSocket() {
+    if (ws && ws.readyState === WebSocket.CONNECTING) {
+        return; // Already trying to connect
+    }
+
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     // ALWAYS use port 5000 as it's the only port that works with Replit
     const wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
@@ -16,6 +23,7 @@ function initializeWebSocket() {
         ws.onopen = () => {
             console.log("WebSocket connection established");
             updateConnectionStatus(true);
+            reconnectAttempts = 0; // Reset reconnect attempts on successful connection
             refreshMacroList();
             refreshSoundList();
         };
@@ -23,14 +31,29 @@ function initializeWebSocket() {
         ws.onclose = (event) => {
             console.log("WebSocket connection closed", event);
             updateConnectionStatus(false);
-            // Try to reconnect after 5 seconds
-            setTimeout(initializeWebSocket, 5000);
+
+            // Try to reconnect with exponential backoff
+            if (reconnectAttempts < maxReconnectAttempts) {
+                const backoffTime = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+                console.log(`Attempting to reconnect in ${backoffTime}ms...`);
+
+                if (reconnectTimeout) {
+                    clearTimeout(reconnectTimeout);
+                }
+
+                reconnectTimeout = setTimeout(() => {
+                    reconnectAttempts++;
+                    initializeWebSocket();
+                }, backoffTime);
+            } else {
+                addLog("WebSocket connection failed. Please refresh the page.", "error");
+            }
         };
 
         ws.onerror = (error) => {
             console.error("WebSocket error:", error);
             updateConnectionStatus(false);
-            addLog("WebSocket connection error", "error");
+            addLog("Connection error. Attempting to reconnect...", "error");
         };
 
         ws.onmessage = handleWebSocketMessage;
@@ -91,7 +114,8 @@ function handleWebSocketMessage(event) {
 
 function sendWebSocketMessage(type, data = {}) {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
-        addLog("WebSocket connection not available", "error");
+        addLog("Connection lost. Attempting to reconnect...", "error");
+        initializeWebSocket();
         return false;
     }
 
