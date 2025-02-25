@@ -4,6 +4,7 @@ from typing import List, Tuple, Dict, Optional, Set, Literal
 from pathfinding import PathFinder
 import numpy as np
 from time import time
+from map_manager import MapManager
 
 class ResourceTypeFilter:
     def __init__(self):
@@ -128,6 +129,15 @@ class ResourceRoute:
         current = self.waypoints[0]
         visited_types = {self.resource_types[0]: 1}
 
+        # Adjust weights based on pattern
+        pattern_weight = 0.3  # Increase pattern influence
+        if pattern == "circular":
+            distance_weight *= 0.8  # Reduce distance importance for circular routes
+            pattern_weight = 0.4
+        elif pattern == "zigzag":
+            variety_weight *= 0.8  # Reduce variety importance for zigzag
+            pattern_weight = 0.4
+
         while remaining_indices:
             scores = []
             for i in remaining_indices:
@@ -160,7 +170,7 @@ class ResourceRoute:
                     variety_score * variety_weight +
                     priority_score * priority_weight +
                     density_score * density_weight +
-                    pattern_score * 0.2  # 20% weight for pattern
+                    pattern_score * pattern_weight
                 ) * (1.0 - terrain_penalty)
 
                 scores.append((total_score, i))
@@ -204,18 +214,27 @@ class ResourceRoute:
             dx = pos[0] - current[0]
             prev_pos = self.waypoints[-1]
             last_dx = current[0] - prev_pos[0]
-            # Higher score for direction changes (zigzag pattern)
-            direction_change = 1.0 if (dx * last_dx) <= 0 else 0.5
             # Factor in y-movement to encourage forward progress
             dy = pos[1] - current[1]
-            forward_progress = 0.5 if dy > 0 else 0.3
-            return direction_change * forward_progress
+            prev_dy = current[1] - prev_pos[1]
+
+            # Score for horizontal zigzag
+            direction_change = 1.0 if (dx * last_dx) <= 0 else 0.5
+
+            # Score for vertical progress
+            vertical_progress = 0.8 if dy > 0 else (0.6 if dy == 0 else 0.4)
+
+            # Penalize backtracking
+            backtrack_penalty = 0.7 if dy < 0 and prev_dy < 0 else 1.0
+
+            return direction_change * vertical_progress * backtrack_penalty
         return 1.0
 
 class ResourceRouteManager:
     def __init__(self, grid_size: int = 32):
         self.logger = logging.getLogger('ResourceRouteManager')
         self.pathfinder = PathFinder(grid_size)
+        self.map_manager = MapManager()
         self.current_route: Optional[ResourceRoute] = None
         self.nodes: Dict[Tuple[int, int], ResourceNode] = {}
         self.stats: Dict[str, Dict] = {
@@ -223,57 +242,34 @@ class ResourceRouteManager:
             'resources_collected': {},
             'average_completion_time': 0.0,
             'failed_routes': 0,
-            'filtered_nodes': 0  # Track how many nodes were filtered out
+            'filtered_nodes': 0,
+            'terrain_blocked_paths': 0
         }
         self.filter_settings = ResourceTypeFilter()
 
-    def configure_filtering(self,
-                          enabled_types: Optional[List[str]] = None,
-                          priority_modifiers: Optional[Dict[str, float]] = None,
-                          minimum_priority: float = 0.0,
-                          require_full_only: bool = False,
-                          cooldown_threshold: Optional[float] = None):
-        """Configure resource filtering settings"""
-        if enabled_types is not None:
-            self.filter_settings.enabled_types = set(enabled_types)
-        if priority_modifiers is not None:
-            self.filter_settings.priority_modifiers = priority_modifiers
-        if cooldown_threshold is not None:
-            self.filter_settings.cooldown_threshold = cooldown_threshold
+    def load_area_map(self, map_name: Optional[str] = None, minimap_image: Optional[np.ndarray] = None) -> bool:
+        """Load appropriate map for current area"""
+        try:
+            if minimap_image is not None:
+                detected_map = self.map_manager.extract_map_name_from_minimap(minimap_image)
+                if detected_map:
+                    return self.map_manager.load_map(detected_map)
 
-        self.filter_settings.minimum_priority = minimum_priority
-        self.filter_settings.require_full_only = require_full_only
+            if map_name:
+                return self.map_manager.load_map(map_name)
 
-        self.logger.info(f"Updated filter settings: "
-                        f"enabled_types={self.filter_settings.enabled_types}, "
-                        f"minimum_priority={minimum_priority}, "
-                        f"require_full_only={require_full_only}")
+            return False
 
-    def reset_filtering(self):
-        """Reset all filtering settings to defaults"""
-        self.filter_settings = ResourceTypeFilter()
-        self.logger.info("Reset all filter settings to defaults")
-
-    def add_resource_location(self, resource_type: str, position: Tuple[int, int], is_full: bool = True):
-        """Add or update a resource node"""
-        if position in self.nodes:
-            node = self.nodes[position]
-            node.update_state(is_full)
-            self.logger.debug(f"Updated {resource_type} at {position} (full: {is_full})")
-        else:
-            node = ResourceNode(position, resource_type, is_full)
-            self.nodes[position] = node
-            self.logger.debug(f"Added new {resource_type} at {position} (full: {is_full})")
-
-    def set_node_priority(self, position: Tuple[int, int], priority: float):
-        """Set priority for a specific resource node"""
-        if position in self.nodes:
-            self.nodes[position].priority = max(0.0, min(priority, 2.0))  # Clamp between 0-2
+        except Exception as e:
+            self.logger.error(f"Error loading area map: {str(e)}")
+            return False
 
     def add_terrain_penalty(self, position: Tuple[int, int], penalty: float):
-        """Mark area as difficult/dangerous to traverse"""
+        """Add manual terrain penalty or use map-based detection"""
         if self.current_route:
-            self.current_route.terrain_penalties[position] = max(0.0, min(penalty, 1.0))
+            map_penalty = self.map_manager.get_terrain_penalty(position)
+            combined_penalty = max(penalty, map_penalty)
+            self.current_route.terrain_penalties[position] = max(0.0, min(combined_penalty, 1.0))
 
     def create_route(self,
                     resource_types: Optional[List[str]] = None,
@@ -282,13 +278,22 @@ class ResourceRouteManager:
                     complete_cycle: bool = True,
                     prefer_full: bool = True,
                     min_priority: float = 0.0,
-                    pattern: str = "optimal") -> Optional[ResourceRoute]:
-        """Create an optimized route through specified resource types with filtering"""
+                    pattern: str = "optimal",
+                    avoid_water: bool = True) -> Optional[ResourceRoute]:
+        """Create terrain-aware resource route"""
         try:
             if start_pos is None:
                 self.logger.error("Start position is required")
                 self.stats['failed_routes'] += 1
                 return None
+
+            # Check if starting position is in water
+            if avoid_water:
+                terrain = self.map_manager.detect_terrain(start_pos)
+                if terrain['water'] > 0.5:
+                    self.logger.warning("Start position is in water")
+                    self.stats['terrain_blocked_paths'] += 1
+                    return None
 
             route = ResourceRoute()
             route.cycle_complete = complete_cycle
@@ -388,10 +393,24 @@ class ResourceRouteManager:
                 node.visit()  # Update node state
 
     def visualize_route(self, image_size: Tuple[int, int]) -> np.ndarray:
-        """Create a visualization with filter indicators"""
+        """Enhanced visualization with terrain overlay"""
         try:
             import cv2
             visualization = np.zeros((image_size[1], image_size[0], 3), dtype=np.uint8)
+
+            # Add terrain overlay if map is loaded
+            if self.map_manager.current_map is not None:
+                # Scale map to match visualization size
+                terrain_overlay = cv2.resize(
+                    self.map_manager.current_map,
+                    (image_size[0], image_size[1])
+                )
+                # Blend with 30% opacity
+                visualization = cv2.addWeighted(
+                    visualization, 0.7,
+                    terrain_overlay, 0.3,
+                    0
+                )
 
             if not self.current_route or not self.current_route.waypoints:
                 # Draw message when no route is available
@@ -422,6 +441,22 @@ class ResourceRouteManager:
                 color = (0, 0, int(255 * penalty))  # Red with alpha based on penalty
                 cv2.circle(visualization, pos_scaled, 10, color, -1)
 
+            # Draw pattern-specific visualization
+            if self.current_route.pattern == "circular":
+                # Draw circular guide
+                if len(self.current_route.waypoints) > 1:
+                    center = self.current_route.waypoints[0]
+                    center_scaled = (
+                        int(center[0] * image_size[0] / self.pathfinder.grid_size),
+                        int(center[1] * image_size[1] / self.pathfinder.grid_size)
+                    )
+                    avg_radius = sum(
+                        abs(pos[0] - center[0]) + abs(pos[1] - center[1])
+                        for pos in self.current_route.waypoints[1:]
+                    ) / (len(self.current_route.waypoints) - 1)
+                    radius_scaled = int(avg_radius * image_size[0] / self.pathfinder.grid_size)
+                    cv2.circle(visualization, center_scaled, radius_scaled, (50, 50, 50), 1)
+
             # Draw connections between waypoints
             total_points = len(self.current_route.waypoints)
             if total_points > 1:  # Only draw connections if we have more than one point
@@ -447,6 +482,19 @@ class ResourceRouteManager:
                         0
                     )
                     cv2.line(visualization, start_scaled, end_scaled, path_color, 2)
+
+                    # Draw direction arrows for zigzag pattern
+                    if self.current_route.pattern == "zigzag":
+                        dx = end[0] - start[0]
+                        dy = end[1] - start[1]
+                        mid_x = (start_scaled[0] + end_scaled[0]) // 2
+                        mid_y = (start_scaled[1] + end_scaled[1]) // 2
+                        arrow_color = (200, 200, 0)  # Yellow arrows
+                        # Draw arrowhead
+                        cv2.arrowedLine(visualization, 
+                                      (mid_x - 5, mid_y), 
+                                      (mid_x + 5, mid_y), 
+                                      arrow_color, 1, tipLength=0.5)
 
                     # Draw resource markers
                     node = self.current_route.nodes[i]
@@ -526,6 +574,49 @@ class ResourceRouteManager:
         except Exception as e:
             self.logger.error(f"Error visualizing route: {str(e)}")
             return np.zeros((image_size[1], image_size[0], 3), dtype=np.uint8)
+
+    def configure_filtering(self,
+                          enabled_types: Optional[List[str]] = None,
+                          priority_modifiers: Optional[Dict[str, float]] = None,
+                          minimum_priority: float = 0.0,
+                          require_full_only: bool = False,
+                          cooldown_threshold: Optional[float] = None):
+        """Configure resource filtering settings"""
+        if enabled_types is not None:
+            self.filter_settings.enabled_types = set(enabled_types)
+        if priority_modifiers is not None:
+            self.filter_settings.priority_modifiers = priority_modifiers
+        if cooldown_threshold is not None:
+            self.filter_settings.cooldown_threshold = cooldown_threshold
+
+        self.filter_settings.minimum_priority = minimum_priority
+        self.filter_settings.require_full_only = require_full_only
+
+        self.logger.info(f"Updated filter settings: "
+                        f"enabled_types={self.filter_settings.enabled_types}, "
+                        f"minimum_priority={minimum_priority}, "
+                        f"require_full_only={require_full_only}")
+
+    def reset_filtering(self):
+        """Reset all filtering settings to defaults"""
+        self.filter_settings = ResourceTypeFilter()
+        self.logger.info("Reset all filter settings to defaults")
+
+    def add_resource_location(self, resource_type: str, position: Tuple[int, int], is_full: bool = True):
+        """Add or update a resource node"""
+        if position in self.nodes:
+            node = self.nodes[position]
+            node.update_state(is_full)
+            self.logger.debug(f"Updated {resource_type} at {position} (full: {is_full})")
+        else:
+            node = ResourceNode(position, resource_type, is_full)
+            self.nodes[position] = node
+            self.logger.debug(f"Added new {resource_type} at {position} (full: {is_full})")
+
+    def set_node_priority(self, position: Tuple[int, int], priority: float):
+        """Set priority for a specific resource node"""
+        if position in self.nodes:
+            self.nodes[position].priority = max(0.0, min(priority, 2.0))  # Clamp between 0-2
 
     def _calculate_bounds(self, positions: List[Tuple[int, int]]) -> Tuple[int, int]:
         """Calculate map bounds based on positions"""

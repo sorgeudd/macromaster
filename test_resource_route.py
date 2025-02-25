@@ -89,6 +89,10 @@ def test_resource_routing():
 
         for test_case in test_cases:
             logger.info(f"\nTesting route: {test_case['name']}")
+            logger.info(f"Pattern: {test_case['pattern']}")
+            logger.info(f"Resource types: {test_case['types']}")
+            logger.info(f"Priority modifiers: {test_case['priority_modifiers']}")
+            logger.info(f"Min priority: {test_case['min_priority']}")
 
             # Configure filtering for this test case
             route_manager.configure_filtering(
@@ -133,16 +137,21 @@ def test_resource_routing():
                           (10, y_pos), font, 1, (0, 255, 0), 2)
 
                 # Save result
-                output_path = f"resource_route_{test_case['name'].lower().replace(' ', '_')}.png"
+                output_path = f"resource_route_{test_case['pattern'].lower()}.png"
                 cv2.imwrite(output_path, overlay)
                 logger.info(f"Saved route visualization to: {output_path}")
 
                 # Log route details
                 logger.info("Route Details:")
+                logger.info(f"Total distance: {route.total_distance:.1f} units")
+                logger.info(f"Estimated time: {route.estimated_time:.1f}s")
+                logger.info("Resource distribution:")
                 for res_type, count in route.resource_counts.items():
                     logger.info(f"  {res_type}: {count} nodes")
+                logger.info(f"Waypoints: {route.waypoints}")
             else:
                 logger.error(f"Failed to create route for: {test_case['name']}")
+                logger.error("Route generation failed - check pattern scoring")
                 return False
 
             # Reset filtering between test cases
@@ -162,6 +171,8 @@ def test_resource_routing():
 
     except Exception as e:
         logger.error(f"Test failed: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 if __name__ == "__main__":
