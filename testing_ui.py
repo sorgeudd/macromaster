@@ -296,6 +296,7 @@ def updates(ws):
                     return
 
                 try:
+                    import time
                     macro_path = os.path.join(testing_ui.macro_dir, f"{macro_name}.json")
                     macro_data = {
                         'name': macro_name,

@@ -360,9 +360,14 @@ class SoundTrigger:
 
         try:
             if not self.test_mode and self.current_stream:
-                self.current_stream.stop_stream()
-                self.current_stream.close()
-                self.current_stream = None
+                # Properly stop and clean up the audio stream
+                try:
+                    self.current_stream.stop_stream()
+                    self.current_stream.close()
+                except Exception as e:
+                    self.logger.error(f"Error cleaning up audio stream: {e}")
+                finally:
+                    self.current_stream = None
 
             self.recording = False
             self.logger.info("Recording stopped successfully")
@@ -374,6 +379,7 @@ class SoundTrigger:
         finally:
             self.recording = False
             self.current_stream = None
+            self.frames = []
 
 
     def __del__(self):
