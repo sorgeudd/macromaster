@@ -38,7 +38,7 @@ class SoundMacroManager:
             self.hotkeys = {}
             self._save_hotkeys()
 
-    def _save_hotkeys(self):
+    def _save_hotkeys(self) -> bool:
         """Save macro to hotkey mappings"""
         try:
             with open(self.hotkeys_file, 'w') as f:
@@ -49,18 +49,35 @@ class SoundMacroManager:
             self.logger.error(f"Error saving hotkey mappings: {e}")
             return False
 
+    def _create_macro_file(self, macro_name: str) -> bool:
+        """Create a new macro file if it doesn't exist"""
+        try:
+            macro_file = self.macros_dir / f"{macro_name}.json"
+            if not macro_file.exists():
+                macro_data = {
+                    "name": macro_name,
+                    "hotkey": None,
+                    "actions": []
+                }
+                with open(macro_file, 'w') as f:
+                    json.dump(macro_data, f, indent=2)
+                self.logger.info(f"Created new macro file: {macro_file}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error creating macro file: {e}")
+            return False
+
     def assign_hotkey(self, macro_name: str, hotkey: str) -> bool:
         """Assign a hotkey to trigger a specific macro"""
         try:
-            # Verify macro file exists
-            macro_file = self.macros_dir / f"{macro_name}.json"
-            self.logger.info(f"Checking for macro file: {macro_file}")
+            self.logger.info(f"Assigning hotkey '{hotkey}' to macro '{macro_name}'")
 
-            if not macro_file.exists():
-                self.logger.error(f"Macro file '{macro_file}' not found")
+            # Create macro file if it doesn't exist
+            if not self._create_macro_file(macro_name):
                 return False
 
-            # Load existing macro data
+            # Load macro file
+            macro_file = self.macros_dir / f"{macro_name}.json"
             try:
                 with open(macro_file, 'r') as f:
                     macro_data = json.load(f)
@@ -85,9 +102,10 @@ class SoundMacroManager:
 
             # Assign new hotkey
             self.hotkeys[macro_name] = hotkey
-            self._save_hotkeys()
-            self.logger.info(f"Successfully assigned hotkey '{hotkey}' to macro '{macro_name}'")
-            return True
+            if self._save_hotkeys():
+                self.logger.info(f"Successfully assigned hotkey '{hotkey}' to macro '{macro_name}'")
+                return True
+            return False
 
         except Exception as e:
             self.logger.error(f"Error assigning hotkey to macro: {e}")

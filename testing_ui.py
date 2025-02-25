@@ -27,11 +27,7 @@ except ImportError as e:
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler('testing_ui.log')
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('TestingUI')
 
@@ -79,7 +75,7 @@ class TestingUI:
                     json.dump({}, f, indent=2)
                 self.logger.info(f"Created hotkeys file at {self.hotkeys_file}")
 
-            # Initialize sound macro manager
+            # Initialize sound macro manager after creating necessary files
             self.sound_manager = SoundMacroManager(test_mode=True)
 
             # Create test macro if it doesn't exist
@@ -177,7 +173,7 @@ def websocket(ws):
                     break
 
                 data = json.loads(message)
-                testing_ui.logger.info(f"Received command: {data['type']}")
+                logger.info(f"Received command: {data['type']}")
 
                 if data['type'] == 'ping':
                     ws.send(json.dumps({'type': 'pong'}))
@@ -241,8 +237,11 @@ def handle_assign_hotkey(ws, data):
         return
 
     try:
+        logger.info(f"Attempting to assign hotkey '{hotkey}' to macro '{macro_name}'")
         success = testing_ui.sound_manager.assign_hotkey(macro_name, hotkey)
+
         if success:
+            # Send success log
             ws.send(json.dumps({
                 'type': 'log',
                 'level': 'info',
@@ -256,13 +255,14 @@ def handle_assign_hotkey(ws, data):
                 'hotkey': hotkey
             }))
         else:
+            logger.error(f"Failed to assign hotkey '{hotkey}' to macro '{macro_name}'")
             ws.send(json.dumps({
                 'type': 'error',
                 'message': 'Failed to assign hotkey'
             }))
     except Exception as e:
-        testing_ui.logger.error(f"Error assigning hotkey: {e}")
-        testing_ui.logger.error(traceback.format_exc())
+        logger.error(f"Error assigning hotkey: {e}")
+        logger.error(traceback.format_exc())
         ws.send(json.dumps({
             'type': 'error',
             'message': f'Error assigning hotkey: {str(e)}'
@@ -280,8 +280,11 @@ def handle_clear_hotkey(ws, data):
         return
 
     try:
+        logger.info(f"Attempting to clear hotkey for macro '{macro_name}'")
         success = testing_ui.sound_manager.remove_hotkey(macro_name)
+
         if success:
+            # Send success log
             ws.send(json.dumps({
                 'type': 'log',
                 'level': 'info',
@@ -300,7 +303,8 @@ def handle_clear_hotkey(ws, data):
                 'message': 'No hotkey assigned to clear'
             }))
     except Exception as e:
-        testing_ui.logger.error(f"Error clearing hotkey: {e}")
+        logger.error(f"Error clearing hotkey: {e}")
+        logger.error(traceback.format_exc())
         ws.send(json.dumps({
             'type': 'error',
             'message': f'Error clearing hotkey: {str(e)}'
@@ -337,12 +341,10 @@ def run():
 
 def cleanup_resources():
     """Cleanup resources"""
-    global testing_ui
     try:
         if testing_ui:
-            if testing_ui.sound_manager:
-                testing_ui.sound_manager.stop_monitoring()
-            logger.info("Resources cleaned up successfully")
+            testing_ui.cleanup()
+        logger.info("Resources cleaned up successfully")
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
 
