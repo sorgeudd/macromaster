@@ -6,6 +6,8 @@ let monitoring = false;
 let reconnectAttempts = 0;
 let maxReconnectAttempts = 5;
 let reconnectTimeout = null;
+let pingInterval = null;
+let lastPongTime = Date.now();
 
 // Initialize WebSocket connection
 function initializeWebSocket() {
@@ -24,6 +26,14 @@ function initializeWebSocket() {
             console.log("WebSocket connection established");
             updateConnectionStatus(true);
             reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+
+            // Start ping interval
+            if (pingInterval) {
+                clearInterval(pingInterval);
+            }
+            pingInterval = setInterval(sendPing, 30000); // Send ping every 30 seconds
+            lastPongTime = Date.now();
+
             refreshMacroList();
             refreshSoundList();
         };
@@ -31,6 +41,7 @@ function initializeWebSocket() {
         ws.onclose = (event) => {
             console.log("WebSocket connection closed", event);
             updateConnectionStatus(false);
+            clearInterval(pingInterval);
 
             // Try to reconnect with exponential backoff
             if (reconnectAttempts < maxReconnectAttempts) {
@@ -53,7 +64,6 @@ function initializeWebSocket() {
         ws.onerror = (error) => {
             console.error("WebSocket error:", error);
             updateConnectionStatus(false);
-            addLog("Connection error. Attempting to reconnect...", "error");
         };
 
         ws.onmessage = handleWebSocketMessage;
@@ -61,6 +71,60 @@ function initializeWebSocket() {
         console.error("Error initializing WebSocket:", error);
         updateConnectionStatus(false);
         addLog("Failed to initialize WebSocket connection", "error");
+    }
+}
+
+function sendPing() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        const timeSinceLastPong = Date.now() - lastPongTime;
+        if (timeSinceLastPong > 60000) { // No pong for 60 seconds
+            console.log("No pong received for 60 seconds, reconnecting...");
+            ws.close();
+            return;
+        }
+        sendWebSocketMessage('ping');
+    }
+}
+
+function handleWebSocketMessage(event) {
+    try {
+        const data = JSON.parse(event.data);
+        console.log("Received message:", data);
+
+        switch (data.type) {
+            case 'pong':
+                lastPongTime = Date.now();
+                break;
+            case 'status_update':
+                updateStatus('macro', data.macro_status, data.macro_status === 'Recording');
+                updateStatus('sound', data.sound_status, data.sound_status === 'Recording');
+                break;
+            case 'log':
+                addLog(data.message, data.level);
+                break;
+            case 'error':
+                addLog(data.message, 'error');
+                break;
+            case 'macros_updated':
+                updateMacroList(data.macros);
+                break;
+            case 'sounds_updated':
+                updateSoundList(data.sounds);
+                break;
+            case 'recording_complete':
+                if (data.recording_type === 'macro') {
+                    handleMacroRecordingComplete();
+                } else if (data.recording_type === 'sound') {
+                    handleSoundRecordingComplete();
+                }
+                break;
+            case 'hotkey_updated':
+                updateHotkeyDisplay(data.macro_name, data.hotkey);
+                break;
+        }
+    } catch (error) {
+        console.error("Error handling WebSocket message:", error);
+        addLog("Error processing server message", "error");
     }
 }
 

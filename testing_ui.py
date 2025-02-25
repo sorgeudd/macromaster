@@ -181,6 +181,10 @@ def websocket(ws):
                 data = json.loads(message)
                 testing_ui.logger.info(f"Received command: {data['type']}")
 
+                if data['type'] == 'ping':
+                    ws.send(json.dumps({'type': 'pong'}))
+                    continue
+
                 if data['type'] == 'assign_hotkey':
                     handle_assign_hotkey(ws, data)
                 elif data['type'] == 'clear_hotkey':
@@ -203,10 +207,14 @@ def websocket(ws):
             except Exception as e:
                 logger.error(f"Error processing WebSocket message: {e}")
                 logger.error(traceback.format_exc())
-                ws.send(json.dumps({
-                    'type': 'error',
-                    'message': f'Error processing command: {str(e)}'
-                }))
+                try:
+                    ws.send(json.dumps({
+                        'type': 'error',
+                        'message': f'Error processing command: {str(e)}'
+                    }))
+                except:
+                    logger.error("Failed to send error message to client")
+                    break
 
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
