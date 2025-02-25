@@ -32,46 +32,82 @@ class MapManager:
         self.current_map_name: str = ""
         self.last_known_position: Optional[PlayerPosition] = None
         self.minimap_size: Tuple[int, int] = (0, 0)
+        self.current_zone: str = ""
 
         # Scale factors for coordinate translation
         self.scale_x: float = 1.0
         self.scale_y: float = 1.0
 
-        # Fishing spot detection thresholds (from real map analysis)
-        self.fishing_spot_thresholds = {
-            'blue_marker': {
-                'lower': np.array([15, 50, 150]),  # HSV thresholds for spots
-                'upper': np.array([35, 150, 255])
-            }
-        }
+        # Arrow detection parameters for gameplay window
+        self.arrow_color_ranges = [
+            # Yellow arrow
+            (np.array([20, 100, 200]), np.array([30, 255, 255])),
+            # White arrow
+            (np.array([0, 0, 200]), np.array([180, 30, 255])),
+            # Green arrow
+            (np.array([45, 100, 100]), np.array([75, 255, 255]))
+        ]
 
-    def detect_fishing_spots(self, map_image: np.ndarray) -> List[ResourceNode]:
-        """Detect fishing spots from map image"""
+    def get_zone_name(self, minimap_image: np.ndarray) -> Optional[str]:
+        """Extract zone name from minimap image
+        This would need to be implemented based on how zone names appear in the minimap
+        For now, return None to indicate no zone change detected
+        """
+        # TODO: Implement OCR or template matching to detect zone name
+        return None
+
+    def update_from_minimap(self, minimap_image: np.ndarray, resource_type: str = None) -> bool:
+        """Update state from minimap image, including zone detection"""
         try:
+            # Detect player position first
+            position = self.detect_player_position(minimap_image)
+            if position:
+                self.last_known_position = position
+
+            # Try to detect zone name
+            zone_name = self.get_zone_name(minimap_image)
+            if zone_name and zone_name != self.current_zone:
+                self.logger.info(f"Zone changed to: {zone_name}")
+                self.current_zone = zone_name
+
+                # If resource type specified, load appropriate map
+                if resource_type:
+                    map_name = f"{zone_name.lower()} {resource_type}"
+                    return self.load_map(map_name)
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating from minimap: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def detect_resource_spots(self, map_image: np.ndarray, resource_type: str) -> List[ResourceNode]:
+        """Detect resource spots from map image"""
+        try:
+            spots = []
             # Convert to HSV for color detection
             hsv = cv2.cvtColor(map_image, cv2.COLOR_BGR2HSV)
 
-            # Create mask for spots
-            mask = cv2.inRange(
-                hsv,
-                self.fishing_spot_thresholds['blue_marker']['lower'],
-                self.fishing_spot_thresholds['blue_marker']['upper']
-            )
+            # Create mask for blue markers (adjusted for actual map markers)
+            blue_lower = np.array([90, 100, 100])  # Relaxed blue HSV thresholds
+            blue_upper = np.array([130, 255, 255])
+            mask = cv2.inRange(hsv, blue_lower, blue_upper)
 
             # Clean up mask
             kernel = np.ones((2, 2), np.uint8)
             mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
             mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
-            # Save debug mask
-            cv2.imwrite('fishing_spots_mask.png', mask)
+            # Save debug visualizations
+            debug_path = self.maps_directory / f"{self.current_map_name}_mask.png"
+            cv2.imwrite(str(debug_path), mask)
 
             # Find contours
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-            fishing_spots = []
             for cnt in contours:
-                # Filter by area
+                # Filter by area for spot markers
                 area = cv2.contourArea(cnt)
                 if area < 5 or area > 100:  # Adjust based on spot size
                     continue
@@ -82,62 +118,170 @@ class MapManager:
                     cx = int(M["m10"] / M["m00"])
                     cy = int(M["m01"] / M["m00"])
 
-                    # Get color at position
-                    color = map_image[cy, cx]
-                    self.logger.debug(f"Spot color at ({cx}, {cy}): BGR={color}")
+                    # Create resource node
+                    spots.append(ResourceNode(
+                        position=(cx, cy),
+                        resource_type=resource_type,
+                        priority=1.0
+                    ))
+                    self.logger.debug(f"Added {resource_type} spot at ({cx}, {cy})")
 
-                    # Verify spot is in valid position
-                    if self.get_terrain_type((cx, cy)) == 'water':
-                        fishing_spots.append(ResourceNode(
-                            position=(cx, cy),
-                            resource_type="fishing_spot",
-                            priority=1.0
-                        ))
-                        self.logger.debug(f"Added fishing spot at ({cx}, {cy})")
-                    else:
-                        self.logger.debug(f"Skipped non-water spot at ({cx}, {cy})")
-
-            # Create debug visualization
+            # Save visualization
             debug_viz = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-            for spot in fishing_spots:
+            for spot in spots:
                 cv2.circle(debug_viz, spot.position, 5, (0, 255, 0), -1)
-            cv2.imwrite('fishing_spots_debug.png', debug_viz)
+            viz_path = self.maps_directory / f"{self.current_map_name}_spots.png"
+            cv2.imwrite(str(viz_path), debug_viz)
 
-            self.logger.debug(f"Detected {len(fishing_spots)} valid fishing spots")
-            return fishing_spots
+            self.logger.debug(f"Detected {len(spots)} {resource_type} spots")
+            return spots
 
         except Exception as e:
-            self.logger.error(f"Error detecting fishing spots: {str(e)}")
+            self.logger.error(f"Error detecting resource spots: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return []
 
     def load_map(self, map_name: str) -> bool:
-        """Load a map and detect its resources"""
+        """Load a map by name (e.g., 'mase knoll fish', 'mase knoll ore')"""
         try:
-            # Load map image for resource detection
-            map_path = self.maps_directory / f"{map_name}.png"
+            # Clean up map name for file paths
+            clean_name = map_name.lower().replace(' ', '_')
+            map_path = self.maps_directory / f"{clean_name}.png"
+
             if not map_path.exists():
                 self.logger.error(f"Map file not found: {map_path}")
                 return False
 
+            # Load map image
             self.current_map = cv2.imread(str(map_path))
             if self.current_map is None:
                 self.logger.error(f"Failed to load map: {map_path}")
                 return False
 
-            # Detect fishing spots from map image
-            fishing_spots = self.detect_fishing_spots(self.current_map)
-            self.resource_nodes[map_name] = fishing_spots
-            self.logger.info(f"Detected {len(fishing_spots)} fishing spots in map")
+            # Get resource type from map name
+            resource_type = map_name.split()[-1]  # Last word is resource type
 
-            self.current_map_name = map_name
-            self.logger.info(f"Loaded map: {map_name}")
+            # Detect resource locations
+            spots = self.detect_resource_spots(self.current_map, resource_type)
+            self.resource_nodes[clean_name] = spots
+
+            self.current_map_name = clean_name
+            self.logger.info(f"Loaded {len(spots)} {resource_type} locations from map: {map_name}")
             return True
 
         except Exception as e:
             self.logger.error(f"Error loading map: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
+
+    def detect_player_position(self, minimap_image: np.ndarray) -> Optional[PlayerPosition]:
+        """Detect player position and direction from game window minimap"""
+        try:
+            if self.minimap_size == (0, 0):
+                self.minimap_size = minimap_image.shape[:2]
+                self.logger.debug(f"Set minimap size to {self.minimap_size}")
+
+            # Convert to HSV for more robust detection
+            hsv = cv2.cvtColor(minimap_image, cv2.COLOR_BGR2HSV)
+
+            # Create combined mask for all arrow colors
+            arrow_mask = np.zeros(minimap_image.shape[:2], dtype=np.uint8)
+            for lower, upper in self.arrow_color_ranges:
+                mask = cv2.inRange(hsv, lower, upper)
+                arrow_mask = cv2.bitwise_or(arrow_mask, mask)
+
+            # Clean up mask
+            kernel = np.ones((2, 2), np.uint8)
+            arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_OPEN, kernel)
+            arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_CLOSE, kernel)
+
+            # Find contours
+            contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+
+            if not contours:
+                self.logger.debug("No arrow contours found")
+                return None
+
+            # Find arrow-like shape
+            best_contour = None
+            best_score = 0
+
+            for cnt in contours:
+                area = cv2.contourArea(cnt)
+                if area < 10 or area > 500:  # Filter by area
+                    continue
+
+                # Check shape properties
+                perimeter = cv2.arcLength(cnt, True)
+                hull = cv2.convexHull(cnt)
+                hull_area = cv2.contourArea(hull)
+
+                if hull_area == 0:
+                    continue
+
+                solidity = area / hull_area
+                circularity = 4 * np.pi * area / (perimeter * perimeter)
+
+                # Arrow should have medium solidity and low circularity
+                if 0.4 <= solidity <= 0.8 and circularity < 0.6:
+                    rect = cv2.minAreaRect(cnt)
+                    width, height = rect[1]
+                    if width == 0 or height == 0:
+                        continue
+
+                    aspect_ratio = max(width, height) / min(width, height)
+                    if 1.5 <= aspect_ratio <= 4.0:  # Arrow should be elongated
+                        score = solidity * (1 - circularity) * min(aspect_ratio / 4.0, 1.0)
+                        if score > best_score:
+                            best_score = score
+                            best_contour = cnt
+
+            if best_contour is None:
+                self.logger.debug("No suitable arrow shape found")
+                return None
+
+            # Find arrow direction using tip point
+            M = cv2.moments(best_contour)
+            if M["m00"] == 0:
+                return None
+
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+
+            # Find tip point (furthest point from centroid)
+            tip_point = None
+            max_dist = 0
+            for point in best_contour:
+                dist = np.sqrt((point[0][0] - cx)**2 + (point[0][1] - cy)**2)
+                if dist > max_dist:
+                    max_dist = dist
+                    tip_point = point[0]
+
+            if tip_point is None:
+                return None
+
+            # Calculate angle from centroid to tip
+            dx = tip_point[0] - cx
+            dy = cy - tip_point[1]  # Invert y since image coordinates increase downward
+            angle = np.degrees(np.arctan2(dx, dy)) % 360
+
+            # Create debug visualization
+            debug_frame = cv2.cvtColor(arrow_mask, cv2.COLOR_GRAY2BGR)
+            cv2.drawContours(debug_frame, [best_contour], -1, (0, 255, 0), 1)
+            cv2.circle(debug_frame, (cx, cy), 3, (0, 0, 255), -1)
+            cv2.circle(debug_frame, tuple(tip_point), 3, (255, 0, 0), -1)
+            cv2.line(debug_frame, (cx, cy), tuple(tip_point), (255, 255, 0), 1)
+            cv2.imwrite('arrow_detection.png', debug_frame)
+
+            position = PlayerPosition(cx, cy, angle)
+            self.last_known_position = position
+            self.logger.debug(f"Detected player at ({cx}, {cy}) facing {angle:.1f}°")
+            return position
+
+        except Exception as e:
+            self.logger.error(f"Error detecting player position: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return None
 
     def get_nearby_resources(self, position: Tuple[int, int], radius: float) -> List[ResourceNode]:
         """Get resources within radius of position"""
@@ -154,50 +298,6 @@ class MapManager:
 
         self.logger.debug(f"Found {len(nearby)} resources within {radius} units")
         return nearby
-
-    def get_terrain_type(self, position: Tuple[int, int]) -> str:
-        """Get terrain type at position"""
-        if self.current_map is None:
-            return 'unknown'
-
-        try:
-            # Ensure position is within bounds
-            x = min(max(position[0], 0), self.current_map.shape[1] - 1)
-            y = min(max(position[1], 0), self.current_map.shape[0] - 1)
-
-            # Get color at position
-            color = self.current_map[y, x]
-            self.logger.debug(f"Color at {position}: BGR={color}")
-
-            # From actual map analysis: water areas are medium-high BGR values
-            if (85 <= color[0] <= 100 and     # Blue: medium-high
-                140 <= color[1] <= 160 and    # Green: high
-                135 <= color[2] <= 150):      # Red: medium-high
-                return 'water'
-            elif color[1] > 120 and color[2] < 100:  # Strong green
-                return 'forest'
-            elif np.mean(color) < 60:  # Dark areas
-                return 'mountain'
-            else:
-                return 'normal'
-
-        except Exception as e:
-            self.logger.error(f"Error getting terrain type: {str(e)}")
-            return 'unknown'
-
-    def get_terrain_penalty(self, position: Tuple[int, int]) -> float:
-        """Get movement penalty for terrain type"""
-        terrain_type = self.get_terrain_type(position)
-
-        penalties = {
-            'normal': 0.0,
-            'water': 0.7,
-            'forest': 0.3,
-            'mountain': 0.8,
-            'unknown': 0.5
-        }
-
-        return penalties.get(terrain_type, 0.5)
 
     def minimap_to_world_coords(self, minimap_pos: Tuple[int, int]) -> Tuple[int, int]:
         """Convert minimap coordinates to world map coordinates"""

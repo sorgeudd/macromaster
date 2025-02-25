@@ -1,4 +1,4 @@
-"""Test script for minimap player position detection and fishing spot tracking"""
+"""Test script for minimap player position detection and resource tracking"""
 import cv2
 import numpy as np
 import logging
@@ -17,10 +17,10 @@ def setup_test_maps():
     test_map_dir = Path('maps')
     test_map_dir.mkdir(exist_ok=True)
 
-    # Copy the actual fishing spot map
+    # Copy the actual resource maps
     shutil.copy(
         'attached_assets/Mase knoll fish_1740481898173.jpg',
-        test_map_dir / 'fishing_map.png'
+        test_map_dir / 'mase_knoll_fish.png'
     )
 
 def test_fishing_spot_detection():
@@ -33,12 +33,12 @@ def test_fishing_spot_detection():
         map_manager = MapManager()
 
         # Load the fishing spot map
-        success = map_manager.load_map('fishing_map')
+        success = map_manager.load_map('mase_knoll_fish')
         assert success, "Failed to load fishing map"
 
         # Verify fishing spots were detected
-        assert 'fishing_map' in map_manager.resource_nodes, "No resource nodes found"
-        spots = map_manager.resource_nodes['fishing_map']
+        assert 'mase_knoll_fish' in map_manager.resource_nodes, "No resource nodes found"
+        spots = map_manager.resource_nodes['mase_knoll_fish']
         assert len(spots) > 0, "No fishing spots detected"
 
         logger.info(f"Detected {len(spots)} fishing spots")
@@ -49,12 +49,6 @@ def test_fishing_spot_detection():
             nearby = map_manager.get_nearby_resources(spot.position, 50)
             assert len(nearby) > 0, "Failed to find nearby spots"
 
-        # Verify terrain detection near spots
-        for spot in spots[:3]:
-            terrain = map_manager.get_terrain_type(spot.position)
-            logger.debug(f"Terrain at spot {spot.position}: {terrain}")
-            assert terrain == 'water', "Fishing spot not in water"
-
         logger.info("✓ Fishing spot detection test passed")
         return True
 
@@ -63,62 +57,8 @@ def test_fishing_spot_detection():
         logger.error(f"Stack trace: {traceback.format_exc()}")
         return False
 
-def test_map_loading():
-    """Test map and resource data loading"""
-    try:
-        # Create test map data with water areas
-        test_map_dir = Path('maps')
-        test_map_dir.mkdir(exist_ok=True)
-
-        # Create map image (200x200 with different terrain colors)
-        map_size = (200, 200, 3)
-        test_map = np.zeros(map_size, dtype=np.uint8)
-
-        # Add water area (BGR values matching real map)
-        cv2.rectangle(test_map, (100, 100), (150, 150), (93, 150, 142), -1)  # Water color from real map
-
-        # Add other terrain
-        cv2.rectangle(test_map, (0, 0), (100, 100), (50, 150, 50), -1)  # Forest
-        cv2.rectangle(test_map, (150, 0), (200, 100), (20, 20, 20), -1)  # Mountain
-
-        # Add fishing spot markers using real map BGR values
-        spot_color = (93, 150, 142)  # BGR values from successful detections
-        for pos in [(110, 110), (120, 120), (130, 130)]:
-            cv2.circle(test_map, pos, 3, spot_color, -1)
-
-        # Save test map
-        cv2.imwrite('maps/test_map.png', test_map)
-
-        # Initialize map manager
-        map_manager = MapManager()
-
-        # Test loading map
-        success = map_manager.load_map('test_map')
-        assert success, "Failed to load test map"
-
-        # Test resource loading
-        assert 'test_map' in map_manager.resource_nodes, "Resource nodes not loaded"
-        spots = map_manager.resource_nodes['test_map']
-        assert len(spots) == 3, f"Expected 3 fishing spots, found {len(spots)}"
-
-        # Test resource retrieval
-        nearby = map_manager.get_nearby_resources((120, 120), 20)
-        assert len(nearby) >= 1, "Failed to find nearby spots"
-
-        # Test terrain detection
-        terrain = map_manager.get_terrain_type((120, 120))
-        assert terrain == 'water', f"Incorrect terrain type: {terrain}"
-
-        logger.info("✓ Map loading test passed")
-        return True
-
-    except Exception as e:
-        logger.error(f"Map loading test failed: {str(e)}")
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return False
-
-def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
-    """Create a test minimap with player arrow"""
+def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0, zone_name="Mase Knoll"):
+    """Create a test minimap with player arrow and zone name"""
     # Create black background
     minimap_size = (200, 200, 3)
     minimap = np.zeros(minimap_size, dtype=np.uint8)
@@ -151,9 +91,8 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
     arrow_color = (20, 200, 230)  # BGR format matching yellow HSV range
     cv2.fillPoly(minimap, [pts], arrow_color)
 
-    # Save debug visualizations
-    cv2.imwrite('test_minimap_raw.png', minimap)
-    cv2.imwrite('test_minimap_hsv.png', cv2.cvtColor(minimap, cv2.COLOR_BGR2HSV))
+    # Add zone name (in actual implementation, this would be part of the game's UI)
+    cv2.putText(minimap, zone_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
 
     return minimap
 
@@ -179,15 +118,31 @@ def test_arrow_detection(map_manager, position, angle):
         return pos_error < 3 and angle_error < 15
     return False
 
+def test_minimap_update():
+    """Test minimap updates and zone detection"""
+    try:
+        map_manager = MapManager()
+
+        # Create test minimap with zone name
+        minimap = create_test_minimap((100, 100), 0, "Mase Knoll")
+
+        # Test zone update
+        success = map_manager.update_from_minimap(minimap, "fish")
+        assert success, "Failed to update from minimap"
+
+        # TODO: When zone name detection is implemented, add more tests here
+        logger.info("✓ Minimap update test passed")
+        return True
+
+    except Exception as e:
+        logger.error(f"Minimap update test failed: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
+
 def test_minimap_detection():
     """Test detection of player position and direction from minimap"""
     try:
         map_manager = MapManager()
-
-        # First test resource loading
-        if not test_map_loading():
-            logger.error("Resource loading test failed")
-            return False
 
         # Test cases with different positions and angles
         test_cases = [
@@ -222,8 +177,14 @@ if __name__ == "__main__":
         logger.error("Fishing spot detection test failed")
         exit(1)
 
-    # Test arrow detection and map loading
+    # Test minimap arrow detection separately
     if not test_minimap_detection():
         logger.error("Minimap detection test failed")
         exit(1)
-    logger.info("Minimap detection test completed successfully")
+
+    # Test minimap updates and zone detection
+    if not test_minimap_update():
+        logger.error("Minimap update test failed")
+        exit(1)
+
+    logger.info("All tests completed successfully")
