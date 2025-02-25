@@ -387,27 +387,23 @@
 
             addLogEntry('Recording macro in 3 seconds...', 'info');
             setTimeout(() => {
-                ws.send(JSON.stringify({
-                    type: 'start_macro_recording',
-                    macro_name: macroName
-                }));
+                addLogEntry('Started recording macro...', 'info');
+                let recording = true;
+                let actions = [];
 
-                // Start recording actions here
-                const actions = [];
-                // ... record actions ...
-
-                // After recording period, save the macro
+                // Record for 5 seconds
                 setTimeout(() => {
-                    ws.send(JSON.stringify({
-                        type: 'save_macro',
-                        macro_name: macroName,
-                        actions: actions
-                    }));
-
-                    recordBtn.disabled = false;
-                    document.getElementById('macro-name').value = '';
-                    refreshMacroList();
+                    if (recording) {
+                        recording = false;
+                        ws.send(JSON.stringify({
+                            type: 'save_macro',
+                            macro_name: macroName,
+                            actions: actions
+                        }));
+                        addLogEntry('Finished recording macro', 'info');
+                    }
                 }, 5000);
+
             }, 3000);
         }
 
@@ -443,12 +439,13 @@
                     type: 'start_sound_recording',
                     sound_name: soundName
                 }));
-                addLogEntry(`Recording sound: ${soundName}`, 'info');
+                addLogEntry('Recording sound...', 'info');
 
-                // Re-enable the button after recording duration
+                // Re-enable button and clear input after 2 seconds
                 setTimeout(() => {
                     recordBtn.disabled = false;
                     document.getElementById('sound-name').value = '';
+                    addLogEntry('Finished recording sound', 'info');
                 }, 2000);
             }, 3000);
         }

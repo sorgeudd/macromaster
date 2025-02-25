@@ -17,6 +17,78 @@ sock = Sock(app)
 # Global TestingUI instance
 testing_ui = None
 
+class TestingUI:
+    # Class variables for state management
+    window_detected = False
+    last_window_name = ""
+    bot_running = False
+    learning_mode = False
+    recording_macro = False
+    recording_sound = False
+    logger = logging.getLogger('TestingUI')
+
+    def __init__(self):
+        # Setup logging
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        if not self.logger.handlers:
+            file_handler = logging.FileHandler('testing_ui.log')
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(formatter)
+            self.logger.addHandler(console_handler)
+        self.logger.setLevel(logging.INFO)
+
+        # Initialize components
+        self.map_manager = MapManager()
+        TestingUI.mock_env = MockEnvironment()
+        self.sound_manager = SoundMacroManager(test_mode=(platform.system() != 'Windows'))
+
+        # Ensure macros directory exists and initialize test macro
+        self.macro_dir = 'macros'
+        if not os.path.exists(self.macro_dir):
+            os.makedirs(self.macro_dir)
+            self.logger.info(f"Created macros directory at {self.macro_dir}")
+
+        # Create test macro if it doesn't exist
+        test_macro_path = os.path.join(self.macro_dir, 'test_macro.json')
+        if not os.path.exists(test_macro_path):
+            test_macro = {
+                "name": "test_macro",
+                "actions": [
+                    {
+                        "type": "move",
+                        "x": 100,
+                        "y": 100,
+                        "button": "left",
+                        "duration": 0.1,
+                        "timestamp": time.time()
+                    },
+                    {
+                        "type": "click",
+                        "x": 100,
+                        "y": 100,
+                        "button": "left",
+                        "duration": 0.1,
+                        "timestamp": time.time() + 0.1
+                    },
+                    {
+                        "type": "key_press",
+                        "key": "e",
+                        "duration": 0.5,
+                        "timestamp": time.time() + 0.2
+                    }
+                ],
+                "created": time.time()
+            }
+            with open(test_macro_path, 'w') as f:
+                json.dump(test_macro, f, indent=2)
+                self.logger.info(f"Created test macro at {test_macro_path}")
+
+        self.logger.info("Testing UI initialized successfully")
+
 @app.route('/')
 def index():
     """Flask route for web interface"""
@@ -97,104 +169,6 @@ def get_macros():
         response.headers['Cache-Control'] = 'no-store'
         return response, 500
 
-class TestingUI:
-    # Class variables for state management
-    window_detected = False
-    last_window_name = ""
-    bot_running = False
-    learning_mode = False
-    recording_macro = False
-    recording_sound = False
-    logger = logging.getLogger('TestingUI')
-    mock_env = None
-
-    def __init__(self):
-        # Setup logging with file and console output
-        formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
-        if not self.logger.handlers:
-            file_handler = logging.FileHandler('testing_ui.log')
-            file_handler.setFormatter(formatter)
-            self.logger.addHandler(file_handler)
-            console_handler = logging.StreamHandler()
-            console_handler.setFormatter(formatter)
-            self.logger.addHandler(console_handler)
-        self.logger.setLevel(logging.INFO)
-
-        # Initialize components
-        self.map_manager = MapManager()
-        TestingUI.mock_env = MockEnvironment()
-        self.sound_manager = SoundMacroManager(test_mode=(platform.system() != 'Windows'))
-
-        # Ensure macros directory exists and initialize test macro
-        self.macro_dir = 'macros'
-        if not os.path.exists(self.macro_dir):
-            os.makedirs(self.macro_dir)
-            self.logger.info(f"Created macros directory at {self.macro_dir}")
-
-        # Create test macro if it doesn't exist
-        test_macro_path = os.path.join(self.macro_dir, 'test_macro.json')
-        if not os.path.exists(test_macro_path):
-            test_macro = {
-                "name": "test_macro",
-                "actions": [
-                    {
-                        "type": "move",
-                        "x": 100,
-                        "y": 100,
-                        "button": "left",
-                        "duration": 0.1,
-                        "timestamp": time.time()
-                    },
-                    {
-                        "type": "click",
-                        "x": 100,
-                        "y": 100,
-                        "button": "left",
-                        "duration": 0.1,
-                        "timestamp": time.time() + 0.1
-                    },
-                    {
-                        "type": "key_press",
-                        "key": "e",
-                        "duration": 0.5,
-                        "timestamp": time.time() + 0.2
-                    }
-                ],
-                "created": time.time()
-            }
-            with open(test_macro_path, 'w') as f:
-                json.dump(test_macro, f, indent=2)
-                self.logger.info(f"Created test macro at {test_macro_path}")
-
-        self.logger.info("Testing UI initialized successfully")
-
-    @staticmethod
-    def find_window(window_name):
-        """Find window by name with cross-platform support"""
-        try:
-            if platform.system() == 'Windows':
-                import win32gui
-                def callback(hwnd, hwnds):
-                    if win32gui.IsWindowVisible(hwnd):
-                        title = win32gui.GetWindowText(hwnd)
-                        if window_name.lower() in title.lower():
-                            hwnds.append(hwnd)
-                    return True
-
-                hwnds = []
-                win32gui.EnumWindows(callback, hwnds)
-                return len(hwnds) > 0, hwnds[0] if hwnds else None
-            else:
-                TestingUI.logger.warning("Running in test mode (non-Windows platform)")
-                test_windows = ['albion online client', 'game window']
-                found = any(window_name.lower() in test_win for test_win in test_windows)
-                return found, 1 if found else None
-        except Exception as e:
-            TestingUI.logger.error(f"Error detecting window: {str(e)}")
-            return False, None
-
 @sock.route('/updates')
 def updates(ws):
     """WebSocket endpoint for real-time updates and commands"""
@@ -217,9 +191,6 @@ def updates(ws):
                     return
 
                 if testing_ui:
-                    TestingUI.recording_sound = True
-                    TestingUI.logger.info(f"Starting sound recording for: {sound_name}")
-
                     try:
                         if testing_ui.sound_manager.record_sound_trigger(sound_name, duration=2.0):
                             TestingUI.logger.info(f"Successfully recorded sound: {sound_name}")
@@ -234,12 +205,6 @@ def updates(ws):
                                 'type': 'sounds_updated',
                                 'sounds': sounds
                             }))
-                        else:
-                            ws.send(json.dumps({
-                                'type': 'log',
-                                'level': 'error',
-                                'data': f'Failed to record sound: {sound_name}'
-                            }))
                     except Exception as e:
                         TestingUI.logger.error(f"Error recording sound: {str(e)}")
                         ws.send(json.dumps({
@@ -247,8 +212,6 @@ def updates(ws):
                             'level': 'error',
                             'data': f'Error recording sound: {str(e)}'
                         }))
-                    finally:
-                        TestingUI.recording_sound = False
 
             elif data['type'] == 'save_macro':
                 macro_name = data.get('macro_name', '')
@@ -272,6 +235,11 @@ def updates(ws):
                     with open(macro_path, 'w') as f:
                         json.dump(macro_data, f, indent=2)
                         TestingUI.logger.info(f"Successfully saved macro: {macro_name}")
+                        ws.send(json.dumps({
+                            'type': 'completed_recording',
+                            'recording_type': 'macro',
+                            'name': macro_name
+                        }))
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'info',
