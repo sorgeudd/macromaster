@@ -25,60 +25,153 @@ class MapManager:
         self.last_known_position: Optional[PlayerPosition] = None
         self.minimap_size: Tuple[int, int] = (0, 0)  # Will be set when processing minimap
 
-        # Updated arrow detection parameters based on game footage
-        self.arrow_color_lower = np.array([90, 160, 180])  # Adjusted for game's arrow color
+        # Arrow detection parameters based on game footage analysis
+        self.arrow_color_lower = np.array([90, 160, 180])  # Verified from footage
         self.arrow_color_upper = np.array([110, 200, 255])
-        self.min_arrow_area = 80     # Reduced for game's smaller arrow
-        self.max_arrow_area = 200    # Adjusted based on game footage
+        self.min_arrow_area = 2     # From footage: min area was 2.0
+        self.max_arrow_area = 5     # From footage: max area was 4.5
 
-        # Refined shape validation parameters
-        self.min_arrow_aspect_ratio = 1.2   # More elongated arrow in game
+        # Shape parameters based on footage analysis
+        self.min_arrow_aspect_ratio = 1.0   # From footage: width/height varied
         self.max_arrow_aspect_ratio = 2.0   # Allow for perspective changes
-        self.min_arrow_solidity = 0.7      # Less strict for game's arrow shape
-        self.max_circularity = 0.7         # Adjusted for game's arrow shape
+        self.min_arrow_solidity = 0.6      # Relaxed for small pixel count
+        self.max_circularity = 0.8         # Adjusted for small size
 
-        # Optimized morphological operation parameters
-        self.morph_kernel_size = 2   # Small kernel for detail preservation
-        self.morph_iterations = 1    # Single iteration to maintain shape
+        # Morphological operation parameters
+        self.morph_kernel_size = 2   # Minimal kernel for small arrow
+        self.morph_iterations = 1    # Single iteration to preserve shape
 
-        # Enhanced direction detection weights
-        self.tip_weight = 0.8       # Lower weight on tip direction
-        self.rect_weight = 0.2      # Higher rectangle weight for stability
+        # Direction detection weights
+        self.tip_weight = 0.7       # Emphasis on tip for direction
+        self.rect_weight = 0.3      # Less weight on rectangle due to small size
 
-        # Additional angle correction parameters
-        self.angle_correction_factor = 1.0  # No correction needed with new calculations
-        self.max_angle_deviation = 45.0     # Allow more deviation for game's arrow movement
+        # Angular parameters from footage analysis
+        self.angle_correction_factor = 1.0  # No correction needed
+        self.max_angle_deviation = 45.0     # From footage: saw up to ~45° changes
 
-        # Cardinal direction snapping threshold (in degrees)
-        self.cardinal_snap_threshold = 5.0  # Tighter snapping for game accuracy
+        # Cardinal direction snapping
+        self.cardinal_snap_threshold = 10.0  # More permissive for small arrow
 
-        # Additional angular thresholds
-        self.angle_noise_threshold = 15.0   # Higher threshold for game movement
-        self.tip_angle_threshold = 30.0     # More permissive for game's arrow shape
+        # Additional thresholds
+        self.angle_noise_threshold = 30.0   # Higher for small pixel movements
+        self.tip_angle_threshold = 45.0     # From footage analysis
 
-        # Minimap to world scale factors
+        # Scale factors
         self.scale_x: float = 1.0
         self.scale_y: float = 1.0
 
-        # Updated terrain detection settings with shallow water distinction
+        # Terrain colors from game footage
         self.terrain_colors = {
             'deep_water': {
-                'lower': np.array([95, 150, 150]),  # Darker blue for deep water
+                'lower': np.array([95, 150, 150]),
                 'upper': np.array([125, 255, 255])
             },
             'shallow_water': {
-                'lower': np.array([95, 60, 180]),  # Lighter blue for shallow water
+                'lower': np.array([95, 60, 180]),
                 'upper': np.array([125, 150, 255])
             },
             'mountain': {
-                'lower': np.array([0, 0, 40]),  # Dark terrain
+                'lower': np.array([0, 0, 40]),
                 'upper': np.array([30, 40, 160])
             },
             'cliff': {
-                'lower': np.array([0, 0, 20]),  # Very dark terrain
+                'lower': np.array([0, 0, 20]),
                 'upper': np.array([180, 25, 80])
             }
         }
+
+    def detect_player_position(self, minimap_image: np.ndarray) -> Optional[PlayerPosition]:
+        """Detect player position and direction from minimap"""
+        try:
+            if self.minimap_size == (0, 0):
+                self.minimap_size = minimap_image.shape[:2]
+
+            # Convert to HSV for better color detection
+            hsv = cv2.cvtColor(minimap_image, cv2.COLOR_BGR2HSV)
+            arrow_mask = cv2.inRange(hsv, self.arrow_color_lower, self.arrow_color_upper)
+
+            # Find contours without morphological operations to preserve tiny shapes
+            contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contours:
+                return None
+
+            # Filter contours by area
+            valid_contours = []
+            for cnt in contours:
+                area = cv2.contourArea(cnt)
+                if self.min_arrow_area <= area <= self.max_arrow_area:
+                    valid_contours.append(cnt)
+                    self.logger.debug(f"Found valid contour with area: {area}")
+
+            if not valid_contours:
+                return None
+
+            # Use largest valid contour
+            arrow_contour = max(valid_contours, key=cv2.contourArea)
+
+            # Get centroid
+            M = cv2.moments(arrow_contour)
+            if M["m00"] == 0:
+                return None
+
+            cx = int(M["m10"] / M["m00"])
+            cy = int(M["m01"] / M["m00"])
+
+            # Get convex hull for more reliable tip detection
+            hull = cv2.convexHull(arrow_contour)
+
+            # Find the tip point (furthest point from centroid)
+            max_dist = 0
+            tip_point = None
+
+            for point in hull:
+                pt = point[0]
+                dist = np.sqrt((pt[0] - cx)**2 + (pt[1] - cy)**2)
+                if dist > max_dist:
+                    max_dist = dist
+                    tip_point = pt
+
+            if tip_point is None:
+                self.logger.error("Failed to find tip point")
+                return None
+
+            # Calculate angle in game coordinates (0° is North, clockwise)
+            dx = tip_point[0] - cx
+            dy = cy - tip_point[1]  # Reverse y because image coordinates increase downward
+
+            # Calculate raw angle (arctan2 gives -π to π)
+            raw_angle = np.degrees(np.arctan2(dx, dy))
+            # Convert to game angles (0° at North, clockwise)
+            game_angle = raw_angle % 360
+
+            # Snap to cardinal directions if close
+            for cardinal in [0, 90, 180, 270]:
+                if abs(game_angle - cardinal) < self.cardinal_snap_threshold:
+                    game_angle = float(cardinal)
+                    self.logger.debug(f"Snapped to cardinal angle: {game_angle}°")
+                    break
+
+            # Debug logging
+            self.logger.debug(
+                f"Arrow detection details:\n"
+                f"Centroid: ({cx}, {cy})\n"
+                f"Tip point: ({tip_point[0]}, {tip_point[1]})\n"
+                f"dx, dy: ({dx}, {dy})\n"
+                f"Raw angle: {raw_angle}°\n"
+                f"Game angle: {game_angle}°"
+            )
+
+            # Create position object
+            position = PlayerPosition(cx, cy, game_angle)
+            self.last_known_position = position
+
+            return position
+
+        except Exception as e:
+            self.logger.error(f"Error detecting player position: {str(e)}")
+            import traceback
+            self.logger.error(f"Traceback: {traceback.format_exc()}")
+            return None
 
     def load_map(self, map_name: str, map_image: Optional[np.ndarray] = None) -> bool:
         """Load a map by name or from an image"""
@@ -146,107 +239,6 @@ class MapManager:
 
         return (minimap_x, minimap_y)
 
-    def detect_player_position(self, minimap_image: np.ndarray) -> Optional[PlayerPosition]:
-        """Detect player position and direction from minimap"""
-        try:
-            if self.minimap_size == (0, 0):
-                self.minimap_size = minimap_image.shape[:2]
-
-            # Convert to HSV and create mask
-            hsv = cv2.cvtColor(minimap_image, cv2.COLOR_BGR2HSV)
-            arrow_mask = cv2.inRange(hsv, self.arrow_color_lower, self.arrow_color_upper)
-
-            # Enhanced mask cleanup
-            kernel = np.ones((self.morph_kernel_size, self.morph_kernel_size), np.uint8)
-            arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_OPEN, kernel)
-            arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_CLOSE, kernel)
-
-            # Find contours
-            contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            if not contours:
-                return None
-
-            # Select best contour based on area and shape
-            valid_contours = []
-            for cnt in contours:
-                area = cv2.contourArea(cnt)
-                if area < self.min_arrow_area or area > self.max_arrow_area:
-                    continue
-
-                # Get oriented bounding box
-                rect = cv2.minAreaRect(cnt)
-                w, h = rect[1]
-                if min(w, h) == 0:
-                    continue
-
-                aspect_ratio = max(w, h) / min(w, h)
-                if aspect_ratio < self.min_arrow_aspect_ratio or aspect_ratio > self.max_arrow_aspect_ratio:
-                    continue
-
-                valid_contours.append((cnt, aspect_ratio))
-
-            if not valid_contours:
-                return None
-
-            # Use the contour with best aspect ratio (most arrow-like)
-            arrow_contour = max(valid_contours, key=lambda x: x[1])[0]
-
-            # Calculate centroid
-            M = cv2.moments(arrow_contour)
-            if M["m00"] == 0:
-                return None
-
-            cx = int(M["m10"] / M["m00"])
-            cy = int(M["m01"] / M["m00"])
-
-            # Find the tip of the arrow (furthest point from centroid)
-            tip_point = None
-            max_dist = 0
-            for point in arrow_contour:
-                px, py = point[0]
-                dist = np.sqrt((px - cx) ** 2 + (py - cy) ** 2)
-                if dist > max_dist:
-                    max_dist = dist
-                    tip_point = (px, py)
-
-            if tip_point is None:
-                return None
-
-            # Calculate angle from centroid to tip
-            # In game coordinates: 0° is North (up), angle increases clockwise
-            dx = tip_point[0] - cx
-            dy = cy - tip_point[1]  # Flip y because image coordinates increase downward
-            raw_angle = np.degrees(np.arctan2(dx, dy))
-
-            # Normalize angle to 0-360 range
-            final_angle = raw_angle % 360
-
-            # Enhanced cardinal direction snapping
-            for cardinal in [0, 90, 180, 270]:
-                if abs(final_angle - cardinal) < self.cardinal_snap_threshold:
-                    final_angle = float(cardinal)
-                    break
-
-            # Create player position
-            position = PlayerPosition(cx, cy, final_angle)
-            self.last_known_position = position
-
-            # Debug logging
-            self.logger.debug(
-                f"Arrow detection details:\n"
-                f"Position: ({cx}, {cy})\n"
-                f"Tip point: {tip_point}\n"
-                f"Raw angle: {raw_angle:.1f}°\n"
-                f"Final angle: {final_angle:.1f}°"
-            )
-
-            return position
-
-        except Exception as e:
-            self.logger.error(f"Error detecting player position: {str(e)}")
-            import traceback
-            self.logger.error(f"Traceback: {traceback.format_exc()}")
-            return None
 
     def get_player_direction_vector(self) -> Optional[Tuple[float, float]]:
         """Get normalized direction vector based on player's facing direction"""
