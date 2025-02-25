@@ -87,6 +87,16 @@
         }
         .log-error { color: #f44336; }
         .log-info { color: #2196F3; }
+        .flex-container {
+            display: flex;
+            gap: 20px;
+        }
+        .left-panel {
+            flex: 1;
+        }
+        .right-panel {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
@@ -97,6 +107,21 @@
             <span class="status-indicator" id="system-status-indicator"></span>
             <span>System Status: </span>
             <span id="system-status">Initializing</span>
+        </div>
+        <div class="status-item">
+            <span class="status-indicator" id="window-status-indicator"></span>
+            <span>Window Status: </span>
+            <span id="window-status">Not Detected</span>
+        </div>
+        <div class="status-item">
+            <span class="status-indicator" id="bot-status-indicator"></span>
+            <span>Bot Status: </span>
+            <span id="bot-status">Stopped</span>
+        </div>
+        <div class="status-item">
+            <span class="status-indicator" id="learning-status-indicator"></span>
+            <span>Learning Mode: </span>
+            <span id="learning-status">Inactive</span>
         </div>
         <div class="status-item">
             <span class="status-indicator" id="macro-status-indicator"></span>
@@ -115,56 +140,100 @@
         </div>
     </div>
 
-    <div class="panel">
-        <h2>Macro Management</h2>
-        <div class="control-group">
-            <input type="text" id="macro-name" placeholder="Enter macro name">
-            <div style="display: flex; gap: 5px;">
-                <button onclick="startMacroRecording()" id="record-macro-btn">Record Macro</button>
-                <button onclick="stopMacroRecording()" id="stop-macro-btn" class="stop" disabled>Stop Recording</button>
-                <button onclick="saveMacroRecording()" id="save-macro-btn" disabled>Save Macro</button>
+    <div class="flex-container">
+        <div class="left-panel">
+            <div class="panel">
+                <h2>Bot Control</h2>
+                <div class="control-group">
+                    <button onclick="startBot()">Start Bot</button>
+                    <button onclick="stopBot()">Stop Bot</button>
+                    <button class="stop" onclick="emergencyStop()">Emergency Stop (F6)</button>
+                </div>
             </div>
-            <button onclick="refreshMacroList()">Refresh Macros</button>
-            <select id="macro-list">
-                <option value="">Select a macro</option>
-            </select>
-            <button onclick="playMacro()">Test Macro</button>
-        </div>
-    </div>
 
-    <div class="panel">
-        <h2>Sound Triggers</h2>
-        <div class="control-group">
-            <input type="text" id="sound-name" placeholder="Enter sound trigger name">
-            <div style="display: flex; gap: 5px;">
-                <button onclick="startSoundRecording()" id="record-sound-btn">Record Sound</button>
-                <button onclick="stopSoundRecording()" id="stop-sound-btn" class="stop" disabled>Stop Recording</button>
-                <button onclick="saveSoundRecording()" id="save-sound-btn" disabled>Save Sound</button>
+            <div class="panel">
+                <h2>Learning Mode</h2>
+                <div class="control-group">
+                    <button onclick="startLearning()">Start Learning</button>
+                    <button onclick="stopLearning()">Stop Learning</button>
+                    <button onclick="resetLearning()">Reset Learning</button>
+                </div>
             </div>
-            <button onclick="refreshSoundList()">Refresh Sounds</button>
-            <select id="sound-list">
-                <option value="">Select a sound</option>
-            </select>
-            <button onclick="playSound()">Test Sound</button>
+
+            <div class="panel">
+                <h2>Macro Management</h2>
+                <div class="control-group">
+                    <input type="text" id="macro-name" placeholder="Enter macro name">
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="startMacroRecording()" id="record-macro-btn">Record Macro</button>
+                        <button onclick="stopMacroRecording()" id="stop-macro-btn" class="stop" disabled>Stop Recording</button>
+                        <button onclick="saveMacroRecording()" id="save-macro-btn" disabled>Save Macro</button>
+                    </div>
+                    <button onclick="refreshMacroList()">Refresh Macros</button>
+                    <select id="macro-list">
+                        <option value="">Select a macro</option>
+                    </select>
+                    <button onclick="playMacro()">Test Macro</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>Sound Triggers</h2>
+                <div class="control-group">
+                    <input type="text" id="sound-name" placeholder="Enter sound trigger name">
+                    <div style="display: flex; gap: 5px;">
+                        <button onclick="startSoundRecording()" id="record-sound-btn">Record Sound</button>
+                        <button onclick="stopSoundRecording()" id="stop-sound-btn" class="stop" disabled>Stop Recording</button>
+                        <button onclick="saveSoundRecording()" id="save-sound-btn" disabled>Save Sound</button>
+                    </div>
+                    <button onclick="refreshSoundList()">Refresh Sounds</button>
+                    <select id="sound-list">
+                        <option value="">Select a sound</option>
+                    </select>
+                    <button onclick="playSound()">Test Sound</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>Sound-to-Macro Mapping</h3>
+                    <select id="map-sound">
+                        <option value="">Select Sound Trigger</option>
+                    </select>
+                    <select id="map-macro">
+                        <option value="">Select Macro</option>
+                    </select>
+                    <button onclick="mapSoundToMacro()">Map Sound to Macro</button>
+                    <button onclick="toggleSoundMonitoring()" id="monitor-btn">Start Monitoring</button>
+                </div>
+            </div>
         </div>
 
-        <div class="control-group">
-            <h3>Sound-to-Macro Mapping</h3>
-            <select id="map-sound">
-                <option value="">Select Sound Trigger</option>
-            </select>
-            <select id="map-macro">
-                <option value="">Select Macro</option>
-            </select>
-            <button onclick="mapSoundToMacro()">Map Sound to Macro</button>
-            <button onclick="toggleSoundMonitoring()" id="monitor-btn">Start Monitoring</button>
-        </div>
-    </div>
+        <div class="right-panel">
+            <div class="panel">
+                <h2>Position Testing</h2>
+                <div class="control-group">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="number" id="pos-x" placeholder="X coordinate" value="100">
+                        <input type="number" id="pos-y" placeholder="Y coordinate" value="100">
+                    </div>
+                    <button onclick="moveTo()">Move To Position</button>
+                </div>
+            </div>
 
-    <div class="panel">
-        <h2>System Logs</h2>
-        <div id="logs" class="logs">
-            <!-- Logs will be added here -->
+            <div class="panel">
+                <h2>Resource Detection</h2>
+                <div class="control-group">
+                    <button onclick="loadMap('fish')">Load Fish Map</button>
+                    <button onclick="loadMap('ore')">Load Ore Map</button>
+                    <button onclick="findNearby()">Find Nearby Resources</button>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h2>System Logs</h2>
+                <div id="logs" class="logs">
+                    <!-- Logs will be added here -->
+                </div>
+            </div>
         </div>
     </div>
 
@@ -185,6 +254,9 @@
 
         // Initialize status indicators
         updateStatus('system', 'Ready', true);
+        updateStatus('window', 'Not Detected');
+        updateStatus('bot', 'Stopped');
+        updateStatus('learning', 'Inactive');
         updateStatus('macro', 'Ready');
         updateStatus('sound', 'Ready');
         updateStatus('monitoring', 'Stopped');
@@ -203,6 +275,10 @@
                 } else if (data.recording_type === 'sound') {
                     handleSoundRecordingComplete();
                 }
+            } else if (data.type === 'status_update') {
+                updateStatus('window', data.window_status);
+                updateStatus('bot', data.bot_status, data.bot_status === 'Running');
+                updateStatus('learning', data.learning_status, data.learning_status === 'Active');
             }
         };
 
@@ -212,6 +288,59 @@
             entry.className = `log-entry log-${level}`;
             entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
             logs.insertBefore(entry, logs.firstChild);
+        }
+
+        // Bot Controls
+        function startBot() {
+            ws.send(JSON.stringify({ type: 'start_bot' }));
+            updateStatus('bot', 'Running', true);
+        }
+
+        function stopBot() {
+            ws.send(JSON.stringify({ type: 'stop_bot' }));
+            updateStatus('bot', 'Stopped');
+        }
+
+        function emergencyStop() {
+            ws.send(JSON.stringify({ type: 'emergency_stop' }));
+            updateStatus('bot', 'Stopped');
+        }
+
+        // Learning Controls
+        function startLearning() {
+            ws.send(JSON.stringify({ type: 'start_learning' }));
+            updateStatus('learning', 'Active', true);
+        }
+
+        function stopLearning() {
+            ws.send(JSON.stringify({ type: 'stop_learning' }));
+            updateStatus('learning', 'Inactive');
+        }
+
+        function resetLearning() {
+            ws.send(JSON.stringify({ type: 'reset_learning' }));
+        }
+
+        // Position Controls
+        function moveTo() {
+            const x = document.getElementById('pos-x').value;
+            const y = document.getElementById('pos-y').value;
+            ws.send(JSON.stringify({
+                type: 'move_to',
+                data: { x: parseInt(x), y: parseInt(y) }
+            }));
+        }
+
+        // Resource Controls
+        function loadMap(type) {
+            ws.send(JSON.stringify({
+                type: 'load_map',
+                map_type: type
+            }));
+        }
+
+        function findNearby() {
+            ws.send(JSON.stringify({ type: 'find_nearby' }));
         }
 
         function startMacroRecording() {
@@ -230,6 +359,10 @@
 
             addLog('Recording macro in 3 seconds...', 'info');
             setTimeout(() => {
+                ws.send(JSON.stringify({
+                    type: 'start_macro_recording',
+                    macro_name: macroName
+                }));
                 addLog('Started recording macro...', 'info');
             }, 3000);
         }
@@ -237,17 +370,13 @@
         function stopMacroRecording() {
             if (!isRecordingMacro) return;
 
-            const recordBtn = document.getElementById('record-macro-btn');
-            const stopBtn = document.getElementById('stop-macro-btn');
-            const saveBtn = document.getElementById('save-macro-btn');
+            const macroName = document.getElementById('macro-name').value.trim();
+            ws.send(JSON.stringify({
+                type: 'stop_macro_recording',
+                macro_name: macroName
+            }));
 
-            recordBtn.disabled = false;
-            stopBtn.disabled = true;
-            saveBtn.disabled = false;
-            isRecordingMacro = false;
-            updateStatus('macro', 'Ready');
-
-            addLog('Macro recording stopped. Click Save to keep the recording.', 'info');
+            addLog('Stopping macro recording...', 'info');
         }
 
         function handleMacroRecordingComplete() {
@@ -273,6 +402,7 @@
             const saveBtn = document.getElementById('save-macro-btn');
             saveBtn.disabled = true;
             document.getElementById('macro-name').value = '';
+            addLog('Saving macro...', 'info');
         }
 
         function startSoundRecording() {
@@ -302,17 +432,13 @@
         function stopSoundRecording() {
             if (!isRecordingSound) return;
 
-            const recordBtn = document.getElementById('record-sound-btn');
-            const stopBtn = document.getElementById('stop-sound-btn');
-            const saveBtn = document.getElementById('save-sound-btn');
+            const soundName = document.getElementById('sound-name').value.trim();
+            ws.send(JSON.stringify({
+                type: 'stop_sound_recording',
+                sound_name: soundName
+            }));
 
-            recordBtn.disabled = false;
-            stopBtn.disabled = true;
-            saveBtn.disabled = false;
-            isRecordingSound = false;
-            updateStatus('sound', 'Ready');
-
-            addLog('Sound recording stopped. Click Save to keep the recording.', 'info');
+            addLog('Stopping sound recording...', 'info');
         }
 
         function handleSoundRecordingComplete() {
@@ -337,6 +463,8 @@
             const saveBtn = document.getElementById('save-sound-btn');
             saveBtn.disabled = true;
             document.getElementById('sound-name').value = '';
+            addLog('Saving sound...', 'info');
+            refreshSoundList();
         }
 
         function refreshMacroList() {

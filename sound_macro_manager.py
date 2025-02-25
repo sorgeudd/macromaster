@@ -27,13 +27,12 @@ class SoundMacroManager:
         self.mappings: Dict[str, str] = {}
         self._load_mappings()
 
-        self.logger.info("Sound macro manager initialized")
-
-        # Store callback reference
-        self.on_sound_detected = self._handle_sound_detected
-
-        # Store last recorded sound data
+        # Recording state
+        self.is_recording = False
         self.last_recorded_sound = None
+        self.current_recording_name = None
+
+        self.logger.info("Sound macro manager initialized")
 
     def _handle_sound_detected(self, sound_name: str):
         """Internal method to handle detected sounds"""
@@ -76,14 +75,43 @@ class SoundMacroManager:
 
     def record_sound_trigger(self, name: str, duration: float = 2.0, save: bool = True) -> bool:
         """Record a new sound trigger"""
+        if self.is_recording:
+            self.logger.error("Already recording a sound")
+            return False
+
         try:
+            self.is_recording = True
+            self.current_recording_name = name
+            self.logger.info(f"Starting sound recording for: {name}")
+
             self.last_recorded_sound = self.sound_trigger.record_sound(name, duration)
+
             if save and self.last_recorded_sound is not None:
                 return self.save_sound_trigger(name)
+
             return self.last_recorded_sound is not None
         except Exception as e:
             self.logger.error(f"Error recording sound trigger: {e}")
             return False
+        finally:
+            self.is_recording = False
+            self.current_recording_name = None
+
+    def stop_recording(self) -> bool:
+        """Stop the current recording"""
+        if not self.is_recording:
+            self.logger.warning("No active recording to stop")
+            return False
+
+        try:
+            self.sound_trigger.stop_recording()
+            self.logger.info("Recording stopped successfully")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error stopping recording: {e}")
+            return False
+        finally:
+            self.is_recording = False
 
     def save_sound_trigger(self, name: str) -> bool:
         """Save the last recorded sound trigger"""
@@ -99,42 +127,55 @@ class SoundMacroManager:
 
     def record_macro(self, name: str, duration: float = 10.0) -> bool:
         """Record a new macro"""
-        self.logger.info(f"Starting macro recording: {name}")
-        if not self.macro_tester.start_recording():
-            self.logger.error("Failed to start macro recording")
+        if self.is_recording:
+            self.logger.error("Already recording")
             return False
 
-        time.sleep(duration)
+        try:
+            self.is_recording = True
+            self.current_recording_name = name
+            self.logger.info(f"Starting macro recording: {name}")
 
-        if self.macro_tester.stop_recording():
-            # Move the recorded macro to our macros directory
-            source = Path('recorded_macro.json')
-            target = self.macros_dir / f"{name}.json"
+            if not self.macro_tester.start_recording():
+                self.logger.error("Failed to start macro recording")
+                return False
 
-            self.logger.info(f"Looking for recorded macro at: {source}")
-            if source.exists():
-                try:
-                    # Read the source file first
-                    with open(source, 'r') as f:
-                        macro_data = json.load(f)
+            time.sleep(duration)
 
-                    # Write to the target file
-                    with open(target, 'w') as f:
-                        json.dump(macro_data, f, indent=2)
+            return self.macro_tester.stop_recording()
+        except Exception as e:
+            self.logger.error(f"Error recording macro: {e}")
+            return False
+        finally:
+            self.is_recording = False
+            self.current_recording_name = None
 
-                    # Remove the source file
+    def stop_macro_recording(self) -> bool:
+        """Stop the current macro recording"""
+        if not self.is_recording:
+            self.logger.warning("No active macro recording to stop")
+            return False
+
+        try:
+            success = self.macro_tester.stop_recording()
+            if success:
+                # Move the recorded macro to our macros directory
+                source = Path('recorded_macro.json')
+                if source.exists():
+                    target = self.macros_dir / f"{self.current_recording_name}.json"
+                    target.write_text(source.read_text())
                     source.unlink()
-
                     self.logger.info(f"Successfully saved macro as {target}")
                     return True
-                except Exception as e:
-                    self.logger.error(f"Error saving macro file: {e}")
-                    return False
-            self.logger.error(f"Recorded macro file not found at {source}")
+                self.logger.error("Recorded macro file not found")
+                return False
             return False
-
-        self.logger.error("Failed to stop macro recording")
-        return False
+        except Exception as e:
+            self.logger.error(f"Error stopping macro recording: {e}")
+            return False
+        finally:
+            self.is_recording = False
+            self.current_recording_name = None
 
     def assign_macro_to_sound(self, sound_name: str, macro_name: str) -> bool:
         """Assign a macro to be triggered by a specific sound"""

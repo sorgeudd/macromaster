@@ -1,15 +1,4 @@
-"""Sound recording and detection module for macro triggers
-
-This module provides functionality for recording and detecting sound triggers,
-supporting both microphone input and system audio output recording.
-
-Key Features:
-- Record sound triggers from microphone or system audio
-- Play back recorded sounds
-- Monitor for sound patterns and trigger callbacks
-- Save and load sound triggers
-- Cross-platform support with test mode
-"""
+"""Sound recording and detection module"""
 import os
 import time
 import json
@@ -22,15 +11,8 @@ import numpy as np
 import pyaudio
 
 class SoundTrigger:
-    def __init__(self, sample_rate: int = 44100, threshold: float = 0.75, test_mode: bool = False, recording_source: str = "mic"):
-        """Initialize sound trigger system
-
-        Args:
-            sample_rate: Audio sample rate (Hz)
-            threshold: Detection threshold for triggers (0.0-1.0)
-            test_mode: Run in test mode without real audio
-            recording_source: Audio source ("mic" or "system")
-        """
+    def __init__(self, sample_rate: int = 44100, threshold: float = 0.75, test_mode: bool = False):
+        """Initialize sound trigger system"""
         self.logger = logging.getLogger('SoundTrigger')
         self.sample_rate = sample_rate
         self.threshold = threshold
@@ -38,10 +20,12 @@ class SoundTrigger:
         self.monitoring = False
         self.playing = False
         self.test_mode = test_mode
-        self.recording_source = recording_source.lower()
+        self.recording_source = "mic" #default
+        self.current_stream = None
+        self.frames = []
 
         if self.recording_source not in ["mic", "system"]:
-            self.logger.warning(f"Invalid recording source '{recording_source}', defaulting to 'mic'")
+            self.logger.warning(f"Invalid recording source '{self.recording_source}', defaulting to 'mic'")
             self.recording_source = "mic"
 
         # Audio settings
@@ -119,82 +103,80 @@ class SoundTrigger:
         except Exception as e:
             self.logger.error(f"Error saving triggers: {e}")
 
-    def record_sound(self, name: str, duration: float = 2.0) -> bool:
-        """Record a new sound trigger
+    def record_sound(self, name: str, duration: float = 2.0) -> np.ndarray:
+        """Record a new sound
+
         Args:
-            name: Name of the sound trigger
+            name: Name for the sound recording
             duration: Recording duration in seconds
+
+        Returns:
+            Recorded audio data as numpy array
         """
         if self.recording:
             self.logger.warning("Already recording")
-            return False
+            return None
 
         try:
             self.recording = True
+            self.frames = []
 
             if self.test_mode:
-                # Generate a test signal in test mode
+                # Generate test signal
                 time_points = np.linspace(0, duration, int(self.sample_rate * duration))
-                test_signal = np.sin(2 * np.pi * 440 * time_points)  # 440 Hz sine wave
+                test_signal = np.sin(2 * np.pi * 440 * time_points)
                 audio_data = test_signal.astype(np.float32)
                 self.logger.info(f"Test mode: Generated {duration}s test signal")
-            else:
-                frames = []
-                stream_kwargs = {
-                    'format': self.format,
-                    'channels': self.channels,
-                    'rate': self.sample_rate,
-                    'input': True,
-                    'frames_per_buffer': self.chunk_size
-                }
+                return audio_data
 
-                # Configure for system audio if selected
-                if self.recording_source == "system" and self.system_device is not None:
-                    stream_kwargs.update({
-                        'input_device_index': self.system_device,
-                        'as_loopback': True  # Enable WASAPI loopback
-                    })
-                    self.logger.info("Recording system audio output")
-                else:
-                    self.logger.info("Recording from microphone")
-
-                # Open recording stream
-                stream = self.audio.open(**stream_kwargs)
-
-                self.logger.info(f"Recording sound '{name}' for {duration} seconds...")
-
-                # Record audio
-                for _ in range(0, int(self.sample_rate / self.chunk_size * duration)):
-                    data = stream.read(self.chunk_size, exception_on_overflow=False)
-                    frames.append(np.frombuffer(data, dtype=np.float32))
-
-                # Stop recording
-                stream.stop_stream()
-                stream.close()
-                audio_data = np.concatenate(frames)
-
-            # Save audio file
-            filename = self.sounds_dir / f"{name}.npy"
-            np.save(filename, audio_data)
-
-            # Extract features and save trigger
-            features = self._extract_features(audio_data)
-            self.triggers[name] = {
-                'file': str(filename),
-                'features': features.tolist(),
-                'duration': duration,
-                'source': self.recording_source
+            stream_kwargs = {
+                'format': self.format,
+                'channels': self.channels,
+                'rate': self.sample_rate,
+                'input': True,
+                'frames_per_buffer': self.chunk_size
             }
-            self._save_triggers()
 
-            self.logger.info(f"Saved sound trigger '{name}' from {self.recording_source}")
-            self.recording = False
-            return True
+            self.current_stream = self.audio.open(**stream_kwargs)
+            self.logger.info(f"Recording sound '{name}' for {duration} seconds...")
+
+            for _ in range(0, int(self.sample_rate / self.chunk_size * duration)):
+                if not self.recording:
+                    break
+                data = self.current_stream.read(self.chunk_size, exception_on_overflow=False)
+                self.frames.append(np.frombuffer(data, dtype=np.float32))
+
+            self.current_stream.stop_stream()
+            self.current_stream.close()
+            self.current_stream = None
+
+            if len(self.frames) > 0:
+                audio_data = np.concatenate(self.frames)
+                self.logger.info(f"Successfully recorded {len(audio_data)} samples")
+                # Save audio file
+                filename = self.sounds_dir / f"{name}.npy"
+                np.save(filename, audio_data)
+
+                # Extract features and save trigger
+                features = self._extract_features(audio_data)
+                self.triggers[name] = {
+                    'file': str(filename),
+                    'features': features.tolist(),
+                    'duration': duration,
+                    'source': self.recording_source
+                }
+                self._save_triggers()
+                self.logger.info(f"Saved sound trigger '{name}' from {self.recording_source}")
+                return audio_data
+            return None
 
         except Exception as e:
             self.logger.error(f"Error recording sound: {e}")
+            return None
+        finally:
             self.recording = False
-            return False
+            self.current_stream = None
+            self.frames = []
 
     def play_sound(self, name: str) -> bool:
         """Play back a recorded sound"""
@@ -369,6 +351,30 @@ class SoundTrigger:
         except Exception as e:
             self.logger.error(f"Error removing trigger: {e}")
             return False
+
+    def stop_recording(self) -> bool:
+        """Stop current recording"""
+        if not self.recording:
+            self.logger.warning("No active recording to stop")
+            return False
+
+        try:
+            if not self.test_mode and self.current_stream:
+                self.current_stream.stop_stream()
+                self.current_stream.close()
+                self.current_stream = None
+
+            self.recording = False
+            self.logger.info("Recording stopped successfully")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error stopping recording: {e}")
+            return False
+        finally:
+            self.recording = False
+            self.current_stream = None
+
 
     def __del__(self):
         """Cleanup PyAudio"""
