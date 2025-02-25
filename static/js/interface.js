@@ -212,23 +212,40 @@ function startHotkeyRecording() {
 
     function handleKeyDown(e) {
         e.preventDefault();
-        const key = e.key.toLowerCase();
-        if (!pressedKeys.has(key)) {
+
+        // Handle modifier keys
+        const modifiers = [];
+        if (e.ctrlKey) modifiers.push('ctrl');
+        if (e.altKey) modifiers.push('alt');
+        if (e.shiftKey) modifiers.push('shift');
+
+        // Get the main key
+        let key = e.key.toLowerCase();
+
+        // Handle special keys
+        if (key === 'control') key = 'ctrl';
+        if (key === 'alt') key = 'alt';
+        if (key === 'shift') key = 'shift';
+
+        // Add all pressed keys
+        pressedKeys.clear(); // Clear previous keys
+        modifiers.forEach(mod => pressedKeys.add(mod));
+        if (!['ctrl', 'alt', 'shift'].includes(key)) {
             pressedKeys.add(key);
-            updateHotkeyDisplay();
         }
+
+        updateHotkeyDisplay();
     }
 
     function handleKeyUp(e) {
         e.preventDefault();
-        const key = e.key.toLowerCase();
-        pressedKeys.delete(key);
 
-        // If no keys are pressed, stop recording
-        if (pressedKeys.size === 0) {
-            stopHotkeyRecording();
-        } else {
-            updateHotkeyDisplay();
+        // Only stop recording if all modifier keys are released
+        if (!e.ctrlKey && !e.altKey && !e.shiftKey) {
+            const hotkey = Array.from(pressedKeys).join('+');
+            if (hotkey && hotkey.split('+').length > 1) { // Ensure we have at least one modifier
+                stopHotkeyRecording();
+            }
         }
     }
 
@@ -247,8 +264,12 @@ function startHotkeyRecording() {
         assignButton.classList.remove('recording');
 
         // If we have a valid hotkey combination, assign it
-        if (hotkeyInput.value) {
+        const hotkey = hotkeyInput.value;
+        if (hotkey && hotkey.split('+').length > 1) { // Ensure we have at least one modifier
             assignHotkey();
+        } else {
+            addLog('Please include at least one modifier key (Ctrl, Alt, or Shift)', 'error');
+            hotkeyInput.value = '';
         }
     }
 

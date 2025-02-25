@@ -43,14 +43,33 @@ testing_ui = None
 
 def verify_port_available(port):
     """Check if a port is available"""
+    sock = None
     try:
-        test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        test_socket.settimeout(1)
-        test_socket.bind(('0.0.0.0', port))
-        test_socket.close()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        sock.bind(('0.0.0.0', port))
         return True
     except OSError:
+        logger.error(f"Port {port} is not available")
         return False
+    finally:
+        if sock:
+            sock.close()
+
+def cleanup_existing_server():
+    """Cleanup any existing server resources"""
+    try:
+        # Try to connect to check if server is running
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('0.0.0.0', 5000))
+        sock.close()
+
+        if result == 0:
+            logger.info("Found existing server, waiting for port to be released")
+            time.sleep(2)  # Wait for cleanup
+    except Exception as e:
+        logger.error(f"Error checking existing server: {e}")
 
 class TestingUI:
     def __init__(self):
@@ -68,6 +87,13 @@ class TestingUI:
             self.screenshots_dir.mkdir(exist_ok=True)
             self.logger.info(f"Created screenshots directory at {self.screenshots_dir}")
 
+            # Ensure hotkeys file exists
+            self.hotkeys_file = Path('macro_hotkeys.json')
+            if not self.hotkeys_file.exists():
+                with open(self.hotkeys_file, 'w') as f:
+                    json.dump({}, f, indent=2)
+                self.logger.info(f"Created hotkeys file at {self.hotkeys_file}")
+
             # Initialize sound macro manager
             self.sound_manager = SoundMacroManager(test_mode=True)
 
@@ -76,28 +102,11 @@ class TestingUI:
 
             self.initialized = True
             self.logger.info("Testing UI initialized successfully")
+
         except Exception as e:
             self.logger.error(f"Error initializing TestingUI: {e}")
             self.logger.error(traceback.format_exc())
             raise
-
-    def take_screenshot(self, macro_name: str = None) -> tuple[bool, str, str]:
-        """Take a screenshot and save it with timestamp"""
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{macro_name}_{timestamp}.png" if macro_name else f"screenshot_{timestamp}.png"
-            filepath = self.screenshots_dir / filename
-
-            # Capture the screen
-            screenshot = ImageGrab.grab()
-            screenshot.save(str(filepath))
-
-            self.logger.info(f"Screenshot saved: {filepath}")
-            return True, str(filepath), filename
-        except Exception as e:
-            self.logger.error(f"Error taking screenshot: {e}")
-            self.logger.error(traceback.format_exc())
-            return False, "", str(e)
 
     def _create_test_macro(self):
         """Create a test macro file if it doesn't exist"""
@@ -115,7 +124,8 @@ class TestingUI:
     def cleanup(self):
         """Cleanup resources"""
         try:
-            self.logger.info("Cleaning up resources")
+            if self.sound_manager:
+                self.logger.info("Cleaning up sound manager")
             self.logger.info("Resources cleaned up successfully")
         except Exception as e:
             self.logger.error(f"Error during cleanup: {e}")
@@ -308,6 +318,14 @@ def run():
         global testing_ui
         logger.info("Initializing Testing UI server...")
 
+        # Clean up any existing server
+        cleanup_existing_server()
+
+        # Check if port is available after cleanup
+        if not verify_port_available(5000):
+            logger.error("Port 5000 is still not available after cleanup")
+            raise RuntimeError("Port 5000 is not available")
+
         # First clean up any existing instance
         if testing_ui:
             testing_ui.cleanup()
@@ -317,10 +335,6 @@ def run():
         if not testing_ui.initialized:
             logger.error("Failed to initialize Testing UI")
             raise RuntimeError("Failed to initialize Testing UI")
-
-        if not verify_port_available(5000):
-            logger.error("Port 5000 is not available")
-            raise RuntimeError("Port 5000 is not available")
 
         logger.info("Starting Testing UI server on port 5000")
         app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
