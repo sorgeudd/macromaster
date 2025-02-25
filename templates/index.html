@@ -8,61 +8,18 @@
             margin: 20px;
             background-color: #f5f5f5;
         }
-        .status-panel, .control-panel, .log-panel {
+        .panel {
             background: white;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
-        .status-item {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 5px;
-            background-color: #f0f0f0;
-        }
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 10px;
-        }
-        .active { background-color: #4CAF50; }
-        .ready { background-color: #2196F3; }
-        .error { background-color: #f44336; }
-        .log-panel {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-        .log-entry {
-            margin: 5px 0;
-            padding: 5px;
-            border-bottom: 1px solid #eee;
-            font-family: monospace;
-            white-space: pre-wrap;
-        }
-        .log-error {
-            color: #f44336;
-            font-weight: bold;
-        }
-        .log-warning {
-            color: #ff9800;
-        }
-        .log-info {
-            color: #2196F3;
-        }
-        .window-control {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        input[type="text"], input[type="number"] {
-            padding: 8px;
-            border: 1px solid #ddd;
+        .control-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #eee;
             border-radius: 4px;
-            flex-grow: 1;
         }
         button {
             padding: 8px 16px;
@@ -74,241 +31,95 @@
             margin: 5px;
             width: 100%;
         }
-        button:hover {
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        button:hover:not(:disabled) {
             background-color: #1976D2;
         }
-        button.emergency {
-            background-color: #f44336;
-        }
-        button.emergency:hover {
-            background-color: #d32f2f;
-        }
-        .control-group {
-            margin-bottom: 20px;
-            padding: 10px;
-            border: 1px solid #eee;
-            border-radius: 4px;
-        }
-        .control-group h3 {
-            margin-top: 0;
-            color: #333;
-        }
-        .coordinate-inputs {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-        .terrain-buttons {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 5px;
-        }
-        select {
+        input[type="text"], select {
+            width: 100%;
             padding: 8px;
+            margin: 5px 0;
             border: 1px solid #ddd;
             border-radius: 4px;
-            width: 100%;
-            margin-bottom: 10px;
+            box-sizing: border-box;
         }
-        .flex-container {
-            display: flex;
-            gap: 20px;
+        .logs {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
         }
-        .left-panel {
-            flex: 1;
+        .log-entry {
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
         }
-        .right-panel {
-            flex: 1;
-        }
-        .key-capture {
-            display: flex;
-            align-items: center;
-        }
-        .key-capture input {
-            flex-grow: 1;
-        }
+        .log-error { color: #f44336; }
+        .log-info { color: #2196F3; }
     </style>
 </head>
 <body>
     <h1>Fishing Bot Testing Interface</h1>
 
-    <div class="flex-container">
-        <div class="left-panel">
-            <div class="status-panel">
-                <h2>Status</h2>
-                <div class="status-item">
-                    <div class="window-control">
-                        <input type="text" id="window-name" placeholder="Enter game window name">
-                        <button onclick="detectWindow()">Detect Window</button>
-                    </div>
-                    <span class="status-indicator error"></span>
-                    <span>Game Window: </span>
-                    <span id="window-status">Not Detected</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-indicator active"></span>
-                    <span>Position Testing: </span>
-                    <span id="position-status">Active</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-indicator ready"></span>
-                    <span>Resource Detection: </span>
-                    <span id="resource-status">Ready</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-indicator ready"></span>
-                    <span>Terrain Testing: </span>
-                    <span id="terrain-status">Ready</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-indicator ready"></span>
-                    <span>Bot Status: </span>
-                    <span id="bot-status">Idle</span>
-                </div>
-                <div class="status-item">
-                    <span class="status-indicator ready"></span>
-                    <span>Learning Mode: </span>
-                    <span id="learning-status">Inactive</span>
-                </div>
-            </div>
+    <div class="panel">
+        <h2>Macro Management</h2>
+        <div class="control-group">
+            <input type="text" id="macro-name" placeholder="Enter macro name">
+            <button onclick="startMacroRecording()" id="record-macro-btn">Record Macro</button>
+            <button onclick="saveMacroRecording()" id="save-macro-btn" disabled>Save Macro</button>
+            <button onclick="refreshMacroList()">Refresh Macros</button>
+            <select id="macro-list">
+                <option value="">Select a macro</option>
+            </select>
+            <button onclick="playMacro()">Test Macro</button>
+        </div>
+    </div>
 
-            <div class="control-panel">
-                <h2>Control Panel</h2>
-
-                <div class="control-group">
-                    <h3>Bot Control</h3>
-                    <button onclick="startBot()">Start Bot</button>
-                    <button onclick="stopBot()">Stop Bot</button>
-                    <button class="emergency" onclick="emergencyStop()">EMERGENCY STOP (F6)</button>
-                </div>
-
-                <div class="control-group">
-                    <h3>Learning Mode</h3>
-                    <button onclick="startLearning()">Start Learning</button>
-                    <button onclick="resetLearning()">Reset Learning</button>
-                    <button onclick="importTrainingVideo()">Import Training Video</button>
-                </div>
-
-                <div class="control-group">
-                    <h3>Macro Management</h3>
-                    <div id="macro-controls">
-                        <input type="text" id="macro-name" placeholder="New Macro Name">
-                        <button onclick="startMacroRecording()" id="record-macro-btn">Record Macro</button>
-                        <button onclick="saveMacroRecording()" id="save-macro-btn" disabled>Save Recording</button>
-                        <button onclick="refreshMacroList()">Refresh Macros</button>
-                        <select id="macro-list" style="margin: 10px 0;">
-                            <option value="">Select a macro to play</option>
-                        </select>
-                        <button onclick="playMacro()">Play Selected Macro</button>
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <h3>Sound Triggers</h3>
-                    <input type="text" id="trigger-name" placeholder="Trigger Name">
-                    <select id="bind-action" onchange="updateBindingOptions()">
-                        <option value="key_press">Key Press</option>
-                        <option value="mouse_click">Mouse Click</option>
-                        <option value="macro">Play Macro</option>
-                    </select>
-                    <div id="binding-options" style="margin: 10px 0;">
-                        <!-- Dynamic binding options will be inserted here -->
-                    </div>
-                    <button onclick="saveTrigger()">Save Trigger</button>
-                </div>
-
-                <div class="control-group">
-                    <h3>Sound Triggers</h3>
-                    <div id="sound-controls">
-                        <input type="text" id="sound-name" placeholder="Enter a name for the sound trigger">
-                        <button onclick="startSoundRecording()" id="record-sound-btn">Record Sound</button>
-                        <button onclick="saveSoundRecording()" id="save-sound-btn" disabled>Save Recording</button>
-                        <button onclick="refreshSoundList()">Refresh Sounds</button>
-                        <select id="sound-list" style="margin: 10px 0;">
-                            <option value="">Select a sound trigger</option>
-                        </select>
-                        <button onclick="playSound()">Test Sound</button>
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <h3>Map Sound to Macro</h3>
-                    <div id="mapping-controls">
-                        <select id="map-sound" style="margin-bottom: 10px;">
-                            <option value="">Select Sound Trigger</option>
-                        </select>
-                        <select id="map-macro" style="margin-bottom: 10px;">
-                            <option value="">Select Macro</option>
-                        </select>
-                        <button onclick="mapSoundToMacro()">Map Sound to Macro</button>
-                        <button onclick="toggleSoundMonitoring()" id="monitor-btn">Start Monitoring</button>
-                    </div>
-                </div>
-            </div>
+    <div class="panel">
+        <h2>Sound Triggers</h2>
+        <div class="control-group">
+            <input type="text" id="sound-name" placeholder="Enter sound trigger name">
+            <button onclick="startSoundRecording()" id="record-sound-btn">Record Sound</button>
+            <button onclick="saveSoundRecording()" id="save-sound-btn" disabled>Save Sound</button>
+            <button onclick="refreshSoundList()">Refresh Sounds</button>
+            <select id="sound-list">
+                <option value="">Select a sound</option>
+            </select>
+            <button onclick="playSound()">Test Sound</button>
         </div>
 
-        <div class="right-panel">
-            <div class="control-panel">
-                <div class="control-group">
-                    <h3>Position Testing</h3>
-                    <div class="coordinate-inputs">
-                        <input type="number" id="pos-x" placeholder="X coordinate" value="100">
-                        <input type="number" id="pos-y" placeholder="Y coordinate" value="100">
-                    </div>
-                    <button onclick="moveTo()">Move To Position</button>
-                </div>
+        <div class="control-group">
+            <h3>Sound-to-Macro Mapping</h3>
+            <select id="map-sound">
+                <option value="">Select Sound Trigger</option>
+            </select>
+            <select id="map-macro">
+                <option value="">Select Macro</option>
+            </select>
+            <button onclick="mapSoundToMacro()">Map Sound to Macro</button>
+            <button onclick="toggleSoundMonitoring()" id="monitor-btn">Start Monitoring</button>
+        </div>
+    </div>
 
-                <div class="control-group">
-                    <h3>Terrain Testing</h3>
-                    <div class="terrain-buttons">
-                        <button onclick="setTerrain('normal')">Normal</button>
-                        <button onclick="setTerrain('water')">Water</button>
-                        <button onclick="setTerrain('mountain')">Mountain</button>
-                        <button onclick="setTerrain('forest')">Forest</button>
-                    </div>
-                </div>
-
-                <div class="control-group">
-                    <h3>Resource Detection</h3>
-                    <button onclick="loadMap('fish')">Load Fish Map</button>
-                    <button onclick="loadMap('ore')">Load Ore Map</button>
-                    <button onclick="findNearby()">Find Nearby Resources</button>
-                </div>
-
-                <div class="control-group">
-                    <h3>Real-World Testing</h3>
-                    <button onclick="testArrowDetection()">Test Arrow Detection</button>
-                    <button onclick="testResourceSpots()">Test Resource Spots</button>
-                    <button onclick="calibrateTerrain()">Calibrate Terrain</button>
-                    <button onclick="testPathfinding()">Test Pathfinding</button>
-                </div>
-            </div>
-
-            <div class="log-panel">
-                <h2>System Logs</h2>
-                <div id="test-logs">
-                    <!-- Logs will be added here -->
-                </div>
-            </div>
+    <div class="panel">
+        <h2>System Logs</h2>
+        <div id="logs" class="logs">
+            <!-- Logs will be added here -->
         </div>
     </div>
 
     <script>
-        // Setup WebSocket connection
-        const ws = new WebSocket('ws://' + location.host + '/updates');
+        const ws = new WebSocket(`ws://${location.host}/updates`);
+        let isRecordingMacro = false;
+        let isRecordingSound = false;
+        let monitoring = false;
 
         ws.onmessage = function(event) {
             const data = JSON.parse(event.data);
-
-            if (data.type === 'status_update') {
-                updateStatus('position', data.data.position);
-                updateStatus('resource', data.data.resource);
-                updateStatus('terrain', data.data.terrain);
-                updateStatus('window', data.data.window);
-                updateStatus('bot', data.data.bot_status);
-                updateStatus('learning', data.data.learning ? 'Active' : 'Inactive');
-            } else if (data.type === 'log') {
-                addLogEntry(data.data, data.level || 'info');
+            if (data.type === 'log') {
+                addLog(data.data, data.level);
             } else if (data.type === 'macros_updated') {
                 updateMacroList(data.macros);
             } else if (data.type === 'sounds_updated') {
@@ -316,159 +127,122 @@
             }
         };
 
-        function updateStatus(component, status) {
-            const element = document.getElementById(component + '-status');
-            if (element) {
-                element.textContent = status;
-                const indicator = element.parentElement.querySelector('.status-indicator');
-                indicator.className = 'status-indicator ' +
-                    (status === 'Active' || status === 'Running' ? 'active' :
-                     status === 'Ready' || status === 'Idle' || status === 'Inactive' ||
-                     (component === 'window' && status !== 'Not Detected') ? 'ready' :
-                     'error');
-            }
-        }
-
-        function addLogEntry(message, level = 'info') {
-            const logs = document.getElementById('test-logs');
+        function addLog(message, level = 'info') {
+            const logs = document.getElementById('logs');
             const entry = document.createElement('div');
             entry.className = `log-entry log-${level}`;
-            entry.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
             logs.insertBefore(entry, logs.firstChild);
         }
 
-        // Window Detection
-        function detectWindow() {
-            const windowName = document.getElementById('window-name').value;
-            ws.send(JSON.stringify({
-                type: 'detect_window',
-                data: windowName
-            }));
-        }
-
-        // Bot Controls
-        function startBot() {
-            ws.send(JSON.stringify({ type: 'start_bot' }));
-        }
-
-        function stopBot() {
-            ws.send(JSON.stringify({ type: 'stop_bot' }));
-        }
-
-        function emergencyStop() {
-            ws.send(JSON.stringify({ type: 'emergency_stop' }));
-        }
-
-        // Learning Controls
-        function startLearning() {
-            ws.send(JSON.stringify({ type: 'start_learning' }));
-        }
-
-        function resetLearning() {
-            ws.send(JSON.stringify({ type: 'reset_learning' }));
-        }
-
-        function importTrainingVideo() {
-            ws.send(JSON.stringify({ type: 'import_training' }));
-        }
-
-        // Macro Controls
-        function playMacro() {
-            const macroName = document.getElementById('macro-list').value;
+        function startMacroRecording() {
+            const macroName = document.getElementById('macro-name').value.trim();
             if (!macroName) {
-                addLogEntry('Please select a macro to play', 'error');
+                addLog('Please enter a macro name', 'error');
                 return;
             }
 
-            ws.send(JSON.stringify({
-                type: 'play_macro',
-                macro_name: macroName
-            }));
-            addLogEntry(`Playing macro: ${macroName}`, 'info');
+            const recordBtn = document.getElementById('record-macro-btn');
+            const saveBtn = document.getElementById('save-macro-btn');
+            recordBtn.disabled = true;
+            isRecordingMacro = true;
+
+            addLog('Recording macro in 3 seconds...', 'info');
+            setTimeout(() => {
+                addLog('Started recording macro...', 'info');
+                setTimeout(() => {
+                    isRecordingMacro = false;
+                    saveBtn.disabled = false;
+                    addLog('Macro recording complete. Click Save to keep the recording.', 'info');
+                }, 5000);
+            }, 3000);
         }
 
+        function saveMacroRecording() {
+            const macroName = document.getElementById('macro-name').value.trim();
+            ws.send(JSON.stringify({
+                type: 'save_macro',
+                macro_name: macroName,
+                actions: []
+            }));
 
-        // Sound Controls
-        function playSound() {
-            const soundName = document.getElementById('sound-list').value;
+            const recordBtn = document.getElementById('record-macro-btn');
+            const saveBtn = document.getElementById('save-macro-btn');
+            recordBtn.disabled = false;
+            saveBtn.disabled = true;
+            document.getElementById('macro-name').value = '';
+        }
+
+        function startSoundRecording() {
+            const soundName = document.getElementById('sound-name').value.trim();
             if (!soundName) {
-                addLogEntry('Please select a sound to play', 'error');
+                addLog('Please enter a sound trigger name', 'error');
                 return;
             }
 
+            const recordBtn = document.getElementById('record-sound-btn');
+            const saveBtn = document.getElementById('save-sound-btn');
+            recordBtn.disabled = true;
+            isRecordingSound = true;
+
+            addLog('Recording sound in 3 seconds...', 'info');
+            setTimeout(() => {
+                ws.send(JSON.stringify({
+                    type: 'start_sound_recording',
+                    sound_name: soundName
+                }));
+                addLog('Recording sound...', 'info');
+                setTimeout(() => {
+                    isRecordingSound = false;
+                    saveBtn.disabled = false;
+                    addLog('Sound recording complete. Click Save to keep the recording.', 'info');
+                }, 2000);
+            }, 3000);
+        }
+
+        function saveSoundRecording() {
+            const soundName = document.getElementById('sound-name').value.trim();
             ws.send(JSON.stringify({
-                type: 'play_sound',
+                type: 'save_sound_recording',
                 sound_name: soundName
             }));
+
+            const recordBtn = document.getElementById('record-sound-btn');
+            const saveBtn = document.getElementById('save-sound-btn');
+            recordBtn.disabled = false;
+            saveBtn.disabled = true;
+            document.getElementById('sound-name').value = '';
         }
 
-        // Movement Controls
-        function moveTo() {
-            const x = document.getElementById('pos-x').value;
-            const y = document.getElementById('pos-y').value;
-            ws.send(JSON.stringify({
-                type: 'move_to',
-                data: { x: parseInt(x), y: parseInt(y) }
-            }));
+        function refreshMacroList() {
+            fetch('/macros')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.macros) {
+                        updateMacroList(data.macros);
+                        addLog('Macro list refreshed', 'info');
+                    }
+                })
+                .catch(error => addLog('Failed to refresh macros: ' + error, 'error'));
         }
 
-        function setTerrain(type) {
-            ws.send(JSON.stringify({
-                type: 'set_terrain',
-                data: type
-            }));
+        function refreshSoundList() {
+            fetch('/sounds')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.sounds) {
+                        updateSoundList(data.sounds);
+                        addLog('Sound list refreshed', 'info');
+                    }
+                })
+                .catch(error => addLog('Failed to refresh sounds: ' + error, 'error'));
         }
 
-        function loadMap(mapType) {
-            ws.send(JSON.stringify({
-                type: 'load_map',
-                data: mapType
-            }));
-        }
-
-        function findNearby() {
-            ws.send(JSON.stringify({
-                type: 'find_nearby'
-            }));
-        }
-
-        // Real-World Testing
-        function testArrowDetection() {
-            ws.send(JSON.stringify({ type: 'test_arrow_detection' }));
-        }
-
-        function testResourceSpots() {
-            ws.send(JSON.stringify({ type: 'test_resource_spots' }));
-        }
-
-        function calibrateTerrain() {
-            ws.send(JSON.stringify({ type: 'calibrate_terrain' }));
-        }
-
-        function testPathfinding() {
-            ws.send(JSON.stringify({ type: 'test_pathfinding' }));
-        }
-
-        // Initial status update
-        fetch('/status')
-            .then(response => response.json())
-            .then(data => {
-                updateStatus('position', data.position);
-                updateStatus('resource', data.resource);
-                updateStatus('terrain', data.terrain);
-                updateStatus('window', data.window);
-                updateStatus('bot', data.bot);
-                updateStatus('learning', data.learning);
-            });
-
-
-        // Macro list management
         function updateMacroList(macros) {
             const macroList = document.getElementById('macro-list');
             const mapMacro = document.getElementById('map-macro');
-
             [macroList, mapMacro].forEach(select => {
-                select.innerHTML = '<option value="">Select a macro to play</option>';
+                select.innerHTML = '<option value="">Select a macro</option>';
                 macros.forEach(macro => {
                     const option = document.createElement('option');
                     option.value = macro;
@@ -476,100 +250,13 @@
                     select.appendChild(option);
                 });
             });
-            console.log('Updated macro list with:', macros);
-        }
-
-        // Binding options management
-        function updateBindingOptions() {
-            const bindAction = document.getElementById('bind-action').value;
-            const bindingOptions = document.getElementById('binding-options');
-
-            let optionsHtml = '';
-            if (bindAction === 'mouse_click') {
-                optionsHtml = `
-                    <select id="mouse-button">
-                        <option value="left">Left Click</option>
-                        <option value="right">Right Click</option>
-                        <option value="middle">Middle Click</option>
-                    </select>`;
-            } else if (bindAction === 'macro') {
-                optionsHtml = `
-                    <select id="trigger-macro">
-                        <option value="">Select macro to trigger</option>
-                        ${Array.from(document.getElementById('macro-list').options)
-                            .map(opt => opt.outerHTML)
-                            .join('')}
-                    </select>`;
-            } else if (bindAction === 'key_press') {
-                optionsHtml = `
-                    <div class="key-capture">
-                        <input type="text" id="key-bind"
-                               placeholder="Click here and press a key"
-                               readonly>
-                    </div>`;
-            }
-            bindingOptions.innerHTML = optionsHtml;
-
-            // Setup key capture
-            if (bindAction === 'key_press') {
-                const keyInput = document.getElementById('key-bind');
-                keyInput.addEventListener('keydown', function(e) {
-                    e.preventDefault();
-                    keyInput.value = e.key;
-                });
-            }
-        }
-
-        // Update macro list function
-        function refreshMacroList() {
-            fetch('/macros')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Received macros:', data);
-                    if (data.macros) {
-                        updateMacroList(data.macros);
-                        addLogEntry('Macro list refreshed successfully', 'info');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching macros:', error);
-                    addLogEntry('Failed to load macros: ' + error.message, 'error');
-                });
-        }
-
-        // Sound Management Functions
-        function refreshSoundList() {
-            fetch('/sounds')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('Received sounds:', data);
-                    if (data.sounds) {
-                        updateSoundList(data.sounds);
-                        addLogEntry('Sound list refreshed successfully', 'info');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching sounds:', error);
-                    addLogEntry('Failed to load sounds: ' + error.message, 'error');
-                });
         }
 
         function updateSoundList(sounds) {
             const soundList = document.getElementById('sound-list');
             const mapSound = document.getElementById('map-sound');
-
             [soundList, mapSound].forEach(select => {
-                select.innerHTML = '<option value="">Select a sound trigger</option>';
+                select.innerHTML = '<option value="">Select a sound</option>';
                 sounds.forEach(sound => {
                     const option = document.createElement('option');
                     option.value = sound;
@@ -579,16 +266,37 @@
             });
         }
 
-        // Sound to Macro Mapping
+        function playMacro() {
+            const macroName = document.getElementById('macro-list').value;
+            if (!macroName) {
+                addLog('Please select a macro', 'error');
+                return;
+            }
+            ws.send(JSON.stringify({
+                type: 'play_macro',
+                macro_name: macroName
+            }));
+        }
+
+        function playSound() {
+            const soundName = document.getElementById('sound-list').value;
+            if (!soundName) {
+                addLog('Please select a sound', 'error');
+                return;
+            }
+            ws.send(JSON.stringify({
+                type: 'play_sound',
+                sound_name: soundName
+            }));
+        }
+
         function mapSoundToMacro() {
             const soundName = document.getElementById('map-sound').value;
             const macroName = document.getElementById('map-macro').value;
-
             if (!soundName || !macroName) {
-                addLogEntry('Please select both a sound trigger and a macro', 'error');
+                addLog('Please select both a sound and a macro', 'error');
                 return;
             }
-
             ws.send(JSON.stringify({
                 type: 'map_sound_to_macro',
                 data: {
@@ -598,149 +306,26 @@
             }));
         }
 
-        let monitoring = false;
         function toggleSoundMonitoring() {
             const btn = document.getElementById('monitor-btn');
+            monitoring = !monitoring;
 
-            if (!monitoring) {
+            if (monitoring) {
                 ws.send(JSON.stringify({ type: 'start_sound_monitoring' }));
                 btn.textContent = 'Stop Monitoring';
-                monitoring = true;
-                addLogEntry('Started sound monitoring', 'info');
+                addLog('Started sound monitoring', 'info');
             } else {
                 ws.send(JSON.stringify({ type: 'stop_sound_monitoring' }));
                 btn.textContent = 'Start Monitoring';
-                monitoring = false;
-                addLogEntry('Stopped sound monitoring', 'info');
+                addLog('Stopped sound monitoring', 'info');
             }
         }
 
-        // Initial loading of sounds and macros
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Loading initial lists...');
-            refreshSoundList();
+        // Initial load
+        document.addEventListener('DOMContentLoaded', () => {
             refreshMacroList();
+            refreshSoundList();
         });
-
-        let recordedActions = [];
-        let isRecordingMacro = false;
-        let isRecordingSound = false;
-
-        function startSoundRecording() {
-            const soundName = document.getElementById('sound-name').value.trim();
-            if (!soundName) {
-                addLogEntry('Please enter a name for the sound trigger', 'error');
-                return;
-            }
-
-            const recordBtn = document.getElementById('record-sound-btn');
-            const saveBtn = document.getElementById('save-sound-btn');
-            recordBtn.disabled = true;
-            isRecordingSound = true;
-
-            addLogEntry('Recording sound in 3 seconds...', 'info');
-            setTimeout(() => {
-                ws.send(JSON.stringify({
-                    type: 'start_sound_recording',
-                    sound_name: soundName
-                }));
-                addLogEntry('Recording sound...', 'info');
-
-                // Enable save button after recording duration
-                setTimeout(() => {
-                    isRecordingSound = false;
-                    saveBtn.disabled = false;
-                    addLogEntry('Sound recording complete. Click Save to keep the recording.', 'info');
-                }, 2000);
-            }, 3000);
-        }
-
-        function saveSoundRecording() {
-            const soundName = document.getElementById('sound-name').value.trim();
-            const recordBtn = document.getElementById('record-sound-btn');
-            const saveBtn = document.getElementById('save-sound-btn');
-
-            ws.send(JSON.stringify({
-                type: 'save_sound_recording',
-                sound_name: soundName
-            }));
-
-            // Reset UI
-            recordBtn.disabled = false;
-            saveBtn.disabled = true;
-            document.getElementById('sound-name').value = '';
-            addLogEntry('Sound recording saved', 'info');
-            refreshSoundList();
-        }
-
-        function startMacroRecording() {
-            const macroName = document.getElementById('macro-name').value.trim();
-            if (!macroName) {
-                addLogEntry('Please enter a macro name', 'error');
-                return;
-            }
-
-            const recordBtn = document.getElementById('record-macro-btn');
-            const saveBtn = document.getElementById('save-macro-btn');
-            recordBtn.disabled = true;
-            isRecordingMacro = true;
-            recordedActions = [];
-
-            addLogEntry('Recording macro in 3 seconds...', 'info');
-            setTimeout(() => {
-                addLogEntry('Started recording macro...', 'info');
-
-                // Record for 5 seconds
-                setTimeout(() => {
-                    isRecordingMacro = false;
-                    saveBtn.disabled = false;
-                    addLogEntry('Macro recording complete. Click Save to keep the recording.', 'info');
-                }, 5000);
-            }, 3000);
-        }
-
-        function saveMacroRecording() {
-            const macroName = document.getElementById('macro-name').value.trim();
-            const recordBtn = document.getElementById('record-macro-btn');
-            const saveBtn = document.getElementById('save-macro-btn');
-
-            ws.send(JSON.stringify({
-                type: 'save_macro',
-                macro_name: macroName,
-                actions: recordedActions
-            }));
-
-            // Reset UI
-            recordBtn.disabled = false;
-            saveBtn.disabled = true;
-            document.getElementById('macro-name').value = '';
-            recordedActions = [];
-            addLogEntry('Macro saved', 'info');
-            refreshMacroList();
-        }
-
-        function saveTrigger() {
-            const triggerName = document.getElementById('trigger-name').value;
-            const bindAction = document.getElementById('bind-action').value;
-            let bindingValue = '';
-
-            if (bindAction === 'mouse_click') {
-                bindingValue = document.getElementById('mouse-button').value;
-            } else if (bindAction === 'macro') {
-                bindingValue = document.getElementById('trigger-macro').value;
-            } else if (bindAction === 'key_press') {
-                bindingValue = document.getElementById('key-bind').value;
-            }
-
-            ws.send(JSON.stringify({
-                type: 'save_trigger',
-                data: {
-                    name: triggerName,
-                    action: bindAction,
-                    binding: bindingValue
-                }
-            }));
-        }
     </script>
 </body>
 </html>
