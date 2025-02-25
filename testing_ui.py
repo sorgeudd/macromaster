@@ -2,13 +2,14 @@
 import logging
 import json
 import os
-import platform
 import time
+import platform
 from flask import Flask, render_template, jsonify, request
 from flask_sock import Sock
 
 from map_manager import MapManager
 from mock_environment import MockEnvironment
+from sound_macro_manager import SoundMacroManager
 
 app = Flask(__name__)
 sock = Sock(app)
@@ -32,6 +33,26 @@ def get_status():
         'bot_status': 'Running' if TestingUI.bot_running else 'Stopped',
         'learning': TestingUI.learning_mode
     })
+
+@app.route('/sounds')
+def get_sounds():
+    """API endpoint for getting available sound triggers"""
+    global testing_ui
+    try:
+        if not testing_ui:
+            return jsonify({'error': 'Server not initialized', 'sounds': []}), 500
+
+        sounds = testing_ui.sound_manager.sound_trigger.get_trigger_names()
+        testing_ui.logger.info(f"Found {len(sounds)} sound triggers: {sounds}")
+
+        response = jsonify({'sounds': sounds})
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Cache-Control'] = 'no-store'
+        return response
+
+    except Exception as e:
+        testing_ui.logger.error(f"Error loading sounds: {str(e)}")
+        return jsonify({'error': str(e), 'sounds': []}), 500
 
 @app.route('/macros')
 def get_macros():
@@ -76,44 +97,6 @@ def get_macros():
         response.headers['Cache-Control'] = 'no-store'
         return response, 500
 
-@app.route('/macro/<name>', methods=['GET'])
-def get_macro(name):
-    """API endpoint for getting a specific macro"""
-    global testing_ui
-    try:
-        if not testing_ui:
-            return jsonify({'error': 'Server not initialized'}), 500
-
-        macro_data = testing_ui.load_macro(name)
-        if macro_data:
-            response = jsonify(macro_data)
-            response.headers['Content-Type'] = 'application/json'
-            return response
-        return jsonify({'error': 'Macro not found'}), 404
-    except Exception as e:
-        testing_ui.logger.error(f"Error getting macro {name}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/macro/<name>', methods=['POST'])
-def save_macro_endpoint(name):
-    """API endpoint for saving a macro"""
-    global testing_ui
-    try:
-        if not testing_ui:
-            return jsonify({'error': 'Server not initialized'}), 500
-
-        if not request.is_json:
-            return jsonify({'error': 'Request must be JSON'}), 400
-
-        actions = request.json.get('actions', [])
-        if testing_ui.save_macro(name, actions):
-            testing_ui.logger.info(f"Successfully saved macro: {name}")
-            return jsonify({'success': True})
-        return jsonify({'error': 'Failed to save macro'}), 500
-    except Exception as e:
-        testing_ui.logger.error(f"Error saving macro {name}: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-
 class TestingUI:
     # Class variables for state management
     window_detected = False
@@ -142,6 +125,7 @@ class TestingUI:
         # Initialize components
         self.map_manager = MapManager()
         TestingUI.mock_env = MockEnvironment()
+        self.sound_manager = SoundMacroManager(test_mode=(platform.system() != 'Windows'))
 
         # Ensure macros directory exists and initialize test macro
         self.macro_dir = 'macros'
@@ -211,45 +195,6 @@ class TestingUI:
             TestingUI.logger.error(f"Error detecting window: {str(e)}")
             return False, None
 
-    def load_macro(self, macro_name):
-        """Load a macro from file"""
-        try:
-            macro_path = os.path.join(self.macro_dir, f"{macro_name}.json")
-            if not os.path.exists(macro_path):
-                self.logger.error(f"Macro file not found: {macro_path}")
-                return None
-
-            with open(macro_path, 'r') as f:
-                macro_data = json.load(f)
-                self.logger.info(f"Successfully loaded macro: {macro_name}")
-                return macro_data
-
-        except json.JSONDecodeError:
-            self.logger.error(f"Invalid JSON in macro file: {macro_name}")
-            return None
-        except Exception as e:
-            self.logger.error(f"Error loading macro {macro_name}: {str(e)}")
-            return None
-
-    def save_macro(self, macro_name, actions):
-        """Save a macro to file"""
-        try:
-            macro_path = os.path.join(self.macro_dir, f"{macro_name}.json")
-            macro_data = {
-                'name': macro_name,
-                'actions': actions,
-                'created': time.time()
-            }
-
-            with open(macro_path, 'w') as f:
-                json.dump(macro_data, f, indent=2)
-                self.logger.info(f"Successfully saved macro: {macro_name}")
-                return True
-
-        except Exception as e:
-            self.logger.error(f"Error saving macro {macro_name}: {str(e)}")
-            return False
-
 @sock.route('/updates')
 def updates(ws):
     """WebSocket endpoint for real-time updates and commands"""
@@ -284,73 +229,85 @@ def updates(ws):
                         'data': f'Could not find game window: {window_name}'
                     }))
 
-            elif data['type'] == 'start_bot':
-                if not TestingUI.mock_env.is_running:
-                    TestingUI.mock_env.start_simulation()
-                TestingUI.bot_running = True
-                TestingUI.logger.info("Starting bot operations")
-                ws.send(json.dumps({
-                    'type': 'log',
-                    'level': 'info',
-                    'data': 'Bot started'
-                }))
+            elif data['type'] == 'start_sound_recording':
+                sound_name = data.get('sound_name')
+                if sound_name and testing_ui:
+                    TestingUI.recording_sound = True
+                    if testing_ui.sound_manager.record_sound_trigger(sound_name):
+                        TestingUI.logger.info(f"Successfully recorded sound: {sound_name}")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'info',
+                            'data': f'Recorded sound: {sound_name}'
+                        }))
+                    else:
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'error',
+                            'data': f'Failed to record sound: {sound_name}'
+                        }))
+                    TestingUI.recording_sound = False
 
-            elif data['type'] == 'stop_bot':
-                TestingUI.bot_running = False
-                if TestingUI.mock_env.is_running:
-                    TestingUI.mock_env.stop_simulation()
-                TestingUI.logger.info("Stopping bot operations")
-                ws.send(json.dumps({
-                    'type': 'log',
-                    'level': 'info',
-                    'data': 'Bot stopped'
-                }))
+            elif data['type'] == 'play_sound':
+                sound_name = data.get('sound_name')
+                if sound_name and testing_ui:
+                    if testing_ui.sound_manager.sound_trigger.play_sound(sound_name):
+                        TestingUI.logger.info(f"Playing sound: {sound_name}")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'info',
+                            'data': f'Playing sound: {sound_name}'
+                        }))
+                    else:
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'error',
+                            'data': f'Failed to play sound: {sound_name}'
+                        }))
 
-            elif data['type'] == 'start_macro_recording':
-                TestingUI.recording_macro = True
-                TestingUI.logger.info("Started macro recording")
-                ws.send(json.dumps({
-                    'type': 'log',
-                    'level': 'info',
-                    'data': 'Started recording macro'
-                }))
+            elif data['type'] == 'map_sound_to_macro':
+                sound_name = data.get('sound_name')
+                macro_name = data.get('macro_name')
+                if sound_name and macro_name and testing_ui:
+                    if testing_ui.sound_manager.assign_macro_to_sound(sound_name, macro_name):
+                        TestingUI.logger.info(f"Mapped sound '{sound_name}' to macro '{macro_name}'")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'info',
+                            'data': f'Mapped sound to macro: {sound_name} -> {macro_name}'
+                        }))
+                    else:
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'error',
+                            'data': f'Failed to map sound to macro'
+                        }))
 
-            elif data['type'] == 'stop_macro_recording':
-                macro_name = data.get('macro_name', 'unnamed_macro')
-                actions = data.get('actions', [])
-                if testing_ui and testing_ui.save_macro(macro_name, actions):
-                    TestingUI.logger.info(f"Saved macro: {macro_name}")
+            elif data['type'] == 'start_sound_monitoring':
+                if testing_ui:
+                    if testing_ui.sound_manager.start_monitoring():
+                        TestingUI.logger.info("Started sound monitoring")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'info',
+                            'data': 'Started sound monitoring'
+                        }))
+                    else:
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'error',
+                            'data': 'Failed to start sound monitoring'
+                        }))
+
+            elif data['type'] == 'stop_sound_monitoring':
+                if testing_ui:
+                    testing_ui.sound_manager.stop_monitoring()
+                    TestingUI.logger.info("Stopped sound monitoring")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
-                        'data': f'Saved macro: {macro_name}'
+                        'data': 'Stopped sound monitoring'
                     }))
-                else:
-                    ws.send(json.dumps({
-                        'type': 'log',
-                        'level': 'error',
-                        'data': f'Failed to save macro: {macro_name}'
-                    }))
-                TestingUI.recording_macro = False
-
-            elif data['type'] == 'play_macro':
-                macro_name = data.get('macro_name')
-                if macro_name:
-                    if testing_ui:
-                        macro_data = testing_ui.load_macro(macro_name)
-                        if macro_data:
-                            TestingUI.logger.info(f"Playing macro: {macro_name}")
-                            ws.send(json.dumps({
-                                'type': 'log',
-                                'level': 'info',
-                                'data': f'Playing macro: {macro_name}'
-                            }))
-                        else:
-                            ws.send(json.dumps({
-                                'type': 'log',
-                                'level': 'error',
-                                'data': f'Failed to load macro: {macro_name}'
-                            }))
 
             # Send updated status after each command
             ws.send(json.dumps({

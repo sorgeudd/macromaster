@@ -216,6 +216,35 @@
                     <button onclick="recordSound()">Record Sound</button>
                     <button onclick="saveTrigger()">Save Trigger</button>
                 </div>
+
+                <!-- Sound Trigger Management -->
+                <div class="control-group">
+                    <h3>Sound Triggers</h3>
+                    <div id="sound-controls">
+                        <input type="text" id="trigger-name" placeholder="New Sound Trigger Name">
+                        <button onclick="recordSound()">Record Sound</button>
+                        <button onclick="refreshSoundList()">Refresh Sounds</button>
+                        <select id="sound-list" style="margin: 10px 0;">
+                            <option value="">Select a sound trigger</option>
+                        </select>
+                        <button onclick="playSound()">Test Sound</button>
+                    </div>
+                </div>
+
+                <!-- Sound Macro Mapping -->
+                <div class="control-group">
+                    <h3>Map Sound to Macro</h3>
+                    <div id="mapping-controls">
+                        <select id="map-sound" style="margin-bottom: 10px;">
+                            <option value="">Select Sound Trigger</option>
+                        </select>
+                        <select id="map-macro" style="margin-bottom: 10px;">
+                            <option value="">Select Macro</option>
+                        </select>
+                        <button onclick="mapSoundToMacro()">Map Sound to Macro</button>
+                        <button onclick="toggleSoundMonitoring()" id="monitor-btn">Start Monitoring</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -283,6 +312,8 @@
                 addLogEntry(data.data, data.level || 'info');
             } else if (data.type === 'macros_updated') {
                 updateMacroList(data.macros);
+            } else if (data.type === 'sounds_updated') {
+                updateSoundList(data.sounds);
             }
         };
 
@@ -373,11 +404,17 @@
 
         // Sound Controls
         function recordSound() {
-            const triggerName = document.getElementById('trigger-name').value;
+            const triggerName = document.getElementById('trigger-name').value.trim();
+            if (!triggerName) {
+                addLogEntry('Please enter a sound trigger name', 'error');
+                return;
+            }
+
             ws.send(JSON.stringify({
-                type: 'record_sound',
-                data: triggerName
+                type: 'start_sound_recording',
+                data: { sound_name: triggerName }
             }));
+            addLogEntry(`Started recording sound: ${triggerName}`, 'info');
         }
 
         function saveTrigger() {
@@ -466,12 +503,16 @@
         // Macro list management
         function updateMacroList(macros) {
             const macroList = document.getElementById('macro-list');
-            macroList.innerHTML = '<option value="">Select a macro to play</option>';
-            macros.forEach(macro => {
-                const option = document.createElement('option');
-                option.value = macro;
-                option.textContent = macro;
-                macroList.appendChild(option);
+            const mapMacro = document.getElementById('map-macro'); // Update this select as well
+
+            [macroList, mapMacro].forEach(select => {
+                select.innerHTML = '<option value="">Select a macro to play</option>';
+                macros.forEach(macro => {
+                    const option = document.createElement('option');
+                    option.value = macro;
+                    option.textContent = macro;
+                    select.appendChild(option);
+                });
             });
             console.log('Updated macro list with:', macros); // Debug log
         }
@@ -539,9 +580,95 @@
                 });
         }
 
-        // Initial loading of macros
+        // Sound Management Functions
+        function playSound() {
+            const soundName = document.getElementById('sound-list').value;
+            if (!soundName) {
+                addLogEntry('Please select a sound to play', 'error');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                type: 'play_sound',
+                data: { sound_name: soundName }
+            }));
+        }
+
+        function refreshSoundList() {
+            fetch('/sounds')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Received sounds:', data);
+                    if (data.sounds) {
+                        updateSoundList(data.sounds);
+                        addLogEntry('Sound list refreshed successfully', 'info');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching sounds:', error);
+                    addLogEntry('Failed to load sounds: ' + error.message, 'error');
+                });
+        }
+
+        function updateSoundList(sounds) {
+            const soundList = document.getElementById('sound-list');
+            const mapSound = document.getElementById('map-sound');
+
+            // Update both dropdowns
+            [soundList, mapSound].forEach(select => {
+                select.innerHTML = '<option value="">Select a sound trigger</option>';
+                sounds.forEach(sound => {
+                    const option = document.createElement('option');
+                    option.value = sound;
+                    option.textContent = sound;
+                    select.appendChild(option);
+                });
+            });
+        }
+
+        // Sound to Macro Mapping
+        function mapSoundToMacro() {
+            const soundName = document.getElementById('map-sound').value;
+            const macroName = document.getElementById('map-macro').value;
+
+            if (!soundName || !macroName) {
+                addLogEntry('Please select both sound and macro', 'error');
+                return;
+            }
+
+            ws.send(JSON.stringify({
+                type: 'map_sound_to_macro',
+                data: {
+                    sound_name: soundName,
+                    macro_name: macroName
+                }
+            }));
+        }
+
+        let monitoring = false;
+        function toggleSoundMonitoring() {
+            const btn = document.getElementById('monitor-btn');
+
+            if (!monitoring) {
+                ws.send(JSON.stringify({ type: 'start_sound_monitoring' }));
+                btn.textContent = 'Stop Monitoring';
+                monitoring = true;
+            } else {
+                ws.send(JSON.stringify({ type: 'stop_sound_monitoring' }));
+                btn.textContent = 'Start Monitoring';
+                monitoring = false;
+            }
+        }
+
+        // Initial loading of sounds and macros
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Loading initial macro list...'); // Debug log
+            console.log('Loading initial lists...');
+            refreshSoundList();
             refreshMacroList();
         });
     </script>
