@@ -9,6 +9,7 @@ import json
 import os
 import csv
 import numpy as np
+import traceback
 
 class TestFishingBot(unittest.TestCase):
     def setUp(self):
@@ -26,22 +27,35 @@ class TestFishingBot(unittest.TestCase):
                 if self.bot.running:
                     self.logger.info("Stopping bot in tearDown")
                     self.bot.stop()
-                    if self.bot.bot_thread:
-                        self.bot.bot_thread.join(timeout=2.0)
-                        if self.bot.bot_thread.is_alive():
-                            self.logger.warning("Bot thread still alive after timeout")
+                    if hasattr(self.bot, 'bot_thread') and self.bot.bot_thread:
+                        try:
+                            self.bot.bot_thread.join(timeout=2.0)
+                            if self.bot.bot_thread.is_alive():
+                                self.logger.warning("Bot thread still alive after timeout")
+                        except Exception as e:
+                            self.logger.error(f"Error joining bot thread: {str(e)}")
+
                 if self.bot.learning_mode:
                     self.logger.info("Stopping learning mode in tearDown")
                     self.bot.stop_learning_mode()
+
             if hasattr(self, 'mock_env'):
                 self.logger.info("Stopping mock environment in tearDown")
                 self.mock_env.stop_simulation()
-                # Wait for mock environment thread to finish
-                if hasattr(self.mock_env, 'simulation_thread'):
-                    self.mock_env.simulation_thread.join(timeout=2.0)
+
+                # Only try to join the thread if it exists and mock_env was initialized
+                if (hasattr(self.mock_env, 'simulation_thread') and 
+                    self.mock_env.simulation_thread is not None):
+                    try:
+                        self.mock_env.simulation_thread.join(timeout=2.0)
+                        if self.mock_env.simulation_thread.is_alive():
+                            self.logger.warning("Mock environment thread still alive after timeout")
+                    except Exception as e:
+                        self.logger.error(f"Error joining simulation thread: {str(e)}")
+
         except Exception as e:
             self.logger.error(f"Error in tearDown: {str(e)}")
-            raise
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
 
     def test_combat_system(self):
         """Test combat system with ability rotation and mount handling"""
