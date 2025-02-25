@@ -4,636 +4,559 @@
     "x": 400,
     "y": 599,
     "key_info": null,
-    "timestamp": 1740505495.484567
+    "timestamp": 1740506875.6536248
   },
   {
     "type": "move",
     "x": 440,
     "y": 599,
     "key_info": null,
-    "timestamp": 1740505495.5868056
+    "timestamp": 1740506875.7609994
   },
   {
     "type": "move",
-    "x": 484,
+    "x": 485,
     "y": 598,
     "key_info": null,
-    "timestamp": 1740505495.6989453
+    "timestamp": 1740506875.8710334
   },
   {
     "type": "move",
-    "x": 524,
+    "x": 525,
     "y": 596,
     "key_info": null,
-    "timestamp": 1740505495.801284
+    "timestamp": 1740506875.9715173
   },
   {
     "type": "move",
-    "x": 582,
-    "y": 591,
+    "x": 562,
+    "y": 593,
     "key_info": null,
-    "timestamp": 1740505495.9639747
+    "timestamp": 1740506876.0723445
   },
   {
     "type": "move",
-    "x": 619,
-    "y": 587,
+    "x": 598,
+    "y": 589,
     "key_info": null,
-    "timestamp": 1740505496.0652132
+    "timestamp": 1740506876.1751158
   },
   {
     "type": "move",
-    "x": 651,
-    "y": 582,
+    "x": 633,
+    "y": 585,
     "key_info": null,
-    "timestamp": 1740505496.1690612
+    "timestamp": 1740506876.2762985
   },
   {
     "type": "move",
-    "x": 682,
-    "y": 577,
+    "x": 667,
+    "y": 580,
     "key_info": null,
-    "timestamp": 1740505496.273861
+    "timestamp": 1740506876.4554524
   },
   {
     "type": "move",
-    "x": 710,
-    "y": 570,
+    "x": 714,
+    "y": 569,
     "key_info": null,
-    "timestamp": 1740505496.3755727
+    "timestamp": 1740506876.560785
   },
   {
     "type": "move",
-    "x": 735,
-    "y": 563,
+    "x": 738,
+    "y": 562,
     "key_info": null,
-    "timestamp": 1740505496.4794784
+    "timestamp": 1740506876.6625016
   },
   {
     "type": "move",
-    "x": 756,
-    "y": 555,
+    "x": 758,
+    "y": 554,
     "key_info": null,
-    "timestamp": 1740505496.5877438
+    "timestamp": 1740506876.767937
   },
   {
     "type": "move",
-    "x": 773,
-    "y": 547,
+    "x": 774,
+    "y": 546,
     "key_info": null,
-    "timestamp": 1740505496.6887696
-  },
-  {
-    "type": "scroll",
-    "x": 773,
-    "y": 547,
-    "key_info": null,
-    "timestamp": 1740505496.8474128
+    "timestamp": 1740506876.86892
   },
   {
     "type": "move",
-    "x": 797,
-    "y": 523,
+    "x": 787,
+    "y": 537,
     "key_info": null,
-    "timestamp": 1740505496.9531608
-  },
-  {
-    "type": "move",
-    "x": 799,
-    "y": 512,
-    "key_info": null,
-    "timestamp": 1740505497.0575633
-  },
-  {
-    "type": "move",
-    "x": 797,
-    "y": 500,
-    "key_info": null,
-    "timestamp": 1740505497.1597056
-  },
-  {
-    "type": "move",
-    "x": 791,
-    "y": 489,
-    "key_info": null,
-    "timestamp": 1740505497.2655497
-  },
-  {
-    "type": "move",
-    "x": 780,
-    "y": 476,
-    "key_info": null,
-    "timestamp": 1740505497.367546
-  },
-  {
-    "type": "move",
-    "x": 766,
-    "y": 464,
-    "key_info": null,
-    "timestamp": 1740505497.4738605
-  },
-  {
-    "type": "move",
-    "x": 747,
-    "y": 450,
-    "key_info": null,
-    "timestamp": 1740505497.5859945
-  },
-  {
-    "type": "scroll",
-    "x": 747,
-    "y": 450,
-    "key_info": null,
-    "timestamp": 1740505497.7474246
-  },
-  {
-    "type": "move",
-    "x": 680,
-    "y": 413,
-    "key_info": null,
-    "timestamp": 1740505497.8487039
-  },
-  {
-    "type": "move",
-    "x": 650,
-    "y": 399,
-    "key_info": null,
-    "timestamp": 1740505497.9556608
-  },
-  {
-    "type": "move",
-    "x": 615,
-    "y": 384,
-    "key_info": null,
-    "timestamp": 1740505498.057143
-  },
-  {
-    "type": "move",
-    "x": 580,
-    "y": 369,
-    "key_info": null,
-    "timestamp": 1740505498.160741
-  },
-  {
-    "type": "move",
-    "x": 542,
-    "y": 354,
-    "key_info": null,
-    "timestamp": 1740505498.2647538
-  },
-  {
-    "type": "move",
-    "x": 503,
-    "y": 339,
-    "key_info": null,
-    "timestamp": 1740505498.3658223
-  },
-  {
-    "type": "move",
-    "x": 463,
-    "y": 323,
-    "key_info": null,
-    "timestamp": 1740505498.4681013
-  },
-  {
-    "type": "scroll",
-    "x": 463,
-    "y": 323,
-    "key_info": null,
-    "timestamp": 1740505498.5709965
-  },
-  {
-    "type": "move",
-    "x": 381,
-    "y": 293,
-    "key_info": null,
-    "timestamp": 1740505498.6714778
-  },
-  {
-    "type": "move",
-    "x": 341,
-    "y": 278,
-    "key_info": null,
-    "timestamp": 1740505498.7726297
-  },
-  {
-    "type": "scroll",
-    "x": 341,
-    "y": 278,
-    "key_info": null,
-    "timestamp": 1740505498.8743951
-  },
-  {
-    "type": "move",
-    "x": 262,
-    "y": 247,
-    "key_info": null,
-    "timestamp": 1740505498.9779959
-  },
-  {
-    "type": "move",
-    "x": 225,
-    "y": 232,
-    "key_info": null,
-    "timestamp": 1740505499.0790484
-  },
-  {
-    "type": "scroll",
-    "x": 225,
-    "y": 232,
-    "key_info": null,
-    "timestamp": 1740505499.2469668
-  },
-  {
-    "type": "move",
-    "x": 135,
-    "y": 194,
-    "key_info": null,
-    "timestamp": 1740505499.3475063
-  },
-  {
-    "type": "move",
-    "x": 106,
-    "y": 180,
-    "key_info": null,
-    "timestamp": 1740505499.4484954
-  },
-  {
-    "type": "click",
-    "x": 81,
-    "y": 166,
-    "key_info": null,
-    "timestamp": 1740505499.5493093
-  },
-  {
-    "type": "move",
-    "x": 58,
-    "y": 153,
-    "key_info": null,
-    "timestamp": 1740505499.6498334
-  },
-  {
-    "type": "move",
-    "x": 39,
-    "y": 140,
-    "key_info": null,
-    "timestamp": 1740505499.75065
-  },
-  {
-    "type": "click",
-    "x": 23,
-    "y": 127,
-    "key_info": null,
-    "timestamp": 1740505499.8787742
-  },
-  {
-    "type": "move",
-    "x": 9,
-    "y": 112,
-    "key_info": null,
-    "timestamp": 1740505499.9791777
-  },
-  {
-    "type": "move",
-    "x": 2,
-    "y": 100,
-    "key_info": null,
-    "timestamp": 1740505500.079807
-  },
-  {
-    "type": "move",
-    "x": 0,
-    "y": 82,
-    "key_info": null,
-    "timestamp": 1740505500.2475202
-  },
-  {
-    "type": "move",
-    "x": 4,
-    "y": 72,
-    "key_info": null,
-    "timestamp": 1740505500.3483005
-  },
-  {
-    "type": "move",
-    "x": 12,
-    "y": 62,
-    "key_info": null,
-    "timestamp": 1740505500.4517322
-  },
-  {
-    "type": "move",
-    "x": 25,
-    "y": 53,
-    "key_info": null,
-    "timestamp": 1740505500.5534391
-  },
-  {
-    "type": "move",
-    "x": 41,
-    "y": 45,
-    "key_info": null,
-    "timestamp": 1740505500.6549418
-  },
-  {
-    "type": "move",
-    "x": 60,
-    "y": 37,
-    "key_info": null,
-    "timestamp": 1740505500.7555935
-  },
-  {
-    "type": "move",
-    "x": 83,
-    "y": 30,
-    "key_info": null,
-    "timestamp": 1740505500.8574646
-  },
-  {
-    "type": "move",
-    "x": 110,
-    "y": 24,
-    "key_info": null,
-    "timestamp": 1740505500.9582121
-  },
-  {
-    "type": "move",
-    "x": 139,
-    "y": 18,
-    "key_info": null,
-    "timestamp": 1740505501.0605981
-  },
-  {
-    "type": "click",
-    "x": 171,
-    "y": 13,
-    "key_info": null,
-    "timestamp": 1740505501.1923919
-  },
-  {
-    "type": "click",
-    "x": 217,
-    "y": 8,
-    "key_info": null,
-    "timestamp": 1740505501.2945309
-  },
-  {
-    "type": "click",
-    "x": 274,
-    "y": 3,
-    "key_info": null,
-    "timestamp": 1740505501.4481199
-  },
-  {
-    "type": "move",
-    "x": 313,
-    "y": 1,
-    "key_info": null,
-    "timestamp": 1740505501.549715
-  },
-  {
-    "type": "move",
-    "x": 353,
-    "y": 0,
-    "key_info": null,
-    "timestamp": 1740505501.650639
-  },
-  {
-    "type": "move",
-    "x": 393,
-    "y": 0,
-    "key_info": null,
-    "timestamp": 1740505501.7514358
-  },
-  {
-    "type": "move",
-    "x": 433,
-    "y": 0,
-    "key_info": null,
-    "timestamp": 1740505501.8524144
-  },
-  {
-    "type": "scroll",
-    "x": 433,
-    "y": 0,
-    "key_info": null,
-    "timestamp": 1740505501.9542997
-  },
-  {
-    "type": "click",
-    "x": 514,
-    "y": 3,
-    "key_info": null,
-    "timestamp": 1740505502.0571601
-  },
-  {
-    "type": "move",
-    "x": 552,
-    "y": 5,
-    "key_info": null,
-    "timestamp": 1740505502.1591966
-  },
-  {
-    "type": "move",
-    "x": 592,
-    "y": 9,
-    "key_info": null,
-    "timestamp": 1740505502.272356
-  },
-  {
-    "type": "move",
-    "x": 629,
-    "y": 13,
-    "key_info": null,
-    "timestamp": 1740505502.3790011
-  },
-  {
-    "type": "move",
-    "x": 662,
-    "y": 18,
-    "key_info": null,
-    "timestamp": 1740505502.4828541
-  },
-  {
-    "type": "move",
-    "x": 692,
-    "y": 24,
-    "key_info": null,
-    "timestamp": 1740505502.5882304
-  },
-  {
-    "type": "move",
-    "x": 718,
-    "y": 31,
-    "key_info": null,
-    "timestamp": 1740505502.689476
-  },
-  {
-    "type": "move",
-    "x": 752,
-    "y": 42,
-    "key_info": null,
-    "timestamp": 1740505502.8481529
-  },
-  {
-    "type": "move",
-    "x": 769,
-    "y": 50,
-    "key_info": null,
-    "timestamp": 1740505502.948898
-  },
-  {
-    "type": "move",
-    "x": 783,
-    "y": 59,
-    "key_info": null,
-    "timestamp": 1740505503.0515802
-  },
-  {
-    "type": "move",
-    "x": 793,
-    "y": 69,
-    "key_info": null,
-    "timestamp": 1740505503.1557739
-  },
-  {
-    "type": "move",
-    "x": 798,
-    "y": 79,
-    "key_info": null,
-    "timestamp": 1740505503.2582254
-  },
-  {
-    "type": "move",
-    "x": 799,
-    "y": 90,
-    "key_info": null,
-    "timestamp": 1740505503.364899
-  },
-  {
-    "type": "move",
-    "x": 796,
-    "y": 101,
-    "key_info": null,
-    "timestamp": 1740505503.467793
-  },
-  {
-    "type": "move",
-    "x": 789,
-    "y": 113,
-    "key_info": null,
-    "timestamp": 1740505503.5692778
+    "timestamp": 1740506877.4552243
   },
   {
     "type": "move",
     "x": 778,
-    "y": 125,
+    "y": 474,
     "key_info": null,
-    "timestamp": 1740505503.6701014
+    "timestamp": 1740506877.5562844
   },
   {
     "type": "move",
-    "x": 763,
-    "y": 138,
+    "x": 761,
+    "y": 460,
     "key_info": null,
-    "timestamp": 1740505503.7715664
+    "timestamp": 1740506877.6833599
   },
   {
     "type": "move",
-    "x": 744,
-    "y": 151,
+    "x": 738,
+    "y": 445,
     "key_info": null,
-    "timestamp": 1740505503.8723536
+    "timestamp": 1740506877.8545094
   },
   {
     "type": "move",
-    "x": 720,
-    "y": 165,
+    "x": 697,
+    "y": 422,
     "key_info": null,
-    "timestamp": 1740505503.9841375
+    "timestamp": 1740506877.959366
   },
   {
     "type": "move",
-    "x": 693,
-    "y": 179,
+    "x": 668,
+    "y": 407,
     "key_info": null,
-    "timestamp": 1740505504.088156
+    "timestamp": 1740506878.0671751
   },
   {
     "type": "move",
-    "x": 645,
-    "y": 202,
+    "x": 634,
+    "y": 392,
     "key_info": null,
-    "timestamp": 1740505504.2492306
+    "timestamp": 1740506878.1691034
   },
   {
     "type": "move",
-    "x": 612,
-    "y": 217,
+    "x": 600,
+    "y": 377,
     "key_info": null,
-    "timestamp": 1740505504.3508677
+    "timestamp": 1740506878.2846172
   },
   {
     "type": "move",
-    "x": 576,
+    "x": 555,
+    "y": 359,
+    "key_info": null,
+    "timestamp": 1740506878.3975322
+  },
+  {
+    "type": "scroll",
+    "x": 555,
+    "y": 359,
+    "key_info": null,
+    "timestamp": 1740506878.559534
+  },
+  {
+    "type": "scroll",
+    "x": 555,
+    "y": 359,
+    "key_info": null,
+    "timestamp": 1740506878.6711326
+  },
+  {
+    "type": "move",
+    "x": 404,
+    "y": 301,
+    "key_info": null,
+    "timestamp": 1740506878.8316045
+  },
+  {
+    "type": "move",
+    "x": 345,
+    "y": 279,
+    "key_info": null,
+    "timestamp": 1740506879.153667
+  },
+  {
+    "type": "click",
+    "x": 222,
     "y": 231,
     "key_info": null,
-    "timestamp": 1740505504.4598088
+    "timestamp": 1740506879.255304
   },
   {
     "type": "move",
-    "x": 536,
-    "y": 247,
+    "x": 187,
+    "y": 217,
     "key_info": null,
-    "timestamp": 1740505504.5655186
+    "timestamp": 1740506879.3735178
   },
   {
     "type": "move",
-    "x": 496,
-    "y": 263,
+    "x": 148,
+    "y": 200,
     "key_info": null,
-    "timestamp": 1740505504.6665242
+    "timestamp": 1740506879.5053532
   },
   {
     "type": "move",
-    "x": 456,
-    "y": 278,
+    "x": 73,
+    "y": 162,
     "key_info": null,
-    "timestamp": 1740505504.7693877
+    "timestamp": 1740506879.792403
   },
   {
     "type": "move",
-    "x": 415,
-    "y": 294,
+    "x": 43,
+    "y": 143,
     "key_info": null,
-    "timestamp": 1740505504.8717844
+    "timestamp": 1740506879.8987753
+  },
+  {
+    "type": "move",
+    "x": 25,
+    "y": 129,
+    "key_info": null,
+    "timestamp": 1740506880.0089343
+  },
+  {
+    "type": "move",
+    "x": 12,
+    "y": 115,
+    "key_info": null,
+    "timestamp": 1740506880.1170554
+  },
+  {
+    "type": "scroll",
+    "x": 12,
+    "y": 115,
+    "key_info": null,
+    "timestamp": 1740506880.2181292
+  },
+  {
+    "type": "move",
+    "x": 0,
+    "y": 89,
+    "key_info": null,
+    "timestamp": 1740506880.346935
+  },
+  {
+    "type": "move",
+    "x": 1,
+    "y": 79,
+    "key_info": null,
+    "timestamp": 1740506880.4511876
+  },
+  {
+    "type": "move",
+    "x": 6,
+    "y": 69,
+    "key_info": null,
+    "timestamp": 1740506880.5600247
+  },
+  {
+    "type": "move",
+    "x": 17,
+    "y": 58,
+    "key_info": null,
+    "timestamp": 1740506880.666593
+  },
+  {
+    "type": "move",
+    "x": 31,
+    "y": 49,
+    "key_info": null,
+    "timestamp": 1740506880.7690887
+  },
+  {
+    "type": "move",
+    "x": 70,
+    "y": 34,
+    "key_info": null,
+    "timestamp": 1740506880.9846034
+  },
+  {
+    "type": "move",
+    "x": 99,
+    "y": 26,
+    "key_info": null,
+    "timestamp": 1740506881.0855727
+  },
+  {
+    "type": "move",
+    "x": 145,
+    "y": 17,
+    "key_info": null,
+    "timestamp": 1740506881.247081
+  },
+  {
+    "type": "move",
+    "x": 177,
+    "y": 12,
+    "key_info": null,
+    "timestamp": 1740506881.3476155
+  },
+  {
+    "type": "move",
+    "x": 212,
+    "y": 8,
+    "key_info": null,
+    "timestamp": 1740506881.4501364
+  },
+  {
+    "type": "move",
+    "x": 250,
+    "y": 5,
+    "key_info": null,
+    "timestamp": 1740506881.553816
+  },
+  {
+    "type": "move",
+    "x": 289,
+    "y": 2,
+    "key_info": null,
+    "timestamp": 1740506881.660007
+  },
+  {
+    "type": "scroll",
+    "x": 289,
+    "y": 2,
+    "key_info": null,
+    "timestamp": 1740506881.7723699
   },
   {
     "type": "move",
     "x": 374,
-    "y": 309,
+    "y": 0,
     "key_info": null,
-    "timestamp": 1740505504.9732249
+    "timestamp": 1740506881.8899884
   },
   {
     "type": "move",
-    "x": 333,
-    "y": 324,
+    "x": 444,
+    "y": 0,
     "key_info": null,
-    "timestamp": 1740505505.1494155
+    "timestamp": 1740506882.0473623
   },
   {
     "type": "move",
-    "x": 266,
-    "y": 350,
+    "x": 484,
+    "y": 1,
     "key_info": null,
-    "timestamp": 1740505505.2514956
+    "timestamp": 1740506882.1497865
   },
   {
     "type": "move",
-    "x": 228,
-    "y": 365,
+    "x": 523,
+    "y": 3,
     "key_info": null,
-    "timestamp": 1740505505.3533723
+    "timestamp": 1740506882.251026
+  },
+  {
+    "type": "move",
+    "x": 561,
+    "y": 6,
+    "key_info": null,
+    "timestamp": 1740506882.3545954
+  },
+  {
+    "type": "click",
+    "x": 598,
+    "y": 10,
+    "key_info": null,
+    "timestamp": 1740506882.4554586
+  },
+  {
+    "type": "move",
+    "x": 633,
+    "y": 14,
+    "key_info": null,
+    "timestamp": 1740506882.5655568
+  },
+  {
+    "type": "move",
+    "x": 666,
+    "y": 19,
+    "key_info": null,
+    "timestamp": 1740506882.6745946
+  },
+  {
+    "type": "move",
+    "x": 701,
+    "y": 26,
+    "key_info": null,
+    "timestamp": 1740506882.8473675
+  },
+  {
+    "type": "move",
+    "x": 738,
+    "y": 37,
+    "key_info": null,
+    "timestamp": 1740506882.9483604
+  },
+  {
+    "type": "move",
+    "x": 758,
+    "y": 45,
+    "key_info": null,
+    "timestamp": 1740506883.0534124
+  },
+  {
+    "type": "move",
+    "x": 775,
+    "y": 53,
+    "key_info": null,
+    "timestamp": 1740506883.1548767
+  },
+  {
+    "type": "move",
+    "x": 787,
+    "y": 62,
+    "key_info": null,
+    "timestamp": 1740506883.2554414
+  },
+  {
+    "type": "move",
+    "x": 795,
+    "y": 72,
+    "key_info": null,
+    "timestamp": 1740506883.3559694
+  },
+  {
+    "type": "move",
+    "x": 799,
+    "y": 82,
+    "key_info": null,
+    "timestamp": 1740506883.4576893
+  },
+  {
+    "type": "move",
+    "x": 799,
+    "y": 93,
+    "key_info": null,
+    "timestamp": 1740506883.5596185
+  },
+  {
+    "type": "move",
+    "x": 795,
+    "y": 105,
+    "key_info": null,
+    "timestamp": 1740506883.6699028
+  },
+  {
+    "type": "move",
+    "x": 786,
+    "y": 117,
+    "key_info": null,
+    "timestamp": 1740506883.7710953
+  },
+  {
+    "type": "move",
+    "x": 773,
+    "y": 129,
+    "key_info": null,
+    "timestamp": 1740506883.8717601
+  },
+  {
+    "type": "move",
+    "x": 757,
+    "y": 142,
+    "key_info": null,
+    "timestamp": 1740506883.973435
+  },
+  {
+    "type": "move",
+    "x": 737,
+    "y": 155,
+    "key_info": null,
+    "timestamp": 1740506884.0800288
+  },
+  {
+    "type": "click",
+    "x": 712,
+    "y": 169,
+    "key_info": null,
+    "timestamp": 1740506884.181839
+  },
+  {
+    "type": "move",
+    "x": 685,
+    "y": 183,
+    "key_info": null,
+    "timestamp": 1740506884.3465285
+  },
+  {
+    "type": "move",
+    "x": 636,
+    "y": 206,
+    "key_info": null,
+    "timestamp": 1740506884.449058
+  },
+  {
+    "type": "move",
+    "x": 601,
+    "y": 221,
+    "key_info": null,
+    "timestamp": 1740506884.5501425
+  },
+  {
+    "type": "move",
+    "x": 564,
+    "y": 236,
+    "key_info": null,
+    "timestamp": 1740506884.6564183
+  },
+  {
+    "type": "move",
+    "x": 526,
+    "y": 251,
+    "key_info": null,
+    "timestamp": 1740506884.7621133
+  },
+  {
+    "type": "move",
+    "x": 484,
+    "y": 267,
+    "key_info": null,
+    "timestamp": 1740506884.8643355
+  },
+  {
+    "type": "move",
+    "x": 442,
+    "y": 284,
+    "key_info": null,
+    "timestamp": 1740506884.9728067
+  },
+  {
+    "type": "move",
+    "x": 371,
+    "y": 310,
+    "key_info": null,
+    "timestamp": 1740506885.1581478
+  },
+  {
+    "type": "move",
+    "x": 328,
+    "y": 327,
+    "key_info": null,
+    "timestamp": 1740506885.261059
+  },
+  {
+    "type": "click",
+    "x": 285,
+    "y": 343,
+    "key_info": null,
+    "timestamp": 1740506885.3737273
+  },
+  {
+    "type": "click",
+    "x": 245,
+    "y": 359,
+    "key_info": null,
+    "timestamp": 1740506885.474557
+  },
+  {
+    "type": "move",
+    "x": 209,
+    "y": 373,
+    "key_info": null,
+    "timestamp": 1740506885.583097
   }
 ]
