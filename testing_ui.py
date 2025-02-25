@@ -230,23 +230,55 @@ def updates(ws):
                     }))
 
             elif data['type'] == 'start_sound_recording':
-                sound_name = data.get('sound_name')
-                if sound_name and testing_ui:
+                sound_name = data.get('sound_name', '')
+                if not sound_name:
+                    TestingUI.logger.error("No sound name provided")
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'level': 'error',
+                        'data': 'Please provide a name for the sound trigger'
+                    }))
+                    return
+
+                if testing_ui:
                     TestingUI.recording_sound = True
-                    if testing_ui.sound_manager.record_sound_trigger(sound_name):
-                        TestingUI.logger.info(f"Successfully recorded sound: {sound_name}")
-                        ws.send(json.dumps({
-                            'type': 'log',
-                            'level': 'info',
-                            'data': f'Recorded sound: {sound_name}'
-                        }))
-                    else:
+                    TestingUI.logger.info(f"Starting sound recording for: {sound_name}")
+
+                    try:
+                        if testing_ui.sound_manager.record_sound_trigger(sound_name, duration=2.0):
+                            TestingUI.logger.info(f"Successfully recorded sound: {sound_name}")
+                            ws.send(json.dumps({
+                                'type': 'log',
+                                'level': 'info',
+                                'data': f'Successfully recorded sound trigger: {sound_name}'
+                            }))
+                            # Refresh the sound list after successful recording
+                            sounds = testing_ui.sound_manager.sound_trigger.get_trigger_names()
+                            ws.send(json.dumps({
+                                'type': 'sounds_updated',
+                                'sounds': sounds
+                            }))
+                        else:
+                            ws.send(json.dumps({
+                                'type': 'log',
+                                'level': 'error',
+                                'data': f'Failed to record sound: {sound_name}'
+                            }))
+                    except Exception as e:
+                        TestingUI.logger.error(f"Error recording sound: {str(e)}")
                         ws.send(json.dumps({
                             'type': 'log',
                             'level': 'error',
-                            'data': f'Failed to record sound: {sound_name}'
+                            'data': f'Error recording sound: {str(e)}'
                         }))
-                    TestingUI.recording_sound = False
+                    finally:
+                        TestingUI.recording_sound = False
+                else:
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'level': 'error',
+                        'data': 'Server not initialized'
+                    }))
 
             elif data['type'] == 'play_sound':
                 sound_name = data.get('sound_name')

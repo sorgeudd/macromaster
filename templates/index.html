@@ -221,8 +221,8 @@
                 <div class="control-group">
                     <h3>Sound Triggers</h3>
                     <div id="sound-controls">
-                        <input type="text" id="trigger-name" placeholder="New Sound Trigger Name">
-                        <button onclick="recordSound()">Record Sound</button>
+                        <input type="text" id="sound-name" placeholder="Enter a name for the sound trigger">
+                        <button onclick="recordSound()">Record Sound (2s)</button>
                         <button onclick="refreshSoundList()">Refresh Sounds</button>
                         <select id="sound-list" style="margin: 10px 0;">
                             <option value="">Select a sound trigger</option>
@@ -404,17 +404,20 @@
 
         // Sound Controls
         function recordSound() {
-            const triggerName = document.getElementById('trigger-name').value.trim();
-            if (!triggerName) {
-                addLogEntry('Please enter a sound trigger name', 'error');
+            const soundName = document.getElementById('sound-name').value.trim();
+            if (!soundName) {
+                addLogEntry('Please enter a name for the sound trigger', 'error');
                 return;
             }
 
-            ws.send(JSON.stringify({
-                type: 'start_sound_recording',
-                data: { sound_name: triggerName }
-            }));
-            addLogEntry(`Started recording sound: ${triggerName}`, 'info');
+            addLogEntry('Recording sound in 3 seconds...', 'info');
+            setTimeout(() => {
+                ws.send(JSON.stringify({
+                    type: 'start_sound_recording',
+                    sound_name: soundName
+                }));
+                addLogEntry(`Recording sound: ${soundName}`, 'info');
+            }, 3000);
         }
 
         function saveTrigger() {
@@ -590,7 +593,7 @@
 
             ws.send(JSON.stringify({
                 type: 'play_sound',
-                data: { sound_name: soundName }
+                sound_name: soundName
             }));
         }
 
@@ -637,7 +640,7 @@
             const macroName = document.getElementById('map-macro').value;
 
             if (!soundName || !macroName) {
-                addLogEntry('Please select both sound and macro', 'error');
+                addLogEntry('Please select both a sound trigger and a macro', 'error');
                 return;
             }
 
@@ -658,10 +661,12 @@
                 ws.send(JSON.stringify({ type: 'start_sound_monitoring' }));
                 btn.textContent = 'Stop Monitoring';
                 monitoring = true;
+                addLogEntry('Started sound monitoring', 'info');
             } else {
                 ws.send(JSON.stringify({ type: 'stop_sound_monitoring' }));
                 btn.textContent = 'Start Monitoring';
                 monitoring = false;
+                addLogEntry('Stopped sound monitoring', 'info');
             }
         }
 
