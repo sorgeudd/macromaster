@@ -1,3 +1,19 @@
+"""Real-time testing interface for the fishing bot systems
+
+This UI provides a comprehensive testing environment for:
+- Player position detection on minimap
+- Resource location detection
+- Terrain type simulation
+- Movement and navigation testing
+
+The interface includes:
+- Real-time minimap preview
+- Position testing controls
+- Terrain type selection
+- Resource map loading and testing
+- Detailed debug information panel
+"""
+
 import sys
 import logging
 import tkinter as tk
@@ -88,7 +104,7 @@ class TestingUI:
 
     def setup_ui(self):
         """Setup all UI components and layout"""
-        # Main frame with padding
+        # Create main frame with padding
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
@@ -120,45 +136,49 @@ class TestingUI:
         control_frame = ttk.LabelFrame(parent, text="Controls", padding="5")
         control_frame.grid(row=0, column=0, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
 
-        # Game window detection
+        # Game window detection frame
         window_frame = ttk.LabelFrame(control_frame, text="Game Window", padding="5")
         window_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        ttk.Label(window_frame, text="Window Name:").pack(fill=tk.X, pady=2)
+        # Window name entry
+        name_frame = ttk.Frame(window_frame)
+        name_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(name_frame, text="Window Name:").pack(side=tk.LEFT, padx=2)
         self.window_name_var = tk.StringVar(value="Your Game Window Name")
-        ttk.Entry(window_frame, textvariable=self.window_name_var).pack(fill=tk.X, pady=2)
+        ttk.Entry(name_frame, textvariable=self.window_name_var).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
 
+        # Window status and detection button
+        status_frame = ttk.Frame(window_frame)
+        status_frame.pack(fill=tk.X, pady=2)
         self.window_status_var = tk.StringVar(value="Status: Not Detected")
-        window_status = ttk.Label(window_frame, textvariable=self.window_status_var)
-        window_status.pack(fill=tk.X, pady=2)
-
-        ttk.Button(window_frame, text="Test Window Detection",
-                  command=self.test_window_detection).pack(fill=tk.X, pady=2)
+        ttk.Label(status_frame, textvariable=self.window_status_var).pack(side=tk.LEFT, padx=2)
+        ttk.Button(status_frame, text="Detect Window", command=self.test_window_detection).pack(side=tk.RIGHT, padx=2)
 
         # Position testing controls
         pos_frame = ttk.LabelFrame(control_frame, text="Position Testing", padding="5")
         pos_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        ttk.Label(pos_frame, text="X:").grid(row=0, column=0, padx=5)
+        # Position coordinates entry
+        pos_entry_frame = ttk.Frame(pos_frame)
+        pos_entry_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(pos_entry_frame, text="X:").pack(side=tk.LEFT, padx=2)
         self.x_var = tk.StringVar(value="100")
-        ttk.Entry(pos_frame, textvariable=self.x_var, width=5).grid(row=0, column=1)
-
-        ttk.Label(pos_frame, text="Y:").grid(row=0, column=2, padx=5)
+        ttk.Entry(pos_entry_frame, textvariable=self.x_var, width=5).pack(side=tk.LEFT, padx=2)
+        ttk.Label(pos_entry_frame, text="Y:").pack(side=tk.LEFT, padx=2)
         self.y_var = tk.StringVar(value="100")
-        ttk.Entry(pos_frame, textvariable=self.y_var, width=5).grid(row=0, column=3)
-
-        ttk.Button(pos_frame, text="Move To", 
-                  command=self.test_move_to).grid(row=0, column=4, padx=5)
+        ttk.Entry(pos_entry_frame, textvariable=self.y_var, width=5).pack(side=tk.LEFT, padx=2)
+        ttk.Button(pos_entry_frame, text="Move To", command=self.test_move_to).pack(side=tk.RIGHT, padx=2)
 
         # Terrain testing controls
         terrain_frame = ttk.LabelFrame(control_frame, text="Terrain Testing", padding="5")
         terrain_frame.pack(fill=tk.X, padx=5, pady=5)
 
+        # Terrain type selection
         self.terrain_var = tk.StringVar(value="normal")
         for i, terrain in enumerate(['normal', 'water', 'mountain', 'forest']):
             ttk.Radiobutton(terrain_frame, text=terrain.capitalize(),
                           variable=self.terrain_var, value=terrain,
-                          command=self.change_terrain).grid(row=i, column=0, sticky=tk.W)
+                          command=self.change_terrain).pack(fill=tk.X, pady=1)
 
         # Resource detection controls
         resource_frame = ttk.LabelFrame(control_frame, text="Resource Detection", padding="5")
