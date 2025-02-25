@@ -13,15 +13,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Fishing Bot"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Test Bot"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Fishing Bot Test"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
@@ -42,10 +34,6 @@ args = "Setup Directories"
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Create Package"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "GUI Test"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
@@ -81,29 +69,15 @@ args = "GitHub Push"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Testing UI"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "Component Tests"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
 args = "Arrow Variation Tests"
 
-[[workflows.workflow]]
-name = "Fishing Bot"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
 [[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python fishing_bot.py"
+task = "workflow.run"
+args = "Testing UI"
 
 [[workflows.workflow]]
 name = "Test Bot"
@@ -118,20 +92,6 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python -m unittest test_bot.py -v"
-
-[[workflows.workflow]]
-name = "Fishing Bot Test"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python fishing_bot.py"
 
 [[workflows.workflow]]
 name = "Macro Test"
@@ -202,20 +162,6 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python create_package.py"
-
-[[workflows.workflow]]
-name = "GUI Test"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python gui_interface.py"
 
 [[workflows.workflow]]
 name = "Vision Test"
@@ -330,21 +276,6 @@ task = "shell.exec"
 args = "python github_setup.py"
 
 [[workflows.workflow]]
-name = "Testing UI"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python testing_ui.py"
-waitForPort = 5000
-
-[[workflows.workflow]]
 name = "Component Tests"
 author = "agent"
 
@@ -371,6 +302,21 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python test_minimap.py"
+
+[[workflows.workflow]]
+name = "Testing UI"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python testing_ui.py"
+waitForPort = 5000
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]
