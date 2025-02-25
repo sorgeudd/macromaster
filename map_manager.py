@@ -16,69 +16,25 @@ class MapManager:
         self.maps_directory = Path(maps_directory)
         self.maps_directory.mkdir(exist_ok=True)
 
-        # Map cache
+        # Map cache and state
         self.loaded_maps: Dict[str, np.ndarray] = {}
         self.current_map: Optional[np.ndarray] = None
         self.current_map_name: str = ""
-
-        # Player tracking
         self.last_known_position: Optional[PlayerPosition] = None
-        self.minimap_size: Tuple[int, int] = (0, 0)  # Will be set when processing minimap
+        self.minimap_size: Tuple[int, int] = (0, 0)
 
-        # Arrow detection parameters based on game footage analysis
-        self.arrow_color_lower = np.array([90, 160, 180])  # Verified from footage
-        self.arrow_color_upper = np.array([110, 200, 255])
-        self.min_arrow_area = 2     # From footage: min area was 2.0
-        self.max_arrow_area = 5     # From footage: max area was 4.5
+        # Arrow detection parameters (scaled for test minimap)
+        self.arrow_color_lower = np.array([95, 150, 150])  # From footage analysis
+        self.arrow_color_upper = np.array([125, 255, 255])
+        self.min_arrow_area = 8     # Scaled from high-res: ~3x5 pixels
+        self.max_arrow_area = 20    # Allow some variation
 
-        # Shape parameters based on footage analysis
-        self.min_arrow_aspect_ratio = 1.0   # From footage: width/height varied
-        self.max_arrow_aspect_ratio = 2.0   # Allow for perspective changes
-        self.min_arrow_solidity = 0.6      # Relaxed for small pixel count
-        self.max_circularity = 0.8         # Adjusted for small size
-
-        # Morphological operation parameters
-        self.morph_kernel_size = 2   # Minimal kernel for small arrow
-        self.morph_iterations = 1    # Single iteration to preserve shape
-
-        # Direction detection weights
-        self.tip_weight = 0.7       # Emphasis on tip for direction
-        self.rect_weight = 0.3      # Less weight on rectangle due to small size
-
-        # Angular parameters from footage analysis
-        self.angle_correction_factor = 1.0  # No correction needed
-        self.max_angle_deviation = 45.0     # From footage: saw up to ~45° changes
-
-        # Cardinal direction snapping
-        self.cardinal_snap_threshold = 10.0  # More permissive for small arrow
-
-        # Additional thresholds
-        self.angle_noise_threshold = 30.0   # Higher for small pixel movements
-        self.tip_angle_threshold = 45.0     # From footage analysis
+        # Cardinal direction snapping threshold
+        self.cardinal_snap_threshold = 15.0  # Degrees
 
         # Scale factors
         self.scale_x: float = 1.0
         self.scale_y: float = 1.0
-
-        # Terrain colors from game footage
-        self.terrain_colors = {
-            'deep_water': {
-                'lower': np.array([95, 150, 150]),
-                'upper': np.array([125, 255, 255])
-            },
-            'shallow_water': {
-                'lower': np.array([95, 60, 180]),
-                'upper': np.array([125, 150, 255])
-            },
-            'mountain': {
-                'lower': np.array([0, 0, 40]),
-                'upper': np.array([30, 40, 160])
-            },
-            'cliff': {
-                'lower': np.array([0, 0, 20]),
-                'upper': np.array([180, 25, 80])
-            }
-        }
 
     def detect_player_position(self, minimap_image: np.ndarray) -> Optional[PlayerPosition]:
         """Detect player position and direction from minimap"""
@@ -90,9 +46,11 @@ class MapManager:
             hsv = cv2.cvtColor(minimap_image, cv2.COLOR_BGR2HSV)
             arrow_mask = cv2.inRange(hsv, self.arrow_color_lower, self.arrow_color_upper)
 
-            # Find contours without morphological operations to preserve tiny shapes
+            # Find contours (no morphological operations to preserve shape)
             contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
             if not contours:
+                self.logger.debug("No contours found")
                 return None
 
             # Filter contours by area
@@ -104,45 +62,29 @@ class MapManager:
                     self.logger.debug(f"Found valid contour with area: {area}")
 
             if not valid_contours:
+                self.logger.debug("No valid contours within area range")
                 return None
 
             # Use largest valid contour
             arrow_contour = max(valid_contours, key=cv2.contourArea)
 
-            # Get centroid
+            # Get oriented rectangle for angle detection
+            rect = cv2.minAreaRect(arrow_contour)
+
+            # Calculate centroid
             M = cv2.moments(arrow_contour)
             if M["m00"] == 0:
+                self.logger.debug("Invalid moments")
                 return None
 
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
 
-            # Get convex hull for more reliable tip detection
-            hull = cv2.convexHull(arrow_contour)
-
-            # Find the tip point (furthest point from centroid)
-            max_dist = 0
-            tip_point = None
-
-            for point in hull:
-                pt = point[0]
-                dist = np.sqrt((pt[0] - cx)**2 + (pt[1] - cy)**2)
-                if dist > max_dist:
-                    max_dist = dist
-                    tip_point = pt
-
-            if tip_point is None:
-                self.logger.error("Failed to find tip point")
-                return None
-
-            # Calculate angle in game coordinates (0° is North, clockwise)
-            dx = tip_point[0] - cx
-            dy = cy - tip_point[1]  # Reverse y because image coordinates increase downward
-
-            # Calculate raw angle (arctan2 gives -π to π)
-            raw_angle = np.degrees(np.arctan2(dx, dy))
-            # Convert to game angles (0° at North, clockwise)
-            game_angle = raw_angle % 360
+            # Get angle from oriented rectangle (more stable for high-res)
+            angle = rect[2]
+            if rect[1][0] < rect[1][1]:  # Ensure longer side is used
+                angle += 90
+            game_angle = (90 - angle) % 360  # Convert to game coordinates
 
             # Snap to cardinal directions if close
             for cardinal in [0, 90, 180, 270]:
@@ -151,20 +93,11 @@ class MapManager:
                     self.logger.debug(f"Snapped to cardinal angle: {game_angle}°")
                     break
 
-            # Debug logging
-            self.logger.debug(
-                f"Arrow detection details:\n"
-                f"Centroid: ({cx}, {cy})\n"
-                f"Tip point: ({tip_point[0]}, {tip_point[1]})\n"
-                f"dx, dy: ({dx}, {dy})\n"
-                f"Raw angle: {raw_angle}°\n"
-                f"Game angle: {game_angle}°"
-            )
-
             # Create position object
             position = PlayerPosition(cx, cy, game_angle)
             self.last_known_position = position
 
+            self.logger.debug(f"Detection details: pos=({cx}, {cy}), angle={game_angle}°")
             return position
 
         except Exception as e:
@@ -360,3 +293,39 @@ class MapManager:
         except Exception as e:
             self.logger.error(f"Error extracting map name: {str(e)}")
             return None
+
+    # Terrain colors from game footage
+    terrain_colors = {
+        'deep_water': {
+            'lower': np.array([95, 150, 150]),
+            'upper': np.array([125, 255, 255])
+        },
+        'shallow_water': {
+            'lower': np.array([95, 60, 180]),
+            'upper': np.array([125, 150, 255])
+        },
+        'mountain': {
+            'lower': np.array([0, 0, 40]),
+            'upper': np.array([30, 40, 160])
+        },
+        'cliff': {
+            'lower': np.array([0, 0, 20]),
+            'upper': np.array([180, 25, 80])
+        }
+    }
+
+    # Morphological operation parameters
+    morph_kernel_size = 2   # Minimal kernel for small arrow
+    morph_iterations = 1    # Single iteration to preserve shape
+
+    # Direction detection weights
+    tip_weight = 0.7       # Emphasis on tip for direction
+    rect_weight = 0.3      # Less weight on rectangle due to small size
+
+    # Angular parameters from footage analysis
+    angle_correction_factor = 1.0  # No correction needed
+    max_angle_deviation = 45.0     # From footage: saw up to ~45° changes
+
+    # Additional thresholds
+    angle_noise_threshold = 30.0   # Higher for small pixel movements
+    tip_angle_threshold = 45.0     # From footage analysis

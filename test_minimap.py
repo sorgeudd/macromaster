@@ -15,46 +15,44 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
         arrow_pos: (x, y) position of arrow center
         arrow_angle: angle in degrees (0 is North, clockwise)
     """
-    # Create black background
-    minimap_size = (200, 200, 3)
+    # Create black background - sized for test environment
+    minimap_size = (250, 250, 3)
     minimap = np.zeros(minimap_size, dtype=np.uint8)
 
-    # Add varied terrain features - matched to game footage
+    # Add varied terrain features
     cv2.rectangle(minimap, (50, 50), (150, 150), (40, 40, 40), -1)
     cv2.circle(minimap, (120, 80), 30, (80, 60, 40), -1)
     cv2.rectangle(minimap, (20, 150), (70, 180), (120, 60, 20), -1)
     cv2.rectangle(minimap, (80, 150), (130, 180), (160, 100, 40), -1)
 
-    # Arrow dimensions matched to game footage analysis
-    arrow_length = 3  # From footage analysis
-    arrow_width = 2   # From footage analysis
+    # Arrow dimensions (scaled down from high-res footage proportions)
+    arrow_length = 3  # Scaled from 14
+    arrow_width = 5   # Scaled from 27
 
     # Convert game angle to drawing angle (0° is up, increases clockwise)
     draw_angle = np.radians(arrow_angle)
 
-    # Calculate arrow points
-    points = []
+    # Create arrow points
+    arrow_points = []
 
     # Tip point
     tip_x = int(arrow_pos[0] + arrow_length * np.sin(draw_angle))
     tip_y = int(arrow_pos[1] - arrow_length * np.cos(draw_angle))
-    points.append([tip_x, tip_y])
+    arrow_points.append([tip_x, tip_y])
 
     # Base points - create triangular shape
-    for offset in [-2.0944, 2.0944]:  # ±120 degrees for equilateral triangle
+    for offset in [-2.0944, 2.0944]:  # ±120 degrees
         base_angle = draw_angle + offset
-        px = int(arrow_pos[0] + arrow_width * np.sin(base_angle))
-        py = int(arrow_pos[1] - arrow_width * np.cos(base_angle))
-        points.append([px, py])
+        base_x = int(arrow_pos[0] + arrow_width/2 * np.sin(base_angle))
+        base_y = int(arrow_pos[1] - arrow_width/2 * np.cos(base_angle))
+        arrow_points.append([base_x, base_y])
 
-    # Convert points to numpy array
-    arrow_points = np.array(points, dtype=np.int32)
+    # Convert to numpy array and reshape for fillPoly
+    pts = np.array(arrow_points, dtype=np.int32)
+    pts = pts.reshape((-1, 1, 2))
 
-    # Draw the arrow using fillConvexPoly for better small shape preservation
-    cv2.fillConvexPoly(minimap, arrow_points, (100, 180, 220))
-
-    # Add slight blur to match game's anti-aliasing
-    minimap = cv2.GaussianBlur(minimap, (3, 3), 0)
+    # Fill arrow with exact game color
+    cv2.fillPoly(minimap, [pts], (105, 210, 210))  # BGR format from footage
 
     return minimap
 
@@ -77,20 +75,17 @@ def test_arrow_detection(map_manager, position, angle):
         logger.info(f"Position error: {pos_error:.1f} pixels")
         logger.info(f"Angle error: {angle_error:.1f}°")
 
-        # Save visualization for debugging
+        # Save visualization
         visualization = minimap.copy()
         cv2.circle(visualization, (detected_pos.x, detected_pos.y), 3, (0, 255, 0), -1)
-        # Draw detected direction vector
-        direction_length = 20
-        end_x = int(detected_pos.x + direction_length * np.sin(np.radians(detected_pos.direction)))
-        end_y = int(detected_pos.y - direction_length * np.cos(np.radians(detected_pos.direction)))
         cv2.line(visualization, 
                 (detected_pos.x, detected_pos.y),
-                (end_x, end_y),
+                (int(detected_pos.x + 20 * np.sin(np.radians(detected_pos.direction))),
+                 int(detected_pos.y - 20 * np.cos(np.radians(detected_pos.direction)))),
                 (0, 255, 0), 2)
         cv2.imwrite(f'test_arrow_{angle}.png', visualization)
 
-        return pos_error < 3 and angle_error < 15  # Adjusted thresholds for small arrow
+        return pos_error < 3 and angle_error < 15
     return False
 
 def test_minimap_detection():
