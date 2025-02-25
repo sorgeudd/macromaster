@@ -6,6 +6,7 @@ from vision_system import VisionSystem
 import logging
 import os
 from pathlib import Path
+from collections import defaultdict
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -29,7 +30,7 @@ def test_vision_system():
                 logger.error(f"Test image not found: {img_path}")
                 continue
 
-            logger.info(f"Testing with image: {img_path}")
+            logger.info(f"\nTesting with image: {img_path}")
 
             # Load test image
             img = cv2.imread(img_path)
@@ -39,21 +40,60 @@ def test_vision_system():
 
             # Test resource detection
             detections = vision.detect_resources(img)
-            logger.info(f"Detected {len(detections)} objects")
 
-            # Draw detections on image
+            # Group detections by class
+            class_groups = defaultdict(list)
+            for det in detections:
+                class_groups[det['class_id']].append(det)
+
+            # Log detailed detection information
+            logger.info(f"Total detections: {len(detections)}")
+            for class_id, group in class_groups.items():
+                avg_confidence = sum(d['confidence'] for d in group) / len(group)
+                logger.info(f"  {class_id}: {len(group)} instances (avg conf: {avg_confidence:.2f})")
+
+            # Draw detections on image with enhanced visualization
+            colors = {
+                'wood': (0, 255, 0),    # Green
+                'stone': (255, 0, 0),   # Blue
+                'ore': (0, 0, 255),     # Red
+                'fiber': (255, 255, 0),  # Cyan
+                'hide': (128, 0, 128)   # Purple
+            }
+
             for det in detections:
                 if det['bbox']:
                     x, y, w, h = map(int, det['bbox'])
-                    cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+                    color = colors.get(det['class_id'], (0, 255, 0))
+
+                    # Draw bounding box
+                    cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
+
+                    # Add label with confidence
                     label = f"{det['class_id']} {det['confidence']:.2f}"
-                    cv2.putText(img, label, (x, y - 10), 
-                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    font_scale = 0.5
+                    thickness = 1
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+
+                    # Get text size for background rectangle
+                    (text_width, text_height), baseline = cv2.getTextSize(
+                        label, font, font_scale, thickness)
+
+                    # Draw background rectangle for text
+                    cv2.rectangle(img, 
+                                (x, y - text_height - 6), 
+                                (x + text_width, y),
+                                color, -1)
+
+                    # Draw text
+                    cv2.putText(img, label, (x, y - 5), font,
+                              font_scale, (255, 255, 255), thickness)
 
             # Save result
             output_path = f'detection_result_{Path(img_path).stem}.png'
             cv2.imwrite(output_path, img)
             logger.info(f"Saved detection result to: {output_path}")
+            logger.info("-" * 50)
 
         return True
 

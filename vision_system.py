@@ -6,6 +6,8 @@ import base64
 from io import BytesIO
 from PIL import Image
 import cv2
+import tempfile
+import os
 
 class VisionSystem:
     def __init__(self, model_path=None):
@@ -58,41 +60,145 @@ class VisionSystem:
             return []
 
         try:
-            # Convert frame to PIL Image
-            if isinstance(frame, np.ndarray):
-                frame = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            # Ensure frame is in BGR format for cv2
+            if isinstance(frame, Image.Image):
+                frame = np.array(frame)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-            # Save image to bytes
-            img_byte_arr = BytesIO()
-            frame.save(img_byte_arr, format='JPEG')  # Changed to JPEG format
-            img_byte_arr = base64.b64encode(img_byte_arr.getvalue())  # Base64 encode the image
+            # Create a temporary file to save the JPEG image
+            with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as temp_file:
+                # Save frame as JPEG
+                is_success, img_buf = cv2.imencode('.jpg', frame)
+                if not is_success:
+                    self.logger.error("Failed to encode image to JPEG")
+                    return self._basic_detection(frame)
+
+                # Write to temporary file
+                temp_file.write(img_buf.tobytes())
+                temp_file.flush()
+                temp_path = temp_file.name
 
             if self.roboflow_client:
-                # Get predictions from Roboflow
-                result = self.roboflow_client.infer(img_byte_arr, model_id="albiongathering/3")
+                try:
+                    self.logger.debug(f"Submitting image from temporary file: {temp_path}")
 
-                # Process predictions
-                detections = []
-                for pred in result.get('predictions', []):
-                    detection = {
-                        'class_id': pred.get('class'),
-                        'confidence': pred.get('confidence'),
-                        'bbox': [
-                            pred.get('x'), pred.get('y'),
-                            pred.get('width'), pred.get('height')
-                        ]
-                    }
-                    detections.append(detection)
+                    # Get predictions from Roboflow using the file path
+                    result = self.roboflow_client.infer(temp_path, model_id="albiongathering/3")
+                    self.logger.debug(f"Roboflow API response: {result}")
 
-                self.logger.debug(f"Detected {len(detections)} resources")
-                return detections
+                    # Process predictions
+                    detections = []
+                    for pred in result.get('predictions', []):
+                        detection = {
+                            'class_id': pred.get('class'),
+                            'confidence': pred.get('confidence'),
+                            'bbox': [
+                                pred.get('x'), pred.get('y'),
+                                pred.get('width'), pred.get('height')
+                            ]
+                        }
+                        detections.append(detection)
+
+                    self.logger.debug(f"Detected {len(detections)} resources")
+                    return detections
+                except Exception as api_error:
+                    self.logger.error(f"Error in API call: {str(api_error)}")
+                    self.logger.error(f"Full error details: {api_error.__class__.__name__}")
+                    return self._basic_detection(frame)
+                finally:
+                    # Clean up temporary file
+                    try:
+                        os.unlink(temp_path)
+                    except Exception as e:
+                        self.logger.warning(f"Failed to clean up temporary file: {str(e)}")
             else:
                 self.logger.warning("Roboflow client not available, falling back to basic detection")
                 return self._basic_detection(frame)
 
         except Exception as e:
             self.logger.error(f"Error in resource detection: {str(e)}")
+            self.logger.error(f"Full error details: {e.__class__.__name__}")
             return self._basic_detection(frame)
+
+    def _basic_detection(self, frame):
+        """Basic color-based object detection when AI is not available"""
+        try:
+            # Convert PIL Image to numpy array if needed
+            if isinstance(frame, Image.Image):
+                frame = np.array(frame)
+                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+
+            # Simple color thresholding for basic detection
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+            # Define color ranges for basic detection with tighter thresholds
+            color_ranges = {
+                'wood': [(10, 120, 70), (20, 255, 200)],     # Brown
+                'stone': [(0, 0, 100), (180, 30, 200)],      # Gray
+                'ore': [(0, 0, 0), (180, 30, 100)],          # Dark Gray/Black
+                'fiber': [(35, 100, 100), (85, 255, 255)],   # Green
+                'hide': [(0, 50, 50), (10, 255, 200)]        # Light Brown
+            }
+
+            detections = []
+            min_area = 1000  # Increased minimum area to filter out noise
+            max_area = frame.shape[0] * frame.shape[1] // 4  # Max 1/4 of image
+
+            for class_id, (lower, upper) in color_ranges.items():
+                mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+
+                # Apply morphological operations to remove noise
+                kernel = np.ones((7,7), np.uint8)
+                mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+                mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+
+                if np.any(mask):
+                    # Find contours to get bounding boxes
+                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    for contour in contours:
+                        area = cv2.contourArea(contour)
+                        if min_area < area < max_area:  # Filter by area
+                            x, y, w, h = cv2.boundingRect(contour)
+
+                            # Additional filtering criteria
+                            aspect_ratio = float(w)/h
+                            solidity = area / (w * h)
+
+                            # Check if the detection meets our criteria
+                            if (0.5 <= aspect_ratio <= 2.0 and  # Not too elongated
+                                solidity > 0.5):                # Reasonably solid shape
+
+                                # Calculate confidence based on multiple factors
+                                area_conf = min(area / 10000, 0.95)
+                                shape_conf = min(solidity, 0.95)
+                                confidence = (area_conf + shape_conf) / 2
+
+                                detections.append({
+                                    'class_id': class_id,
+                                    'confidence': confidence,
+                                    'bbox': [x, y, w, h]
+                                })
+
+            # Sort detections by confidence
+            detections.sort(key=lambda x: x['confidence'], reverse=True)
+
+            # Keep only top N detections per class to prevent over-detection
+            max_per_class = 5
+            filtered_detections = []
+            class_counts = {}
+
+            for det in detections:
+                class_id = det['class_id']
+                if class_counts.get(class_id, 0) < max_per_class:
+                    filtered_detections.append(det)
+                    class_counts[class_id] = class_counts.get(class_id, 0) + 1
+
+            self.logger.debug(f"Basic detection found {len(filtered_detections)} resources")
+            return filtered_detections
+
+        except Exception as e:
+            self.logger.error(f"Error in basic detection: {str(e)}")
+            return []
 
     def process_video_frame(self, frame):
         """Process a single video frame for training"""
@@ -110,45 +216,6 @@ class VisionSystem:
             return frame
 
         return frame
-
-    def _basic_detection(self, frame):
-        """Basic color-based object detection when AI is not available"""
-        try:
-            # Convert PIL Image to numpy array if needed
-            if isinstance(frame, Image.Image):
-                frame = np.array(frame)
-                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-
-            # Simple color thresholding for basic detection
-            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-
-            # Define color ranges for basic detection
-            color_ranges = {
-                'water': [(100, 50, 50), (130, 255, 255)],  # Blue
-                'vegetation': [(35, 50, 50), (85, 255, 255)],  # Green
-                'resource': [(0, 50, 50), (20, 255, 255)]  # Brown/Orange
-            }
-
-            detections = []
-            for class_id, (lower, upper) in color_ranges.items():
-                mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
-                if np.any(mask):
-                    # Find contours to get bounding boxes
-                    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    for contour in contours:
-                        x, y, w, h = cv2.boundingRect(contour)
-                        if w * h > 100:  # Filter small detections
-                            detections.append({
-                                'class_id': class_id,
-                                'confidence': 0.8,  # Default confidence for basic detection
-                                'bbox': [x, y, w, h]
-                            })
-
-            return detections
-
-        except Exception as e:
-            self.logger.error(f"Error in basic detection: {str(e)}")
-            return []
 
     def save_model(self, path):
         """Save the trained model"""

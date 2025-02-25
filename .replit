@@ -51,6 +51,10 @@ args = "GUI Test"
 task = "workflow.run"
 args = "Vision Test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Roboflow Test"
+
 [[workflows.workflow]]
 name = "Fishing Bot"
 author = "agent"
@@ -190,6 +194,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python test_vision.py"
+
+[[workflows.workflow]]
+name = "Roboflow Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python test_roboflow.py"
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]
