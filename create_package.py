@@ -7,12 +7,11 @@ from pathlib import Path
 def create_package():
     # Files to include
     files = [
-        'testing_ui.py',
-        'map_manager.py',
-        'mock_environment.py',
-        'install.bat',
-        'start_app.bat',
+        'main.py',
+        'config.py',
         'README.md',
+        'install.bat',
+        'start_bot.bat',
     ]
 
     # Create dist directory
@@ -20,7 +19,7 @@ def create_package():
     dist_dir.mkdir(exist_ok=True)
 
     # Create ZIP file
-    zip_path = dist_dir / 'testing_package.zip'
+    zip_path = dist_dir / 'fishing_bot.zip'
     with zipfile.ZipFile(zip_path, 'w') as zf:
         # Add essential Python files and batch scripts
         for file in files:
@@ -30,18 +29,8 @@ def create_package():
             else:
                 print(f"Warning: {file} not found")
 
-        # Add templates directory
-        if os.path.exists('templates'):
-            for root, _, filenames in os.walk('templates'):
-                for filename in filenames:
-                    file_path = os.path.join(root, filename)
-                    zf.write(file_path)
-                    print(f"Added {file_path}")
-        else:
-            print("Warning: templates directory not found")
-
         # Add required directories with their contents
-        directories = ['maps', 'sounds', 'macros']
+        directories = ['debug_screenshots']
         for directory in directories:
             if os.path.exists(directory):
                 for root, _, filenames in os.walk(directory):
