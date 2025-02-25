@@ -1,8 +1,8 @@
-"""Minimal Flask test server to verify environment and port setup"""
+"""Minimal Flask test server for macro and sound management"""
 import logging
 import socket
 import traceback
-from flask import Flask
+from flask import Flask, render_template
 from flask_sock import Sock
 
 # Configure logging
@@ -22,7 +22,7 @@ sock = Sock(app)
 @app.route('/')
 def index():
     """Test endpoint"""
-    return "Flask Test Server Running"
+    return render_template('index.html')
 
 @sock.route('/ws')
 def websocket(ws):
@@ -38,8 +38,7 @@ def websocket(ws):
 
 if __name__ == "__main__":
     try:
-        # Test port availability first
-        port = 5003
+        port = 5000
         logger.info(f"Testing port {port} availability...")
         test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         test_socket.bind(('0.0.0.0', port))

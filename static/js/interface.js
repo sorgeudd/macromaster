@@ -8,8 +8,8 @@ let monitoring = false;
 // Initialize WebSocket connection
 function initializeWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // Use port 5003 where our test server is running successfully
-    const wsUrl = `${protocol}//${window.location.hostname}:5003/ws`;
+    // ALWAYS use port 5000 as it's the only port that works with Replit
+    const wsUrl = `${protocol}//${window.location.hostname}:5000/ws`;
 
     try {
         ws = new WebSocket(wsUrl);
