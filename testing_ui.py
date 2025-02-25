@@ -3,6 +3,7 @@
 import logging
 import json
 import os
+import platform
 from flask import Flask, render_template, jsonify
 from flask_sock import Sock
 
@@ -21,6 +22,34 @@ class TestingUI:
     recording_macro = False
     recording_sound = False
     logger = logging.getLogger('TestingUI')
+
+    @staticmethod
+    def find_window(window_name):
+        """Find window by name with cross-platform support"""
+        try:
+            # Only import win32gui on Windows
+            if platform.system() == 'Windows':
+                import win32gui
+                def callback(hwnd, hwnds):
+                    if win32gui.IsWindowVisible(hwnd):
+                        title = win32gui.GetWindowText(hwnd)
+                        if window_name.lower() in title.lower():
+                            hwnds.append(hwnd)
+                    return True
+
+                hwnds = []
+                win32gui.EnumWindows(callback, hwnds)
+                return len(hwnds) > 0, hwnds[0] if hwnds else None
+            else:
+                # Mock window detection for testing
+                TestingUI.logger.warning("Running in test mode (non-Windows platform)")
+                # Simulate window detection for specific names (for testing)
+                test_windows = ['albion online client', 'game window']
+                found = any(window_name.lower() in test_win for test_win in test_windows)
+                return found, 1 if found else None
+        except Exception as e:
+            TestingUI.logger.error(f"Error detecting window: {str(e)}")
+            return False, None
 
     def __init__(self):
         # Setup logging with file and console output
@@ -90,22 +119,35 @@ class TestingUI:
                 data = json.loads(message)
 
                 # Log received command
-                TestingUI.logger.info(f"Received command from web UI: {data['type']}")
+                TestingUI.logger.info(f"Received command: {data['type']}")
 
                 if data['type'] == 'detect_window':
                     window_name = data['data']
-                    TestingUI.window_detected = True
-                    TestingUI.last_window_name = window_name
-                    TestingUI.logger.info(f"Backend: Detecting window '{window_name}'")
-                    ws.send(json.dumps({
-                        'type': 'log',
-                        'level': 'info',
-                        'data': f'Game window detected: {window_name}'
-                    }))
+                    TestingUI.logger.info(f"Attempting to detect window: '{window_name}'")
+
+                    found, hwnd = TestingUI.find_window(window_name)
+                    if found:
+                        TestingUI.window_detected = True
+                        TestingUI.last_window_name = window_name
+                        TestingUI.logger.info(f"Successfully detected window '{window_name}' (hwnd: {hwnd})")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'info',
+                            'data': f'Game window detected: {window_name}'
+                        }))
+                    else:
+                        TestingUI.window_detected = False
+                        TestingUI.last_window_name = ""
+                        TestingUI.logger.warning(f"Failed to detect window '{window_name}'")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'error',
+                            'data': f'Could not find game window: {window_name}'
+                        }))
 
                 elif data['type'] == 'start_bot':
                     TestingUI.bot_running = True
-                    TestingUI.logger.info("Backend: Starting bot operations")
+                    TestingUI.logger.info("Starting bot operations")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -114,7 +156,7 @@ class TestingUI:
 
                 elif data['type'] == 'stop_bot':
                     TestingUI.bot_running = False
-                    TestingUI.logger.info("Backend: Stopping bot operations")
+                    TestingUI.logger.info("Stopping bot operations")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -124,7 +166,7 @@ class TestingUI:
                 elif data['type'] == 'emergency_stop':
                     TestingUI.bot_running = False
                     TestingUI.learning_mode = False
-                    TestingUI.logger.warning("Backend: Emergency stop triggered")
+                    TestingUI.logger.warning("Emergency stop triggered")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'warning',
@@ -133,7 +175,7 @@ class TestingUI:
 
                 elif data['type'] == 'start_learning':
                     TestingUI.learning_mode = True
-                    TestingUI.logger.info("Backend: Starting learning mode")
+                    TestingUI.logger.info("Starting learning mode")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -141,48 +183,12 @@ class TestingUI:
                     }))
 
                 elif data['type'] == 'reset_learning':
-                    TestingUI.logger.info("Backend: Resetting learning data")
+                    TestingUI.logger.info("Resetting learning data")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
                         'data': 'Learning data reset'
                     }))
-
-                elif data['type'] == 'test_arrow_detection':
-                    TestingUI.logger.info("Backend: Running arrow detection test")
-                    ws.send(json.dumps({
-                        'type': 'log',
-                        'level': 'info',
-                        'data': 'Running arrow detection test...'
-                    }))
-                    # Add actual test implementation here
-
-                elif data['type'] == 'test_resource_spots':
-                    TestingUI.logger.info("Backend: Testing resource detection")
-                    ws.send(json.dumps({
-                        'type': 'log',
-                        'level': 'info',
-                        'data': 'Testing resource spot detection...'
-                    }))
-                    # Add actual test implementation here
-
-                elif data['type'] == 'calibrate_terrain':
-                    TestingUI.logger.info("Backend: Starting terrain calibration")
-                    ws.send(json.dumps({
-                        'type': 'log',
-                        'level': 'info',
-                        'data': 'Starting terrain calibration...'
-                    }))
-                    # Add actual calibration implementation here
-
-                elif data['type'] == 'test_pathfinding':
-                    TestingUI.logger.info("Backend: Testing pathfinding system")
-                    ws.send(json.dumps({
-                        'type': 'log',
-                        'level': 'info',
-                        'data': 'Testing pathfinding system...'
-                    }))
-                    # Add actual test implementation here
 
                 # Send updated status after each command
                 ws.send(json.dumps({
