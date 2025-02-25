@@ -6,6 +6,8 @@ import platform
 import time
 import traceback
 from pathlib import Path
+import atexit
+import socket
 
 try:
     from flask import Flask, render_template, jsonify
@@ -72,6 +74,17 @@ class TestingUI:
             self.logger.error(traceback.format_exc())
             raise
 
+    def cleanup(self):
+        """Cleanup resources"""
+        try:
+            if self.mock_env and self.mock_env.is_running:
+                self.mock_env.stop_simulation()
+            if self.sound_manager:
+                self.sound_manager.stop_monitoring()
+            self.logger.info("Resources cleaned up successfully")
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+
     def _create_test_macro(self):
         """Create a test macro file if it doesn't exist"""
         test_macro_path = self.macro_dir / 'test_macro.json'
@@ -93,6 +106,55 @@ class TestingUI:
             with open(test_macro_path, 'w') as f:
                 json.dump(test_macro, f, indent=2)
             self.logger.info(f"Created test macro at {test_macro_path}")
+
+def cleanup_resources():
+    """Cleanup resources"""
+    global testing_ui
+    try:
+        if testing_ui:
+            if testing_ui.mock_env and testing_ui.mock_env.is_running:
+                testing_ui.mock_env.stop_simulation()
+            if testing_ui.sound_manager:
+                testing_ui.sound_manager.stop_monitoring()
+            logger.info("Resources cleaned up successfully")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+
+def run():
+    """Start the server"""
+    try:
+        global testing_ui
+        logger.info("Initializing Testing UI server...")
+        testing_ui = TestingUI()
+
+        if not testing_ui.initialized:
+            logger.error("Failed to initialize Testing UI")
+            return
+
+        logger.info("Starting Testing UI server on port 5002")
+        try:
+            # Test if port is available before starting
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind(('0.0.0.0', 5002))
+            sock.close()
+            logger.info("Port 5002 is available")
+
+            # Use threaded=True to handle WebSocket connections properly
+            app.run(host='0.0.0.0', port=5002, debug=False, threaded=True)
+        except OSError as e:
+            logger.error(f"Port 5002 is not available: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error starting Flask server: {e}")
+            logger.error(traceback.format_exc())
+            raise
+    except Exception as e:
+        logger.error(f"Server error: {e}")
+        logger.error(traceback.format_exc())
+        cleanup_resources()
+        raise
+    finally:
+        cleanup_resources()
 
 @app.route('/')
 def index():
@@ -242,36 +304,7 @@ def handle_stop_macro_recording(ws):
             'recording_type': 'macro'
         }))
 
-def run():
-    """Start the server"""
-    try:
-        global testing_ui
-        logger.info("Initializing Testing UI server...")
-        testing_ui = TestingUI()
-
-        if not testing_ui.initialized:
-            logger.error("Failed to initialize Testing UI")
-            return
-
-        logger.info("Starting Testing UI server on port 5001")
-        # Use threaded=True to handle WebSocket connections properly
-        app.run(host='0.0.0.0', port=5001, debug=False, threaded=True)
-    except Exception as e:
-        logger.error(f"Server error: {e}")
-        logger.error(traceback.format_exc())
-    finally:
-        cleanup()
-
-def cleanup():
-    """Cleanup resources"""
-    global testing_ui
-    try:
-        if testing_ui:
-            if testing_ui.mock_env and testing_ui.mock_env.is_running:
-                testing_ui.mock_env.stop_simulation()
-            logger.info("Testing UI server stopped")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
-
 if __name__ == "__main__":
+    # Register cleanup on exit
+    atexit.register(cleanup_resources)
     run()
