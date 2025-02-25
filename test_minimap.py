@@ -13,48 +13,48 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
     """Create a test minimap with player arrow at specified position and angle
     Args:
         arrow_pos: (x, y) position of arrow
-        arrow_angle: angle in degrees (0 is North, 90 is East)
+        arrow_angle: angle in degrees (0 is North, clockwise)
     """
     minimap_size = (200, 200, 3)
     minimap = np.zeros(minimap_size, dtype=np.uint8)
 
-    # Add varied terrain features
-    # Dark terrain area
-    cv2.rectangle(minimap, (50, 50), (150, 150), (60, 60, 60), -1)
-    # Mountain region
-    cv2.circle(minimap, (120, 80), 30, (120, 80, 40), -1)
-    # Deep water
-    cv2.rectangle(minimap, (20, 150), (70, 180), (150, 80, 40), -1)
-    # Shallow water
-    cv2.rectangle(minimap, (80, 150), (130, 180), (200, 120, 60), -1)
+    # Add varied terrain features - matched to game colors
+    cv2.rectangle(minimap, (50, 50), (150, 150), (40, 40, 40), -1)
+    cv2.circle(minimap, (120, 80), 30, (80, 60, 40), -1)
+    cv2.rectangle(minimap, (20, 150), (70, 180), (120, 60, 20), -1)
+    cv2.rectangle(minimap, (80, 150), (130, 180), (160, 100, 40), -1)
 
-    # Calculate arrow points based on angle
-    arrow_length = 20
-    arrow_width = 10
-    angle_rad = np.radians(arrow_angle - 90)  # Adjust angle to match game coordinates
+    # Calculate arrow points using game coordinates
+    arrow_length = 12  # Matched to game size
+    arrow_width = 6   # Matched to game width
 
-    # Calculate arrow tip and base points
-    tip_x = arrow_pos[0] + arrow_length * np.cos(angle_rad)
-    tip_y = arrow_pos[1] + arrow_length * np.sin(angle_rad)
+    # Convert angle to radians (0° is North, increases clockwise)
+    angle_rad = np.radians(arrow_angle)
 
-    base_angle1 = angle_rad + np.pi * 2/3
-    base_angle2 = angle_rad - np.pi * 2/3
+    # Calculate arrow points
+    # Tip points upward at 0°, rotates clockwise
+    tip_x = arrow_pos[0] + arrow_length * np.sin(angle_rad)
+    tip_y = arrow_pos[1] - arrow_length * np.cos(angle_rad)
 
-    base1_x = arrow_pos[0] + arrow_width * np.cos(base_angle1)
-    base1_y = arrow_pos[1] + arrow_width * np.sin(base_angle1)
+    # Calculate base points
+    base_angle1 = angle_rad + np.pi * 5/6
+    base_angle2 = angle_rad - np.pi * 5/6
 
-    base2_x = arrow_pos[0] + arrow_width * np.cos(base_angle2)
-    base2_y = arrow_pos[1] + arrow_width * np.sin(base_angle2)
+    base1_x = arrow_pos[0] + arrow_width * np.sin(base_angle1)
+    base1_y = arrow_pos[1] - arrow_width * np.cos(base_angle1)
 
-    # Draw player arrow
+    base2_x = arrow_pos[0] + arrow_width * np.sin(base_angle2)
+    base2_y = arrow_pos[1] - arrow_width * np.cos(base_angle2)
+
+    # Create arrow polygon
     arrow_points = np.array([
-        [tip_x, tip_y],         # Tip
-        [base1_x, base1_y],     # Left base
-        [base2_x, base2_y]      # Right base
+        [tip_x, tip_y],      # Tip
+        [base1_x, base1_y],  # Base left
+        [base2_x, base2_y]   # Base right
     ], np.int32)
 
-    # Fill arrow in light blue (BGR format)
-    cv2.fillPoly(minimap, [arrow_points], (200, 150, 100))
+    # Fill arrow with game-accurate color
+    cv2.fillPoly(minimap, [arrow_points], (100, 180, 220))
 
     return minimap
 
@@ -70,12 +70,22 @@ def test_arrow_detection(map_manager, position, angle):
 
         # Calculate error
         pos_error = np.sqrt((detected_pos.x - position[0])**2 + 
-                          (detected_pos.y - position[1])**2)
+                         (detected_pos.y - position[1])**2)
         angle_error = min((detected_pos.direction - angle) % 360,
-                        (angle - detected_pos.direction) % 360)
+                       (angle - detected_pos.direction) % 360)
 
         logger.info(f"Position error: {pos_error:.1f} pixels")
         logger.info(f"Angle error: {angle_error:.1f}°")
+
+        # Save visualization for debugging
+        visualization = minimap.copy()
+        cv2.circle(visualization, (detected_pos.x, detected_pos.y), 3, (0, 255, 0), -1)
+        cv2.line(visualization,
+                (detected_pos.x, detected_pos.y),
+                (int(detected_pos.x + 20 * np.sin(np.radians(detected_pos.direction))),
+                 int(detected_pos.y - 20 * np.cos(np.radians(detected_pos.direction)))),
+                (0, 255, 0), 2)
+        cv2.imwrite(f'test_arrow_{angle}.png', visualization)
 
         return pos_error < 5 and angle_error < 10
     return False
@@ -101,36 +111,6 @@ def test_minimap_detection():
                 logger.info(f"✓ Passed test: position {position}, angle {angle}°")
             else:
                 logger.error(f"✗ Failed test: position {position}, angle {angle}°")
-
-        # Save visualization of last test case
-        minimap = create_test_minimap(*test_cases[-1])
-        detected_pos = map_manager.detect_player_position(minimap)
-
-        if detected_pos:
-            visualization = minimap.copy()
-
-            # Draw detected position
-            cv2.circle(visualization, (detected_pos.x, detected_pos.y), 
-                      5, (0, 255, 0), -1)
-
-            # Draw detected direction
-            direction = map_manager.get_player_direction_vector()
-            if direction:
-                end_x = int(detected_pos.x + direction[0] * 30)
-                end_y = int(detected_pos.y + direction[1] * 30)
-                cv2.line(visualization, 
-                        (detected_pos.x, detected_pos.y),
-                        (end_x, end_y), 
-                        (0, 255, 0), 2)
-
-            # Add test information
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            cv2.putText(visualization, 
-                       f"Direction: {detected_pos.direction:.1f}°",
-                       (10, 20), font, 0.5, (255, 255, 255), 1)
-
-            cv2.imwrite('minimap_detection.png', visualization)
-            logger.info("Saved detection visualization to minimap_detection.png")
 
         success_rate = (passed_tests / len(test_cases)) * 100
         logger.info(f"\nTest Results: {passed_tests}/{len(test_cases)} passed ({success_rate:.1f}%)")

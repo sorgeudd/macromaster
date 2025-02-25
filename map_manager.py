@@ -25,36 +25,36 @@ class MapManager:
         self.last_known_position: Optional[PlayerPosition] = None
         self.minimap_size: Tuple[int, int] = (0, 0)  # Will be set when processing minimap
 
-        # Refined arrow detection parameters for optimal accuracy
-        self.arrow_color_lower = np.array([85, 115, 155])  # Further refined color range
-        self.arrow_color_upper = np.array([140, 250, 255])
-        self.min_arrow_area = 150  # Increased minimum area
-        self.max_arrow_area = 350  # Tighter maximum area
+        # Updated arrow detection parameters based on game footage
+        self.arrow_color_lower = np.array([90, 160, 180])  # Adjusted for game's arrow color
+        self.arrow_color_upper = np.array([110, 200, 255])
+        self.min_arrow_area = 80     # Reduced for game's smaller arrow
+        self.max_arrow_area = 200    # Adjusted based on game footage
 
-        # Fine-tuned shape validation parameters
-        self.min_arrow_aspect_ratio = 0.6   # Stricter ratio for better accuracy
-        self.max_arrow_aspect_ratio = 1.5   # Tighter maximum for arrow shape
-        self.min_arrow_solidity = 0.85      # Higher solidity requirement
-        self.max_circularity = 0.55         # Lower circularity threshold
+        # Refined shape validation parameters
+        self.min_arrow_aspect_ratio = 1.2   # More elongated arrow in game
+        self.max_arrow_aspect_ratio = 2.0   # Allow for perspective changes
+        self.min_arrow_solidity = 0.7      # Less strict for game's arrow shape
+        self.max_circularity = 0.7         # Adjusted for game's arrow shape
 
         # Optimized morphological operation parameters
-        self.morph_kernel_size = 2  # Small kernel for detail preservation
-        self.morph_iterations = 1   # Single iteration to maintain shape
+        self.morph_kernel_size = 2   # Small kernel for detail preservation
+        self.morph_iterations = 1    # Single iteration to maintain shape
 
         # Enhanced direction detection weights
-        self.tip_weight = 0.98      # Even higher weight on tip direction
-        self.rect_weight = 0.02     # Minimal rectangle weight
+        self.tip_weight = 0.8       # Lower weight on tip direction
+        self.rect_weight = 0.2      # Higher rectangle weight for stability
 
         # Additional angle correction parameters
-        self.angle_correction_factor = 1.15  # Adjusted correction factor
-        self.max_angle_deviation = 35.0     # Tighter maximum deviation
+        self.angle_correction_factor = 1.0  # No correction needed with new calculations
+        self.max_angle_deviation = 45.0     # Allow more deviation for game's arrow movement
 
         # Cardinal direction snapping threshold (in degrees)
-        self.cardinal_snap_threshold = 7.0  # Slightly increased snap threshold
+        self.cardinal_snap_threshold = 5.0  # Tighter snapping for game accuracy
 
         # Additional angular thresholds
-        self.angle_noise_threshold = 12.0   # Tighter noise filtering
-        self.tip_angle_threshold = 25.0     # Stricter tip angle deviation limit
+        self.angle_noise_threshold = 15.0   # Higher threshold for game movement
+        self.tip_angle_threshold = 30.0     # More permissive for game's arrow shape
 
         # Minimap to world scale factors
         self.scale_x: float = 1.0
@@ -147,7 +147,7 @@ class MapManager:
         return (minimap_x, minimap_y)
 
     def detect_player_position(self, minimap_image: np.ndarray) -> Optional[PlayerPosition]:
-        """Detect player position and direction from minimap with improved accuracy"""
+        """Detect player position and direction from minimap"""
         try:
             if self.minimap_size == (0, 0):
                 self.minimap_size = minimap_image.shape[:2]
@@ -158,71 +158,38 @@ class MapManager:
 
             # Enhanced mask cleanup
             kernel = np.ones((self.morph_kernel_size, self.morph_kernel_size), np.uint8)
-            for _ in range(self.morph_iterations):
-                arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_OPEN, kernel)
-                arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_CLOSE, kernel)
+            arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_OPEN, kernel)
+            arrow_mask = cv2.morphologyEx(arrow_mask, cv2.MORPH_CLOSE, kernel)
 
             # Find contours
             contours, _ = cv2.findContours(arrow_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             if not contours:
                 return None
 
-            # Enhanced contour filtering with scoring
+            # Select best contour based on area and shape
             valid_contours = []
-            contour_scores = []
-
             for cnt in contours:
-                area = float(cv2.contourArea(cnt))
+                area = cv2.contourArea(cnt)
                 if area < self.min_arrow_area or area > self.max_arrow_area:
                     continue
 
+                # Get oriented bounding box
                 rect = cv2.minAreaRect(cnt)
-                width = float(rect[1][0])
-                height = float(rect[1][1])
-                if width == 0 or height == 0:
+                w, h = rect[1]
+                if min(w, h) == 0:
                     continue
 
-                aspect_ratio = max(width, height) / min(width, height)
+                aspect_ratio = max(w, h) / min(w, h)
                 if aspect_ratio < self.min_arrow_aspect_ratio or aspect_ratio > self.max_arrow_aspect_ratio:
                     continue
 
-                hull = cv2.convexHull(cnt)
-                hull_area = float(cv2.contourArea(hull))
-                if hull_area == 0:
-                    continue
-
-                solidity = area / hull_area
-                if solidity < self.min_arrow_solidity:
-                    continue
-
-                perimeter = float(cv2.arcLength(cnt, True))
-                circularity = 4 * np.pi * area / (perimeter * perimeter)
-                if circularity > self.max_circularity:
-                    continue
-
-                # Calculate comprehensive shape score
-                shape_score = float(
-                    solidity * 0.4 +
-                    (1 - abs(aspect_ratio - 1.2) / 1.2) * 0.3 +
-                    (1 - circularity) * 0.3
-                )
-
-                # Area score based on target size
-                target_area = (self.min_arrow_area + self.max_arrow_area) / 2
-                area_score = float(1 - abs(area - target_area) / target_area)
-
-                # Final weighted score
-                total_score = shape_score * 0.7 + area_score * 0.3
-
-                valid_contours.append(cnt)
-                contour_scores.append(total_score)
+                valid_contours.append((cnt, aspect_ratio))
 
             if not valid_contours:
                 return None
 
-            # Select best contour
-            best_idx = int(np.argmax(contour_scores))
-            arrow_contour = valid_contours[best_idx]
+            # Use the contour with best aspect ratio (most arrow-like)
+            arrow_contour = max(valid_contours, key=lambda x: x[1])[0]
 
             # Calculate centroid
             M = cv2.moments(arrow_contour)
@@ -232,80 +199,45 @@ class MapManager:
             cx = int(M["m10"] / M["m00"])
             cy = int(M["m01"] / M["m00"])
 
-            # Improved angle calculation
-            hull = cv2.convexHull(arrow_contour)
-            if len(hull) >= 3:
-                # Get all points and their distances from centroid
-                tip_candidates = []
-                for point in hull:
-                    px, py = float(point[0][0]), float(point[0][1])
-                    dist = float(np.sqrt((px - cx)**2 + (py - cy)**2))
-                    # Calculate rough angle to filter unlikely tip points
-                    rough_angle = float(np.degrees(np.arctan2(cy - py, px - cx)))
-                    tip_candidates.append((dist, px, py, rough_angle))
+            # Find the tip of the arrow (furthest point from centroid)
+            tip_point = None
+            max_dist = 0
+            for point in arrow_contour:
+                px, py = point[0]
+                dist = np.sqrt((px - cx) ** 2 + (py - cy) ** 2)
+                if dist > max_dist:
+                    max_dist = dist
+                    tip_point = (px, py)
 
-                # Sort by distance and filter points by rough angle
-                tip_candidates.sort(reverse=True, key=lambda x: x[0])
+            if tip_point is None:
+                return None
 
-                # Select points with reasonable angles for tip calculation
-                valid_angles = []
-                weights = [0.6, 0.3, 0.1]  # Weight distribution for angles
+            # Calculate angle from centroid to tip
+            # In game coordinates: 0° is North (up), angle increases clockwise
+            dx = tip_point[0] - cx
+            dy = cy - tip_point[1]  # Flip y because image coordinates increase downward
+            raw_angle = np.degrees(np.arctan2(dx, dy))
 
-                for (_, px, py, rough_angle), weight in zip(tip_candidates[:3], weights):
-                    # Calculate precise angle and normalize
-                    angle = float(np.degrees(np.arctan2(cy - py, px - cx)))
-                    angle = float((90 - angle) % 360)  # Convert to game coordinates
+            # Normalize angle to 0-360 range
+            final_angle = raw_angle % 360
 
-                    # Filter out noisy measurements
-                    if abs(angle - rough_angle) > self.angle_noise_threshold:
-                        continue
-
-                    # Apply correction factor
-                    angle = angle * self.angle_correction_factor
-                    valid_angles.append(angle * weight)
-
-                tip_angle = float(sum(valid_angles))
-
-                # Get rectangle angle as backup
-                rect = cv2.minAreaRect(arrow_contour)
-                rect_angle = float(-rect[-1])
-                if rect[1][0] < rect[1][1]:
-                    rect_angle = float((rect_angle + 90) % 360)
-                else:
-                    rect_angle = float(rect_angle % 360)
-
-                # Combine angles with weights
-                final_angle = float((tip_angle * self.tip_weight +
-                                   rect_angle * self.rect_weight) % 360)
-
-                # Cardinal direction snapping
-                cardinal_angles = [0, 90, 180, 270]
-                for cardinal in cardinal_angles:
-                    if abs(final_angle - cardinal) < self.cardinal_snap_threshold:
-                        final_angle = float(cardinal)
-                        break
-
-                # Check for extreme deviations
-                if abs(final_angle - tip_angle) > self.max_angle_deviation:
-                    final_angle = tip_angle  # Use tip angle if rect angle deviates too much
-            else:
-                # Fallback to rectangle angle
-                rect = cv2.minAreaRect(arrow_contour)
-                final_angle = float((-rect[-1]) % 360)
+            # Enhanced cardinal direction snapping
+            for cardinal in [0, 90, 180, 270]:
+                if abs(final_angle - cardinal) < self.cardinal_snap_threshold:
+                    final_angle = float(cardinal)
+                    break
 
             # Create player position
             position = PlayerPosition(cx, cy, final_angle)
             self.last_known_position = position
 
-            # Enhanced logging for angle detection
+            # Debug logging
             self.logger.debug(
                 f"Arrow detection details:\n"
                 f"Position: ({cx}, {cy})\n"
-                f"Raw tip angle: {tip_angle:.1f}°\n"
-                f"Rectangle angle: {rect_angle:.1f}°\n"
-                f"Final angle: {final_angle:.1f}°\n"
-                f"Quality score: {contour_scores[best_idx]:.2f}\n"
-                f"Valid angle count: {len(valid_angles)}"
+                f"Tip point: {tip_point}\n"
+                f"Raw angle: {raw_angle:.1f}°\n"
+                f"Final angle: {final_angle:.1f}°"
             )
 
             return position
@@ -321,12 +253,12 @@ class MapManager:
         if not self.last_known_position:
             return None
 
-        # Convert angle to radians
+        # Convert angle to radians (adjusted for game's coordinate system)
         angle_rad = np.radians(self.last_known_position.direction)
 
-        # Calculate normalized direction vector (dx, dy)
+        # Calculate direction vector
         dx = np.sin(angle_rad)  # sin for x because 0° is North
-        dy = -np.cos(angle_rad)  # -cos for y because y increases downward
+        dy = -np.cos(angle_rad) # -cos for y because y increases downward
 
         # Normalize vector
         magnitude = np.sqrt(dx*dx + dy*dy)
