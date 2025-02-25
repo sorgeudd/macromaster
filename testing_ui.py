@@ -129,11 +129,46 @@ class TestingUI:
         self.map_manager = MapManager()
         TestingUI.mock_env = MockEnvironment()
 
-        # Ensure macros directory exists
+        # Ensure macros directory exists and initialize test macro
         self.macro_dir = 'macros'
         if not os.path.exists(self.macro_dir):
             os.makedirs(self.macro_dir)
             self.logger.info(f"Created macros directory at {self.macro_dir}")
+
+        # Create test macro if it doesn't exist
+        test_macro_path = os.path.join(self.macro_dir, 'test_macro.json')
+        if not os.path.exists(test_macro_path):
+            test_macro = {
+                "name": "test_macro",
+                "actions": [
+                    {
+                        "type": "move",
+                        "x": 100,
+                        "y": 100,
+                        "button": "left",
+                        "duration": 0.1,
+                        "timestamp": time.time()
+                    },
+                    {
+                        "type": "click",
+                        "x": 100,
+                        "y": 100,
+                        "button": "left",
+                        "duration": 0.1,
+                        "timestamp": time.time() + 0.1
+                    },
+                    {
+                        "type": "key_press",
+                        "key": "e",
+                        "duration": 0.5,
+                        "timestamp": time.time() + 0.2
+                    }
+                ],
+                "created": time.time()
+            }
+            with open(test_macro_path, 'w') as f:
+                json.dump(test_macro, f, indent=2)
+                self.logger.info(f"Created test macro at {test_macro_path}")
 
         self.logger.info("Testing UI initialized successfully")
 
