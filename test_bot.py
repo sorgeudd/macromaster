@@ -8,6 +8,7 @@ import tempfile
 import json
 import os
 import csv
+import numpy as np
 
 class TestFishingBot(unittest.TestCase):
     def setUp(self):
@@ -369,6 +370,164 @@ class TestFishingBot(unittest.TestCase):
 
         finally:
             os.unlink(tmp_path)
+
+    def test_ai_enhanced_navigation(self):
+        """Test AI-enhanced navigation functionality"""
+        # Set initial position
+        self.mock_env.set_game_state(current_position=(100, 100))
+        self.bot.window_rect = (0, 0, 800, 600)
+        initial_events = len(self.mock_env.input_events)
+
+        # Clear any existing patterns
+        self.bot.gameplay_learner.movement_patterns.clear()
+
+        # First navigation attempt
+        target_pos = (200, 200)
+        success = self.bot.move_to_position(target_pos)
+        self.assertTrue(success, "First navigation failed")
+
+        # Record movement events
+        first_movement_events = [e for e in self.mock_env.input_events[initial_events:]
+                               if e['type'] in ('mouse_move', 'key_press')]
+
+        # Verify basic navigation worked
+        self.assertGreater(len(first_movement_events), 0, "No movement events recorded")
+
+        # Now move through a "difficult" terrain
+        self.mock_env.set_game_state(
+            current_position=(100, 100),
+            terrain_type='mountain',
+            detected_obstacles=[{'type': 'rock', 'position': (150, 150)}]
+        )
+
+        # Second navigation attempt with terrain
+        success = self.bot.move_to_position(target_pos)
+        self.assertTrue(success, "Navigation through terrain failed")
+
+        # Get AI prediction for the path
+        current_pos = (100, 100)
+        nav_prediction = self.bot.gameplay_learner.predict_navigation({
+            'current_pos': current_pos,
+            'target_pos': target_pos,
+            'terrain_type': 'mountain',
+            'detected_obstacles': [{'type': 'rock', 'position': (150, 150)}]
+        })
+
+        # Verify prediction contains expected fields
+        self.assertIsNotNone(nav_prediction)
+        self.assertIn('success_probability', nav_prediction)
+        self.assertIn('recommended_speed', nav_prediction)
+        self.assertLess(nav_prediction['recommended_speed'], 1.0, 
+                     "Speed not reduced for difficult terrain")
+
+        # Verify navigation adapts to terrain
+        second_movement_events = [e for e in self.mock_env.input_events[len(first_movement_events):]
+                                if e['type'] in ('mouse_move', 'key_press')]
+
+        self.assertGreater(len(second_movement_events), len(first_movement_events),
+                        "Navigation didn't adapt to difficult terrain")
+
+        # Test learning from successful navigation
+        self.bot.gameplay_learner.update_navigation_model({
+            'success': True,
+            'time_taken': 2.0,
+            'terrain_type': 'mountain',
+            'start_pos': current_pos,
+            'end_pos': target_pos
+        })
+
+        # Verify movement patterns were learned
+        self.assertGreater(len(self.bot.gameplay_learner.movement_patterns), 0,
+                        "No movement patterns learned")
+
+    def test_navigation_obstacle_avoidance(self):
+        """Test that navigation uses AI to avoid obstacles"""
+        # Setup test environment with obstacles
+        self.mock_env.set_game_state(
+            current_position=(100, 100),
+            detected_obstacles=[
+                {'type': 'rock', 'position': (150, 150)},
+                {'type': 'water', 'position': (180, 180)}
+            ]
+        )
+
+        # Get initial prediction
+        target_pos = (200, 200)
+        nav_prediction = self.bot.gameplay_learner.predict_navigation({
+            'current_pos': (100, 100),
+            'target_pos': target_pos,
+            'terrain_type': 'normal',
+            'detected_obstacles': self.mock_env.state.detected_obstacles
+        })
+
+        # Verify prediction includes avoid points
+        self.assertIn('avoid_points', nav_prediction)
+        self.assertGreater(len(nav_prediction['avoid_points']), 0,
+                        "No avoid points generated for obstacles")
+
+        # Attempt navigation
+        success = self.bot.move_to_position(target_pos)
+        self.assertTrue(success, "Navigation with obstacles failed")
+
+        # Verify path avoids obstacles
+        movement_events = [e for e in self.mock_env.input_events 
+                         if e['type'] == 'mouse_move']
+
+        # Check if path points stay away from obstacles
+        for event in movement_events:
+            for obstacle in self.mock_env.state.detected_obstacles:
+                obs_pos = obstacle['position']
+                distance = np.sqrt((event['x'] - obs_pos[0])**2 + 
+                                 (event['y'] - obs_pos[1])**2)
+                self.assertGreater(distance, 20,
+                                "Path too close to obstacle")
+
+    def test_adaptive_movement_speed(self):
+        """Test that movement speed adapts based on AI predictions"""
+        # Setup easy terrain
+        self.mock_env.set_game_state(
+            current_position=(100, 100),
+            terrain_type='normal'
+        )
+
+        # Record movement on easy terrain
+        start_time = time.time()
+        self.bot.move_to_position((200, 200))
+        normal_time = time.time() - start_time
+
+        # Setup difficult terrain
+        self.mock_env.set_game_state(
+            current_position=(100, 100),
+            terrain_type='mountain'
+        )
+
+        # Record movement on difficult terrain
+        start_time = time.time()
+        self.bot.move_to_position((200, 200))
+        difficult_time = time.time() - start_time
+
+        # Verify movement was slower on difficult terrain
+        self.assertGreater(difficult_time, normal_time,
+                        "Movement speed didn't adapt to terrain")
+
+        # Verify AI prediction reflects terrain difficulty
+        easy_prediction = self.bot.gameplay_learner.predict_navigation({
+            'current_pos': (100, 100),
+            'target_pos': (200, 200),
+            'terrain_type': 'normal',
+            'detected_obstacles': []
+        })
+
+        hard_prediction = self.bot.gameplay_learner.predict_navigation({
+            'current_pos': (100, 100),
+            'target_pos': (200, 200),
+            'terrain_type': 'mountain',
+            'detected_obstacles': []
+        })
+
+        self.assertGreater(easy_prediction['recommended_speed'],
+                        hard_prediction['recommended_speed'],
+                        "AI didn't reduce recommended speed for difficult terrain")
 
 if __name__ == '__main__':
     unittest.main()

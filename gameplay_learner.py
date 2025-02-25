@@ -569,7 +569,6 @@ class GameplayLearner:
                 for k, v in patterns.get('combat', {}).items():
                     self.combat_patterns[k].__dict__.update(v)
 
-
                 self.logger.info("Loaded learned patterns from file")
 
         except Exception as e:
@@ -688,3 +687,130 @@ class GameplayLearner:
             base_score *= 1.3
 
         return base_score
+
+    def predict_navigation(self, current_state: Dict) -> Dict:
+        """Predict navigation success probability and optimal parameters
+        Args:
+            current_state: Dictionary containing:
+                - current_pos: Tuple[int, int]
+                - target_pos: Tuple[int, int]
+                - terrain_type: str
+                - detected_obstacles: List[Dict]
+        Returns:
+            Dict containing:
+                - success_probability: float (0-1)
+                - recommended_speed: float
+                - avoid_points: List[Tuple[int, int]]
+                - preferred_angle: float
+        """
+        try:
+            # If AI models aren't available, use basic prediction
+            if not self.timing_predictor or not self.success_predictor:
+                return self._basic_navigation_prediction(current_state)
+
+            # Extract features for prediction
+            features = self._extract_state_features(current_state)
+
+            # Get timing prediction
+            timing_input = torch.tensor(features[:10], dtype=torch.float32)
+            movement_time = self.timing_predictor(timing_input).item()
+
+            # Get success prediction
+            success_input = torch.tensor(features[:15], dtype=torch.float32)
+            success_prob = self.success_predictor(success_input).item()
+
+            # Calculate recommended speed based on success probability and terrain
+            base_speed = 1.0
+            if 'terrain_type' in current_state:
+                if current_state['terrain_type'] == 'water':
+                    base_speed *= 0.7
+                elif current_state['terrain_type'] == 'mountain':
+                    base_speed *= 0.5
+
+            recommended_speed = base_speed * (0.5 + 0.5 * success_prob)
+
+            # Generate avoid points based on learned patterns
+            avoid_points = []
+            if 'detected_obstacles' in current_state:
+                for obstacle in current_state['detected_obstacles']:
+                    if obstacle.get('type') in self.combat_patterns:
+                        # Add points around combat zones
+                        pos = obstacle.get('position')
+                        if pos:
+                            avoid_points.append(pos)
+
+            # Calculate preferred movement angle based on learned patterns
+            preferred_angle = None
+            if 'current_pos' in current_state and 'target_pos' in current_state:
+                dx = current_state['target_pos'][0] - current_state['current_pos'][0]
+                dy = current_state['target_pos'][1] - current_state['current_pos'][1]
+                base_angle = np.degrees(np.arctan2(dy, dx))
+
+                # Adjust angle based on learned success patterns
+                best_pattern = None
+                best_score = -1
+                for pattern in self.movement_patterns.values():
+                    score = pattern.success_rate
+                    if score > best_score:
+                        best_score = score
+                        best_pattern = pattern
+
+                if best_pattern:
+                    preferred_angle = (base_angle + best_pattern.count % 45) % 360
+
+            return {
+                'success_probability': success_prob,
+                'recommended_speed': recommended_speed,
+                'avoid_points': avoid_points,
+                'preferred_angle': preferred_angle if preferred_angle is not None else base_angle
+            }
+
+        except Exception as e:
+            self.logger.error(f"Error in navigation prediction: {str(e)}")
+            return self._basic_navigation_prediction(current_state)
+
+    def _basic_navigation_prediction(self, current_state: Dict) -> Dict:
+        """Basic prediction when AI models are not available"""
+        # Default conservative values
+        return {
+            'success_probability': 0.8,  # Assume generally successful
+            'recommended_speed': 1.0,    # Normal speed
+            'avoid_points': [],          # No specific points to avoid
+            'preferred_angle': None      # No angle preference
+        }
+
+    def update_navigation_model(self, navigation_result: Dict):
+        """Update model with navigation results
+        Args:
+            navigation_result: Dict containing:
+                - success: bool
+                - time_taken: float
+                - terrain_type: str
+                - start_pos: Tuple[int, int]
+                - end_pos: Tuple[int, int]
+        """
+        try:
+            if not navigation_result.get('success'):
+                return
+
+            # Record movement pattern
+            start_pos = navigation_result.get('start_pos')
+            end_pos = navigation_result.get('end_pos')
+            if start_pos and end_pos:
+                key = (start_pos, end_pos)
+                if key not in self.movement_patterns:
+                    self.movement_patterns[key] = GameplayPattern()
+
+                pattern = self.movement_patterns[key]
+                pattern.update(
+                    success_rate=1.0 if navigation_result.get('success') else 0.0,
+                    time_taken=navigation_result.get('time_taken', 0.0)
+                )
+
+            # Update success model if available
+            if self.success_predictor and self.timing_predictor:
+                # Extract features and update models (implementation depends on model type)
+                pass
+
+        except Exception as e:
+            self.logger.error(f"Error updating navigation model: {str(e)}")

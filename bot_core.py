@@ -864,6 +864,100 @@ class FishingBot:
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return [(x1, y1), (x2, y2)]  # Fallback to direct line
 
+    def move_to_position(self, position, speed_multiplier=1.0):
+        """Move to a position using AI-enhanced pathfinding"""
+        try:
+            if self.test_mode and self.test_env:
+                return self.test_env.move_to(position)
+
+            current_pos = self.get_current_position()
+            if not current_pos:
+                self.logger.error("Could not get current position")
+                return False
+
+            # Get navigation prediction from AI
+            navigation_prediction = self.gameplay_learner.predict_navigation({
+                'current_pos': current_pos,
+                'target_pos': position,
+                'terrain_type': self.map_manager.detect_terrain(position)['type'] if self.map_manager else 'unknown',
+                'detected_obstacles': self.vision_system.detect_objects(self.get_window_screenshot()) if self.vision_system else []
+            })
+
+            # Adjust movement based on AI predictions
+            if navigation_prediction:
+                speed_multiplier *= navigation_prediction['recommended_speed']
+                
+                # Check if we should avoid certain points
+                for avoid_point in navigation_prediction.get('avoid_points', []):
+                    if self.pathfinder:
+                        self.pathfinder.add_obstacle(avoid_point)
+
+                # Use preferred angle if available
+                preferred_angle = navigation_prediction.get('preferred_angle')
+                if preferred_angle is not None:
+                    self.direct_input.rotate_to_angle(preferred_angle)
+
+            # Move at adjusted speed
+            dx = position[0] - current_pos[0]
+            dy = position[1] - current_pos[1]
+            distance = np.sqrt(dx*dx + dy*dy)
+            movement_time = distance / (speed_multiplier * self.config['mouse_movement_speed'])
+
+            success = self.direct_input.move_to(position, duration=movement_time)
+
+            # Record navigation result for learning
+            if success:
+                self.gameplay_learner.update_navigation_model({
+                    'success': success,
+                    'time_taken': movement_time,
+                    'terrain_type': self.map_manager.detect_terrain(position)['type'] if self.map_manager else 'unknown',
+                    'start_pos': current_pos,
+                    'end_pos': position
+                })
+
+            return success
+
+        except Exception as e:
+            self.logger.error(f"Error in move_to_position: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def follow_path(self, path, speed_multiplier=1.0):
+        """Follow a path using AI-enhanced movement"""
+        try:
+            if not path:
+                return False
+
+            for point in path:
+                # Get navigation prediction for each segment
+                navigation_prediction = self.gameplay_learner.predict_navigation({
+                    'current_pos': self.get_current_position(),
+                    'target_pos': point,
+                    'terrain_type': self.map_manager.detect_terrain(point)['type'] if self.map_manager else 'unknown',
+                    'detected_obstacles': self.vision_system.detect_objects(self.get_window_screenshot()) if self.vision_system else []
+                })
+
+                # Skip points with very low success probability
+                if navigation_prediction and navigation_prediction['success_probability'] < 0.3:
+                    self.logger.warning(f"Skipping point {point} due to low success probability")
+                    continue
+
+                # Move to point with adjusted speed
+                adjusted_speed = speed_multiplier
+                if navigation_prediction:
+                    adjusted_speed *= navigation_prediction['recommended_speed']
+
+                if not self.move_to_position(point, adjusted_speed):
+                    self.logger.warning(f"Failed to move to point {point}")
+                    return False
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error in follow_path: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
     def _handle_fish_bite(self):
         """Handle fish bite event by reeling"""
         try:
@@ -1013,99 +1107,7 @@ class FishingBot:
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
-    def is_mounted(self):
-        """Check if character is currently mounted"""
-        try:
-            if self.test_mode and self.test_env:
-                return self.test_env.is_mounted()
-            # Implement actual mount detection here for non-test mode 
-            return False
-        except Exception as e:
-            self.logger.error(f"Error checking mount status: {str(e)}")
-            return False
 
-    def _handle_combat(self):
-        """Handle combat situation with proper ability rotation"""
-        try:
-            if not self.check_combat_status():
-                return False
-
-            self.logger.debug("Entering combat handling")
-            combat_start = time.time()
-            
-            # Track ability cooldowns and initial state
-            ability_cooldowns = {
-                'e': 20.0,  # Longest cooldown
-                'w': 12.0,  # Medium cooldown
-                'q': 6.0,   # Short cooldown
-                'space': 1.5 # Auto-attack cooldown
-            }
-            last_cast = {key: 0 for key in ability_cooldowns}
-            
-            # Log initial state
-            self.logger.debug(f"Combat start - Health: {self.get_current_health()}, Mounted: {self.is_mounted()}")
-            
-            # Dismount if needed
-            if self.is_mounted():
-                self.logger.debug("Dismounting for combat")
-                self.press_key('a')
-                time.sleep(0.5)
-                self.logger.debug(f"Mount status after dismount: {self.is_mounted()}")
-
-            # Combat loop
-            while self.check_combat_status():
-                current_time = time.time()
-                current_health = self.get_current_health()
-                combat_duration = current_time - combat_start
-                
-                # Log combat status
-                self.logger.debug(f"Combat status - Health: {current_health:.1f}, Duration: {combat_duration:.1f}s")
-                
-                # Emergency stop if health too low or combat taking too long
-                if current_health < 20 or combat_duration > 30:
-                    self.logger.warning(f"Emergency combat exit - Health: {current_health:.1f}, Duration: {combat_duration:.1f}s")
-                    break
-
-                # Use abilities based on cooldowns
-                for key, cooldown in ability_cooldowns.items():
-                    if current_time - last_cast[key] >= cooldown:
-                        self.logger.debug(f"Using combat ability: {key} (last used {current_time - last_cast[key]:.1f}s ago)")
-                        if key == 'space':
-                            success = self.press_key(key, duration=0.1)
-                        else:
-                            success = self.press_key(key)
-                        
-                        if success:
-                            last_cast[key] = current_time
-                            self.logger.debug(f"Successfully used {key}")
-                        else:
-                            self.logger.warning(f"Failed to use {key}")
-                        
-                        time.sleep(0.1)  # Small delay between abilities
-
-                time.sleep(0.1)  # Combat loop delay
-
-            combat_duration = time.time() - combat_start
-            self.logger.debug(f"Combat complete - Duration: {combat_duration:.1f}s, Final Health: {self.get_current_health():.1f}")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Combat handling error: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
-
-    def check_ability_cooldown(self, ability_key):
-        """Check if ability is on cooldown"""
-        try:
-            if self.test_mode and self.test_env:
-                current_time = time.time()
-                last_used = self.test_env.state.ability_cooldowns.get(ability_key, 0)
-                cooldown = 1.0  # 1 second cooldown for testing
-                return (current_time - last_used) < cooldown
-            return False
-        except Exception as e:
-            self.logger.error(f"Error checking cooldown: {str(e)}")
-            return True
 
     def check_combat_status(self):
         """Check if currently in combat"""
@@ -1468,21 +1470,7 @@ class FishingBot:
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
-    def navigate_to(self, target_pos):
-        """Navigate to target position avoiding obstacles"""
-        try:
-            if not target_pos or len(target_pos) != 2:
-                self.logger.error("Invalid target position")
-                return False
 
-            self.logger.debug(f"Navigating to position: {target_pos}")
-            
-            # Check for direct path first
-            if not self.pathfinder or not self._check_path_blocked(target_pos):
-                return self._move_to_position(target_pos)
-            
-            # Get path around obstacles
-            path = self.pathfinder.find_path(self.get_current_position(), target_pos)
             if not path:
                 self.logger.error("No valid path found")
                 return False
