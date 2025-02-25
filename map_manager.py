@@ -26,23 +26,24 @@ class MapManager:
         self.minimap_size: Tuple[int, int] = (0, 0)  # Will be set when processing minimap
 
         # Refined arrow detection parameters for better accuracy
-        self.arrow_color_lower = np.array([95, 130, 180])
-        self.arrow_color_upper = np.array([135, 255, 255])
-        self.min_arrow_area = 150  # Increased minimum area for more reliable detection
-        self.max_arrow_area = 800  # Increased maximum area
+        self.arrow_color_lower = np.array([90, 120, 160])  # Slightly more permissive color range
+        self.arrow_color_upper = np.array([140, 255, 255])
+        self.min_arrow_area = 120  # Adjusted for better detection
+        self.max_arrow_area = 600  # Reduced to avoid false positives
 
         # Adjusted arrow shape validation parameters
-        self.min_arrow_aspect_ratio = 0.4  # More permissive ratio
-        self.max_arrow_aspect_ratio = 2.5
-        self.min_arrow_solidity = 0.6  # Increased for better arrow shape detection
+        self.min_arrow_aspect_ratio = 0.5  # More strict ratio
+        self.max_arrow_aspect_ratio = 2.0
+        self.min_arrow_solidity = 0.7  # Increased for better arrow shape detection
+        self.max_circularity = 0.7 # Added parameter
 
         # Morphological operation parameters
-        self.morph_kernel_size = 3
-        self.morph_iterations = 2  # Increased iterations for better noise removal
+        self.morph_kernel_size = 2  # Reduced kernel size for finer detail
+        self.morph_iterations = 1  # Single iteration to preserve shape better
 
         # Direction detection improvements
-        self.tip_weight = 0.8  # Increased weight for tip direction
-        self.rect_weight = 0.2  # Decreased weight for rectangle direction
+        self.tip_weight = 0.9  # Increased weight for tip direction
+        self.rect_weight = 0.1  # Decreased weight for rectangle direction
 
         # Minimap to world scale factors
         self.scale_x: float = 1.0
@@ -187,7 +188,7 @@ class MapManager:
                     continue
 
                 circularity = 4 * np.pi * area / (perimeter * perimeter)
-                if circularity > 0.8:  # Skip too circular shapes
+                if circularity > self.max_circularity:  # Skip too circular shapes
                     continue
 
                 valid_contours.append(cnt)
@@ -233,8 +234,8 @@ class MapManager:
                     tip_angle = (tip_angle + 90) % 360  # Adjust to match game coordinates
 
                     # Weighted combination of tip and rectangle angles
-                    final_angle = (tip_angle * self.tip_weight + 
-                                rect_angle * self.rect_weight) % 360
+                    final_angle = (tip_angle * self.tip_weight +
+                                   rect_angle * self.rect_weight) % 360
                 else:
                     final_angle = rect_angle
             else:

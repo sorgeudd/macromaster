@@ -41,18 +41,21 @@ class GameWindow:
         try:
             # Update system resolution if provided
             if system_width and system_height:
-                self.system_width = system_width
-                self.system_height = system_height
-                self.logger.info(f"Updated system resolution to {system_width}x{system_height}")
+                self.system_width = max(1024, min(system_width, 7680))  # Support up to 8K
+                self.system_height = max(768, min(system_height, 4320))
+                self.logger.info(f"Updated system resolution to {self.system_width}x{self.system_height}")
 
             # Validate and update game window resolution
             supported_resolutions = [
                 (1280, 720),   # HD
                 (1366, 768),   # HD+
                 (1600, 900),   # HD+ Widescreen
-                (1920, 1080)   # Full HD
+                (1920, 1080),  # Full HD
+                (2560, 1440),  # QHD
+                (3440, 1440),  # Ultrawide
             ]
 
+            # Find closest supported resolution
             if (game_width, game_height) not in supported_resolutions:
                 closest = min(supported_resolutions, 
                             key=lambda x: abs(x[0] - game_width) + abs(x[1] - game_height))
@@ -88,15 +91,20 @@ class GameWindow:
 
     def set_viewport_offset(self, offset_x: int, offset_y: int):
         """Set viewport offset with bounds checking"""
-        # Calculate maximum allowed offsets
-        max_offset_x = self.window_width - self.view_width
-        max_offset_y = self.window_height - self.view_height
+        try:
+            # Calculate maximum allowed offsets
+            max_offset_x = self.window_width - self.view_width
+            max_offset_y = self.window_height - self.view_height
 
-        # Clamp offsets within bounds
-        self.viewport_offset_x = max(-max_offset_x, min(offset_x, max_offset_x))
-        self.viewport_offset_y = max(-max_offset_y, min(offset_y, max_offset_y))
+            # Clamp offsets within bounds
+            self.viewport_offset_x = max(-max_offset_x, min(offset_x, max_offset_x))
+            self.viewport_offset_y = max(-max_offset_y, min(offset_y, max_offset_y))
 
-        self.logger.debug(f"Set viewport offset to ({self.viewport_offset_x}, {self.viewport_offset_y})")
+            self.logger.debug(f"Set viewport offset to ({self.viewport_offset_x}, {self.viewport_offset_y})")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error setting viewport offset: {str(e)}")
+            return False
 
     def translate_screen_to_window(self, screen_pos: Tuple[float, float]) -> Tuple[int, int]:
         """Convert system screen coordinates to game window coordinates"""
@@ -230,12 +238,29 @@ class GameWindow:
         """Update system screen metrics and recalculate window position"""
         try:
             if system_width and system_height:
+                # Validate system resolution
+                if system_width < 1024 or system_height < 768:
+                    self.logger.error("System resolution too small, minimum is 1024x768")
+                    return False
+
+                if system_width > 7680 or system_height > 4320:
+                    self.logger.error("System resolution too large, maximum is 7680x4320")
+                    return False
+
                 self.system_width = system_width
                 self.system_height = system_height
 
                 # Recalculate window position to keep it centered
                 self.window_x = (self.system_width - self.window_width) // 2
                 self.window_y = (self.system_height - self.window_height) // 2
+
+                # Ensure window fits within system bounds
+                if self.window_width > self.system_width or self.window_height > self.system_height:
+                    self.logger.warning("Window size larger than system resolution, adjusting...")
+                    self.window_width = min(self.window_width, self.system_width)
+                    self.window_height = min(self.window_height, self.system_height)
+                    self.view_width = self.window_width
+                    self.view_height = self.window_height
 
                 self.logger.info(f"Updated system metrics to {system_width}x{system_height}")
                 self.logger.debug(f"New window position: ({self.window_x}, {self.window_y})")

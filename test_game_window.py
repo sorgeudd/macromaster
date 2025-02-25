@@ -273,7 +273,7 @@ def test_view_size_update():
         return False
 
 def test_screen_metrics_update():
-    """Test dynamic screen metrics updates"""
+    """Test dynamic screen metrics updates and resolution changes"""
     try:
         game_window = GameWindow()
 
@@ -285,8 +285,11 @@ def test_screen_metrics_update():
             (1920, 1200),  # Original resolution
             (2560, 1440),  # Higher resolution
             (1680, 1050),  # Different aspect ratio
+            (3440, 1440),  # Ultrawide
+            (1920, 1080),  # Full HD
         ]
 
+        passed_tests = 0
         for sys_width, sys_height in test_resolutions:
             # Update system metrics
             success = game_window.update_screen_metrics(sys_width, sys_height)
@@ -297,22 +300,46 @@ def test_screen_metrics_update():
             logger.info(f"\nTesting system resolution {sys_width}x{sys_height}:")
             logger.info(f"Window position: ({game_window.window_x}, {game_window.window_y})")
 
+            # Verify window is centered
+            expected_x = (sys_width - game_window.window_width) // 2
+            expected_y = (sys_height - game_window.window_height) // 2
+
+            if game_window.window_x == expected_x and game_window.window_y == expected_y:
+                logger.info("✓ Window centered correctly")
+                passed_tests += 1
+            else:
+                logger.error("✗ Window not centered correctly")
+
             # Test coordinate translation with new metrics
-            test_pos = (sys_width//2, sys_height//2)  # Center of screen
-            window_pos = game_window.translate_screen_to_window(test_pos)
-            screen_pos = game_window.translate_window_to_screen(window_pos)
+            test_positions = [
+                (sys_width//2, sys_height//2),    # Center of screen
+                (0, 0),                           # Top-left corner
+                (sys_width-1, sys_height-1),      # Bottom-right corner
+                (game_window.window_x, game_window.window_y)  # Window origin
+            ]
+
+            for pos in test_positions:
+                window_pos = game_window.translate_screen_to_window(pos)
+                screen_pos = game_window.translate_window_to_screen(window_pos)
+                logger.debug(f"Position translation test: {pos} -> {window_pos} -> {screen_pos}")
 
             # Create visualization
-            viz = create_test_visualization(game_window, window_pos)
+            viz = create_test_visualization(game_window, (sys_width//2, sys_height//2))
             cv2.putText(viz, 
                        f"System: {sys_width}x{sys_height}", 
                        (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
             cv2.imwrite(f'screen_metrics_test_{sys_width}x{sys_height}.png', viz)
 
-        return True
+        success_rate = (passed_tests / len(test_resolutions)) * 100
+        logger.info(f"\nScreen metrics test results: {passed_tests}/{len(test_resolutions)} "
+                   f"passed ({success_rate:.1f}%)")
+
+        return success_rate >= 80
 
     except Exception as e:
         logger.error(f"Screen metrics test failed: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 if __name__ == "__main__":
