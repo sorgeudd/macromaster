@@ -381,11 +381,34 @@
                 return;
             }
 
-            ws.send(JSON.stringify({
-                type: 'start_macro_recording',
-                data: { macro_name: macroName }
-            }));
-            addLogEntry(`Started recording macro: ${macroName}`, 'info');
+            // Disable the record button temporarily
+            const recordBtn = document.querySelector('button[onclick="recordMacro()"]');
+            recordBtn.disabled = true;
+
+            addLogEntry('Recording macro in 3 seconds...', 'info');
+            setTimeout(() => {
+                ws.send(JSON.stringify({
+                    type: 'start_macro_recording',
+                    macro_name: macroName
+                }));
+
+                // Start recording actions here
+                const actions = [];
+                // ... record actions ...
+
+                // After recording period, save the macro
+                setTimeout(() => {
+                    ws.send(JSON.stringify({
+                        type: 'save_macro',
+                        macro_name: macroName,
+                        actions: actions
+                    }));
+
+                    recordBtn.disabled = false;
+                    document.getElementById('macro-name').value = '';
+                    refreshMacroList();
+                }, 5000);
+            }, 3000);
         }
 
         function playMacro() {
@@ -397,7 +420,7 @@
 
             ws.send(JSON.stringify({
                 type: 'play_macro',
-                data: { macro_name: macroName }
+                macro_name: macroName
             }));
             addLogEntry(`Playing macro: ${macroName}`, 'info');
         }
@@ -410,6 +433,10 @@
                 return;
             }
 
+            // Disable the record button temporarily
+            const recordBtn = document.querySelector('button[onclick="recordSound()"]');
+            recordBtn.disabled = true;
+
             addLogEntry('Recording sound in 3 seconds...', 'info');
             setTimeout(() => {
                 ws.send(JSON.stringify({
@@ -417,6 +444,12 @@
                     sound_name: soundName
                 }));
                 addLogEntry(`Recording sound: ${soundName}`, 'info');
+
+                // Re-enable the button after recording duration
+                setTimeout(() => {
+                    recordBtn.disabled = false;
+                    document.getElementById('sound-name').value = '';
+                }, 2000);
             }, 3000);
         }
 
