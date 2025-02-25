@@ -91,6 +91,7 @@ class MockEnvironment:
             else:
                 bite_cooldown = max(0, bite_cooldown - 0.1)
 
+            self.simulate_combat_damage() #Added combat simulation
             time.sleep(0.05)  # Reduced CPU usage while maintaining responsiveness
 
     def record_input(self, input_type, **kwargs):
@@ -211,6 +212,28 @@ class MockEnvironment:
         except Exception as e:
             self.logger.error(f"Error updating game state: {str(e)}")
             return False
+
+    def get_current_health(self):
+        """Get current health value"""
+        return self.state.health
+
+    def is_mounted(self):
+        """Check if character is mounted"""
+        return self.state.is_mounted
+
+    def simulate_combat_damage(self):
+        """Simulate taking damage in combat"""
+        if self.state.is_in_combat:
+            self.state.health = max(0, self.state.health - random.uniform(1, 5))
+            self.logger.debug(f"Combat damage taken, health now: {self.state.health}")
+            return True
+        return False
+
+    def heal(self, amount):
+        """Heal character"""
+        self.state.health = min(100, self.state.health + amount)
+        self.logger.debug(f"Healed for {amount}, health now: {self.state.health}")
+
 
 def create_test_environment():
     """Create and return a mock environment instance"""

@@ -1,4 +1,4 @@
-"""Core bot functionality with advanced AI features"""
+"""Core bot functionality with advanced AI features and combat system"""
 import platform
 import logging
 from threading import Thread, Event
@@ -216,6 +216,22 @@ class FishingBot:
             self.logger.error(f"Failed to import required modules: {str(e)}")
             if not self.test_mode:
                 raise ImportError(f"Missing required module: {str(e)}")
+
+    def _init_ai_components(self):
+        """Initialize AI components including vision system"""
+        try:
+            if VisionSystem:
+                self.vision_system = VisionSystem()
+                self.logger.info("Vision system initialized")
+            else:
+                self.vision_system = None
+                self.logger.warning("Vision system not available")
+
+            # Additional AI component initialization can be added here
+            
+        except Exception as e:
+            self.logger.error(f"Error initializing AI components: {e}")
+            self.vision_system = None
 
     def _load_default_config(self):
         """Load default configuration"""
@@ -878,6 +894,41 @@ class FishingBot:
             
         except Exception as e:
             self.logger.error(f"Error handling fish bite: {str(e)}")
+            return False
+
+    # Combat System Methods
+    def get_current_health(self):
+        """Get current health percentage"""
+        try:
+            if self.test_mode and self.test_env:
+                return self.test_env.get_current_health()
+            # Implement actual health detection here for non-test mode
+            return 100.0
+        except Exception as e:
+            self.logger.error(f"Error getting health: {str(e)}")
+            return 100.0
+
+    def is_mounted(self):
+        """Check if character is currently mounted"""
+        try:
+            if self.test_mode and self.test_env:
+                return self.test_env.is_mounted()
+            # Implement actual mount detection here for non-test mode 
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking mount status: {str(e)}")
+            return False
+
+    def check_combat_status(self):
+        """Check if currently in combat"""
+        try:
+            if self.test_mode and self.test_env:
+                return self.test_env.state.is_in_combat
+            # For non-test mode, implement actual combat detection here
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking combat status: {str(e)}")
+            return False
 
     def check_ability_cooldown(self, ability_key):
         """Check if ability is on cooldown"""
@@ -901,7 +952,7 @@ class FishingBot:
             self.logger.debug("Entering combat handling")
             combat_start = time.time()
             
-            # Track ability cooldowns
+            # Track ability cooldowns and initial state
             ability_cooldowns = {
                 'e': 20.0,  # Longest cooldown
                 'w': 12.0,  # Medium cooldown
@@ -910,41 +961,151 @@ class FishingBot:
             }
             last_cast = {key: 0 for key in ability_cooldowns}
             
+            # Log initial state
+            self.logger.debug(f"Combat start - Health: {self.get_current_health()}, Mounted: {self.is_mounted()}")
+            
             # Dismount if needed
             if self.is_mounted():
                 self.logger.debug("Dismounting for combat")
                 self.press_key('a')
                 time.sleep(0.5)
+                self.logger.debug(f"Mount status after dismount: {self.is_mounted()}")
 
+            # Combat loop
             while self.check_combat_status():
                 current_time = time.time()
                 current_health = self.get_current_health()
+                combat_duration = current_time - combat_start
+                
+                # Log combat status
+                self.logger.debug(f"Combat status - Health: {current_health:.1f}, Duration: {combat_duration:.1f}s")
                 
                 # Emergency stop if health too low or combat taking too long
-                if current_health < 20 or (current_time - combat_start) > 30:
-                    self.logger.warning("Emergency combat exit - health low or timeout")
+                if current_health < 20 or combat_duration > 30:
+                    self.logger.warning(f"Emergency combat exit - Health: {current_health:.1f}, Duration: {combat_duration:.1f}s")
                     break
 
                 # Use abilities based on cooldowns
                 for key, cooldown in ability_cooldowns.items():
                     if current_time - last_cast[key] >= cooldown:
-                        self.logger.debug(f"Using combat ability: {key}")
+                        self.logger.debug(f"Using combat ability: {key} (last used {current_time - last_cast[key]:.1f}s ago)")
                         if key == 'space':
-                            self.press_key(key, duration=0.1)
+                            success = self.press_key(key, duration=0.1)
                         else:
-                            self.press_key(key)
-                        last_cast[key] = current_time
+                            success = self.press_key(key)
+                        
+                        if success:
+                            last_cast[key] = current_time
+                            self.logger.debug(f"Successfully used {key}")
+                        else:
+                            self.logger.warning(f"Failed to use {key}")
+                        
                         time.sleep(0.1)  # Small delay between abilities
 
                 time.sleep(0.1)  # Combat loop delay
 
-            self.logger.debug("Combat handling complete")
+            combat_duration = time.time() - combat_start
+            self.logger.debug(f"Combat complete - Duration: {combat_duration:.1f}s, Final Health: {self.get_current_health():.1f}")
             return True
 
         except Exception as e:
             self.logger.error(f"Combat handling error: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
+
+    def is_mounted(self):
+        """Check if character is currently mounted"""
+        try:
+            if self.test_mode and self.test_env:
+                return self.test_env.is_mounted()
+            # Implement actual mount detection here for non-test mode 
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking mount status: {str(e)}")
+            return False
+
+    def _handle_combat(self):
+        """Handle combat situation with proper ability rotation"""
+        try:
+            if not self.check_combat_status():
+                return False
+
+            self.logger.debug("Entering combat handling")
+            combat_start = time.time()
+            
+            # Track ability cooldowns and initial state
+            ability_cooldowns = {
+                'e': 20.0,  # Longest cooldown
+                'w': 12.0,  # Medium cooldown
+                'q': 6.0,   # Short cooldown
+                'space': 1.5 # Auto-attack cooldown
+            }
+            last_cast = {key: 0 for key in ability_cooldowns}
+            
+            # Log initial state
+            self.logger.debug(f"Combat start - Health: {self.get_current_health()}, Mounted: {self.is_mounted()}")
+            
+            # Dismount if needed
+            if self.is_mounted():
+                self.logger.debug("Dismounting for combat")
+                self.press_key('a')
+                time.sleep(0.5)
+                self.logger.debug(f"Mount status after dismount: {self.is_mounted()}")
+
+            # Combat loop
+            while self.check_combat_status():
+                current_time = time.time()
+                current_health = self.get_current_health()
+                combat_duration = current_time - combat_start
+                
+                # Log combat status
+                self.logger.debug(f"Combat status - Health: {current_health:.1f}, Duration: {combat_duration:.1f}s")
+                
+                # Emergency stop if health too low or combat taking too long
+                if current_health < 20 or combat_duration > 30:
+                    self.logger.warning(f"Emergency combat exit - Health: {current_health:.1f}, Duration: {combat_duration:.1f}s")
+                    break
+
+                # Use abilities based on cooldowns
+                for key, cooldown in ability_cooldowns.items():
+                    if current_time - last_cast[key] >= cooldown:
+                        self.logger.debug(f"Using combat ability: {key} (last used {current_time - last_cast[key]:.1f}s ago)")
+                        if key == 'space':
+                            success = self.press_key(key, duration=0.1)
+                        else:
+                            success = self.press_key(key)
+                        
+                        if success:
+                            last_cast[key] = current_time
+                            self.logger.debug(f"Successfully used {key}")
+                        else:
+                            self.logger.warning(f"Failed to use {key}")
+                        
+                        time.sleep(0.1)  # Small delay between abilities
+
+                time.sleep(0.1)  # Combat loop delay
+
+            combat_duration = time.time() - combat_start
+            self.logger.debug(f"Combat complete - Duration: {combat_duration:.1f}s, Final Health: {self.get_current_health():.1f}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Combat handling error: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def check_ability_cooldown(self, ability_key):
+        """Check if ability is on cooldown"""
+        try:
+            if self.test_mode and self.test_env:
+                current_time = time.time()
+                last_used = self.test_env.state.ability_cooldowns.get(ability_key, 0)
+                cooldown = 1.0  # 1 second cooldown for testing
+                return (current_time - last_used) < cooldown
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking cooldown: {str(e)}")
+            return True
 
     def check_combat_status(self):
         """Check if currently in combat"""
@@ -1140,66 +1301,7 @@ class FishingBot:
 
 
 
-    def _handle_combat(self):
-        """Handle combat situation with proper ability rotation"""
-        try:
-            if not self.check_combat_status():
-                return False
 
-            self.logger.debug("Entering combat handling")
-            combat_start = time.time()
-            
-            # Track ability cooldowns
-            ability_cooldowns = {
-                'e': 20.0,  # Longest cooldown
-                'w': 12.0,  # Medium cooldown
-                'q': 6.0,   # Short cooldown
-                'space': 1.5 # Auto-attack cooldown
-            }
-            last_cast = {key: 0 for key in ability_cooldowns}
-            
-            # Dismount if needed
-            if self.is_mounted():
-                self.logger.debug("Dismounting for combat")
-                self.press_key('a')
-                time.sleep(0.5)
-
-            while self.check_combat_status():
-                current_time = time.time()
-                current_health = self.get_current_health()
-                
-                # Emergency stop if health too low or combat taking too long
-                if current_health < 20 or (current_time - combat_start) > 30:
-                    self.logger.warning("Emergency combat exit - health low or timeout")
-                    break
-
-                # Use abilities based on cooldowns
-                for key, cooldown in ability_cooldowns.items():
-                    if current_time - last_cast[key] >= cooldown:
-                        self.logger.debug(f"Using combat ability: {key}")
-                        if key == 'space':
-                            self.press_key(key, duration=0.1)
-                        else:
-                            self.press_key(key)
-                        last_cast[key] = current_time
-                        time.sleep(0.1)  # Small delay between abilities
-
-                time.sleep(0.1)  # Combat loop delay
-
-            self.logger.debug("Combat handling complete")
-            return True
-
-        except Exception as e:
-            self.logger.error(f"Combat handling error: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False
-
-    def is_mounted(self):
-        """Check if character is currently mounted"""
-        if self.test_mode and self.test_env:
-            return self.test_env.get_screen_region().get('is_mounted', False)
-        # In real mode, would need to implement actual mount state detection
-        return False
 
 
     def get_current_position(self):
@@ -1364,15 +1466,69 @@ class FishingBot:
         except Exception as e:
             self.logger.error(f"Error recording action: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            return False points for movement path")
-            return points
+            return False
+
+    def navigate_to(self, target_pos):
+        """Navigate to target position avoiding obstacles"""
+        try:
+            if not target_pos or len(target_pos) != 2:
+                self.logger.error("Invalid target position")
+                return False
+
+            self.logger.debug(f"Navigating to position: {target_pos}")
+            
+            # Check for direct path first
+            if not self.pathfinder or not self._check_path_blocked(target_pos):
+                return self._move_to_position(target_pos)
+            
+            # Get path around obstacles
+            path = self.pathfinder.find_path(self.get_current_position(), target_pos)
+            if not path:
+                self.logger.error("No valid path found")
+                return False
+                
+            # Follow path points
+            for point in path:
+                success = self._move_to_position(point)
+                if not success:
+                    self.logger.error(f"Failed to move to path point: {point}")
+                    return False
+                time.sleep(0.2)  # Short delay between movements
+                
+            return True
 
         except Exception as e:
-            self.logger.error(f"Error generating bezier curve: {str(e)}")
+            self.logger.error(f"Navigation error: {str(e)}")
             self.logger.error(f"Stack trace: {traceback.format_exc()}")
-            # Fall back to linear path
-            return [(int(x1 + (x2-x1)*t/(num_points-1)), int(y1 + (y2-y1)*t/(num_points-1))) 
-                    for t in range(num_points)]
+            return False
+
+    def record_action(self, action_type, position=None, **kwargs):
+        """Record player action for learning mode and macros"""
+        try:
+            # Record for learning mode first
+            if self.learning_mode and self.gameplay_learner:
+                # Extract position from kwargs if not provided directly
+                if position is None and 'x' in kwargs and 'y' in kwargs:
+                    position = (kwargs.get('x'), kwargs.get('y'))
+                self.gameplay_learner.record_action(action_type, position=position, **kwargs)
+                self.logger.debug(f"Recorded learning action: {action_type} at {position}")
+
+            # Then handle macro recording
+            if self.recording_macro:
+                self.macro_actions.append({
+                    'type': action_type,
+                    'position': position,
+                    **kwargs,
+                    'timestamp': time.time()
+                })
+                self.logger.debug(f"Recorded macro action: {action_type}")
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error recording action: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
 
     def start_macro_recording(self, macro_name):
         """Start recording a new macro"""

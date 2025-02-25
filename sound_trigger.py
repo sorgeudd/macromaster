@@ -1,4 +1,15 @@
-"""Sound recording and detection module for macro triggers"""
+"""Sound recording and detection module for macro triggers
+
+This module provides functionality for recording and detecting sound triggers,
+supporting both microphone input and system audio output recording.
+
+Key Features:
+- Record sound triggers from microphone or system audio
+- Play back recorded sounds
+- Monitor for sound patterns and trigger callbacks
+- Save and load sound triggers
+- Cross-platform support with test mode
+"""
 import os
 import time
 import json
@@ -11,7 +22,15 @@ import numpy as np
 import pyaudio
 
 class SoundTrigger:
-    def __init__(self, sample_rate: int = 44100, threshold: float = 0.75, test_mode: bool = False):
+    def __init__(self, sample_rate: int = 44100, threshold: float = 0.75, test_mode: bool = False, recording_source: str = "mic"):
+        """Initialize sound trigger system
+
+        Args:
+            sample_rate: Audio sample rate (Hz)
+            threshold: Detection threshold for triggers (0.0-1.0)
+            test_mode: Run in test mode without real audio
+            recording_source: Audio source ("mic" or "system")
+        """
         self.logger = logging.getLogger('SoundTrigger')
         self.sample_rate = sample_rate
         self.threshold = threshold
@@ -19,6 +38,11 @@ class SoundTrigger:
         self.monitoring = False
         self.playing = False
         self.test_mode = test_mode
+        self.recording_source = recording_source.lower()
+
+        if self.recording_source not in ["mic", "system"]:
+            self.logger.warning(f"Invalid recording source '{recording_source}', defaulting to 'mic'")
+            self.recording_source = "mic"
 
         # Audio settings
         self.chunk_size = 1024
@@ -29,11 +53,16 @@ class SoundTrigger:
         try:
             if not self.test_mode:
                 self.audio = pyaudio.PyAudio()
-                # Try to get default input device
                 try:
+                    # Try to get default input device
                     self.audio.get_default_input_device_info()
+                    # Find system playback device for loopback
+                    self.system_device = self._find_system_device()
+                    if self.recording_source == "system" and self.system_device is None:
+                        self.logger.warning("No system audio device found, falling back to microphone")
+                        self.recording_source = "mic"
                 except (IOError, OSError):
-                    self.logger.warning("No input device found, forcing test mode")
+                    self.logger.warning(f"No input device found for {self.recording_source}, forcing test mode")
                     self.test_mode = True
                     self.audio = None
             else:
@@ -52,7 +81,21 @@ class SoundTrigger:
         self.triggers: Dict[str, Dict] = {}
         self._load_triggers()
 
-        self.logger.info(f"Sound trigger system initialized (test mode: {self.test_mode})")
+        self.logger.info(f"Sound trigger system initialized (test mode: {self.test_mode}, source: {self.recording_source})")
+
+    def _find_system_device(self):
+        """Find system playback device for loopback recording"""
+        try:
+            for i in range(self.audio.get_device_count()):
+                device_info = self.audio.get_device_info_by_index(i)
+                # Look for system playback device (usually "Speakers" or similar)
+                if device_info.get('maxInputChannels') == 0 and device_info.get('maxOutputChannels') > 0:
+                    self.logger.debug(f"Found system playback device: {device_info.get('name')}")
+                    return i
+            return None
+        except Exception as e:
+            self.logger.error(f"Error finding system device: {e}")
+            return None
 
     def _load_triggers(self):
         """Load saved trigger configurations"""
@@ -77,7 +120,11 @@ class SoundTrigger:
             self.logger.error(f"Error saving triggers: {e}")
 
     def record_sound(self, name: str, duration: float = 2.0) -> bool:
-        """Record a new sound trigger"""
+        """Record a new sound trigger
+        Args:
+            name: Name of the sound trigger
+            duration: Recording duration in seconds
+        """
         if self.recording:
             self.logger.warning("Already recording")
             return False
@@ -93,20 +140,32 @@ class SoundTrigger:
                 self.logger.info(f"Test mode: Generated {duration}s test signal")
             else:
                 frames = []
+                stream_kwargs = {
+                    'format': self.format,
+                    'channels': self.channels,
+                    'rate': self.sample_rate,
+                    'input': True,
+                    'frames_per_buffer': self.chunk_size
+                }
+
+                # Configure for system audio if selected
+                if self.recording_source == "system" and self.system_device is not None:
+                    stream_kwargs.update({
+                        'input_device_index': self.system_device,
+                        'as_loopback': True  # Enable WASAPI loopback
+                    })
+                    self.logger.info("Recording system audio output")
+                else:
+                    self.logger.info("Recording from microphone")
+
                 # Open recording stream
-                stream = self.audio.open(
-                    format=self.format,
-                    channels=self.channels,
-                    rate=self.sample_rate,
-                    input=True,
-                    frames_per_buffer=self.chunk_size
-                )
+                stream = self.audio.open(**stream_kwargs)
 
                 self.logger.info(f"Recording sound '{name}' for {duration} seconds...")
 
                 # Record audio
                 for _ in range(0, int(self.sample_rate / self.chunk_size * duration)):
-                    data = stream.read(self.chunk_size)
+                    data = stream.read(self.chunk_size, exception_on_overflow=False)
                     frames.append(np.frombuffer(data, dtype=np.float32))
 
                 # Stop recording
@@ -123,11 +182,12 @@ class SoundTrigger:
             self.triggers[name] = {
                 'file': str(filename),
                 'features': features.tolist(),
-                'duration': duration
+                'duration': duration,
+                'source': self.recording_source
             }
             self._save_triggers()
 
-            self.logger.info(f"Saved sound trigger '{name}'")
+            self.logger.info(f"Saved sound trigger '{name}' from {self.recording_source}")
             self.recording = False
             return True
 
@@ -234,19 +294,31 @@ class SoundTrigger:
                             self.logger.info(f"Test mode: Simulated detection of sound '{name}'")
                             callback(name)
             else:
-                stream = self.audio.open(
-                    format=self.format,
-                    channels=self.channels,
-                    rate=self.sample_rate,
-                    input=True,
-                    frames_per_buffer=self.chunk_size
-                )
+                stream_kwargs = {
+                    'format': self.format,
+                    'channels': self.channels,
+                    'rate': self.sample_rate,
+                    'input': True,
+                    'frames_per_buffer': self.chunk_size
+                }
+
+                # Configure for system audio if selected
+                if self.recording_source == "system" and self.system_device is not None:
+                    stream_kwargs.update({
+                        'input_device_index': self.system_device,
+                        'as_loopback': True
+                    })
+                    self.logger.info("Monitoring system audio output")
+                else:
+                    self.logger.info("Monitoring microphone input")
+
+                stream = self.audio.open(**stream_kwargs)
 
                 while self.monitoring:
                     frames = []
                     # Record a short sample
                     for _ in range(0, int(self.sample_rate / self.chunk_size * 2.0)):  # 2-second window
-                        data = stream.read(self.chunk_size)
+                        data = stream.read(self.chunk_size, exception_on_overflow=False)
                         frames.append(np.frombuffer(data, dtype=np.float32))
 
                     # Check for matches
@@ -265,7 +337,7 @@ class SoundTrigger:
 
         self.monitoring = True
         threading.Thread(target=monitor_thread, daemon=True).start()
-        self.logger.info("Started sound monitoring")
+        self.logger.info(f"Started sound monitoring ({self.recording_source})")
 
     def stop_monitoring(self):
         """Stop monitoring for sound triggers"""
