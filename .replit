@@ -87,6 +87,10 @@ args = "Testing UI"
 task = "workflow.run"
 args = "Component Tests"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Arrow Variation Tests"
+
 [[workflows.workflow]]
 name = "Fishing Bot"
 author = "agent"
@@ -338,6 +342,7 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python testing_ui.py"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Component Tests"
@@ -353,5 +358,23 @@ task = "packager.installForAll"
 task = "shell.exec"
 args = "python -m unittest test_minimap.py test_bot.py -v"
 
+[[workflows.workflow]]
+name = "Arrow Variation Tests"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python test_minimap.py"
+
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80

@@ -22,9 +22,14 @@ from PIL import Image, ImageTk
 import cv2
 import numpy as np
 from pathlib import Path
+import flask
+from flask import Flask, render_template
+from threading import Thread
 
 from map_manager import MapManager
 from mock_environment import MockEnvironment
+
+app = Flask(__name__)
 
 class TestingUI:
     def __init__(self):
@@ -49,8 +54,22 @@ class TestingUI:
         self.mock_env = MockEnvironment()  # Simulates game environment
         self.mock_env.start_simulation()
 
+        # Start Flask server in a separate thread
+        self.flask_thread = Thread(target=self._run_flask)
+        self.flask_thread.daemon = True
+        self.flask_thread.start()
+
         self.setup_ui()
         self.logger.info("Testing UI initialized successfully")
+
+    def _run_flask(self):
+        """Run Flask server for web feedback"""
+        app.run(host='0.0.0.0', port=5000)
+
+    @app.route('/')
+    def index():
+        """Flask route for web interface"""
+        return render_template('index.html')
 
     def setup_ui(self):
         """Setup all UI components and layout"""

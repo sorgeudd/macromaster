@@ -12,6 +12,81 @@ import traceback
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('MinimapTest')
 
+def create_test_arrow(position=(100, 100), size=25, color=(20, 200, 230)):
+    """Create test arrow with different sizes and colors"""
+    # Create black background
+    minimap_size = (200, 200, 3)
+    minimap = np.zeros(minimap_size, dtype=np.uint8)
+    cv2.rectangle(minimap, (0, 0), (200, 200), (20, 20, 20), -1)
+
+    # Calculate arrow dimensions
+    arrow_length = int(np.sqrt(size * 2))
+    arrow_width = int(np.sqrt(size / 2))
+
+    # Create arrow points
+    points = [
+        (position[0], position[1] - arrow_length),  # Tip
+        (position[0] - arrow_width, position[1] + arrow_width),  # Left base
+        (position[0] + arrow_width, position[1] + arrow_width)   # Right base
+    ]
+
+    pts = np.array(points, dtype=np.int32)
+    cv2.fillPoly(minimap, [pts], color)
+    cv2.polylines(minimap, [pts], True, color, 1)
+
+    return minimap
+
+def test_arrow_variations():
+    """Test detection with different arrow variations"""
+    try:
+        map_manager = MapManager()
+
+        # Test different sizes
+        sizes = [18, 25, 32]
+        colors = [
+            (20, 200, 230),  # Yellow
+            (255, 255, 255), # White
+            (100, 255, 100)  # Green
+        ]
+        positions = [(100, 100), (50, 50), (150, 150)]
+
+        logger.info("Testing arrow variations:")
+
+        passed_tests = 0
+        total_tests = len(sizes) * len(colors) * len(positions)
+
+        for size in sizes:
+            for color in colors:
+                for pos in positions:
+                    minimap = create_test_arrow(pos, size, color)
+                    detected_pos = map_manager.detect_player_position(minimap)
+
+                    if detected_pos:
+                        error = np.sqrt((detected_pos.x - pos[0])**2 + 
+                                      (detected_pos.y - pos[1])**2)
+
+                        logger.info(f"Size {size}, Color {color}, Pos {pos}:")
+                        logger.info(f"  Detected at: ({detected_pos.x}, {detected_pos.y})")
+                        logger.info(f"  Error: {error:.1f} pixels")
+
+                        if error < 3:
+                            passed_tests += 1
+                            logger.info("  ✓ Test passed")
+                        else:
+                            logger.error("  ✗ Test failed (position error)")
+                    else:
+                        logger.error(f"  ✗ Detection failed for size {size}, color {color}")
+
+        success_rate = (passed_tests / total_tests) * 100
+        logger.info(f"\nResults: {passed_tests}/{total_tests} passed ({success_rate:.1f}%)")
+
+        return success_rate > 80
+
+    except Exception as e:
+        logger.error(f"Arrow variation test failed: {str(e)}")
+        logger.error(f"Stack trace: {traceback.format_exc()}")
+        return False
+
 def setup_test_maps():
     """Setup test maps directory with actual fishing spot map"""
     test_map_dir = Path('maps')
@@ -58,43 +133,6 @@ def test_fishing_spot_detection():
         logger.error(f"Fishing spot detection test failed: {str(e)}")
         logger.error(f"Stack trace: {traceback.format_exc()}")
         return False
-
-def create_test_minimap(arrow_pos=(100, 100), angle=0, zone_name="Mase Knoll"):
-    """Create a test minimap with player arrow"""
-    # Create black background
-    minimap_size = (200, 200, 3)
-    minimap = np.zeros(minimap_size, dtype=np.uint8)
-
-    # Create darker background for better contrast
-    cv2.rectangle(minimap, (0, 0), (200, 200), (20, 20, 20), -1)
-
-    # Calculate arrow dimensions
-    target_area = 25  # Target arrow size
-    arrow_length = int(np.sqrt(target_area * 2))
-    arrow_width = int(np.sqrt(target_area / 2))
-
-    # Create arrow points
-    tip_x = int(arrow_pos[0] + arrow_length * np.sin(np.radians(angle)))
-    tip_y = int(arrow_pos[1] - arrow_length * np.cos(np.radians(angle)))
-
-    base1_x = int(arrow_pos[0] + arrow_width * np.sin(np.radians(angle + 120)))
-    base1_y = int(arrow_pos[1] - arrow_width * np.cos(np.radians(angle + 120)))
-
-    base2_x = int(arrow_pos[0] + arrow_width * np.sin(np.radians(angle - 120)))
-    base2_y = int(arrow_pos[1] - arrow_width * np.cos(np.radians(angle - 120)))
-
-    pts = np.array([[tip_x, tip_y], [base1_x, base1_y], [base2_x, base2_y]], dtype=np.int32)
-    pts = pts.reshape((-1, 1, 2))
-
-    # Draw arrow
-    arrow_color = (20, 200, 230)  # BGR format for yellow arrow
-    cv2.fillPoly(minimap, [pts], arrow_color)
-    cv2.polylines(minimap, [pts], True, arrow_color, 1)
-
-    # Add zone name with white color for better visibility
-    cv2.putText(minimap, zone_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
-
-    return minimap
 
 def test_arrow_detection(map_manager, position, angle=0):
     """Test arrow detection at specific position"""
@@ -147,6 +185,44 @@ def test_minimap_detection():
         logger.error(f"Stack trace: {traceback.format_exc()}")
         return False
 
+def create_test_minimap(arrow_pos=(100, 100), angle=0, zone_name="Mase Knoll"):
+    """Create a test minimap with player arrow"""
+    # Create black background
+    minimap_size = (200, 200, 3)
+    minimap = np.zeros(minimap_size, dtype=np.uint8)
+
+    # Create darker background for better contrast
+    cv2.rectangle(minimap, (0, 0), (200, 200), (20, 20, 20), -1)
+
+    # Calculate arrow dimensions
+    target_area = 25  # Target arrow size
+    arrow_length = int(np.sqrt(target_area * 2))
+    arrow_width = int(np.sqrt(target_area / 2))
+
+    # Create arrow points
+    tip_x = int(arrow_pos[0] + arrow_length * np.sin(np.radians(angle)))
+    tip_y = int(arrow_pos[1] - arrow_length * np.cos(np.radians(angle)))
+
+    base1_x = int(arrow_pos[0] + arrow_width * np.sin(np.radians(angle + 120)))
+    base1_y = int(arrow_pos[1] - arrow_width * np.cos(np.radians(angle + 120)))
+
+    base2_x = int(arrow_pos[0] + arrow_width * np.sin(np.radians(angle - 120)))
+    base2_y = int(arrow_pos[1] - arrow_width * np.cos(np.radians(angle - 120)))
+
+    pts = np.array([[tip_x, tip_y], [base1_x, base1_y], [base2_x, base2_y]], dtype=np.int32)
+    pts = pts.reshape((-1, 1, 2))
+
+    # Draw arrow
+    arrow_color = (20, 200, 230)  # BGR format for yellow arrow
+    cv2.fillPoly(minimap, [pts], arrow_color)
+    cv2.polylines(minimap, [pts], True, arrow_color, 1)
+
+    # Add zone name with white color for better visibility
+    cv2.putText(minimap, zone_name, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+
+    return minimap
+
+
 if __name__ == "__main__":
     # Test fishing spot detection first
     if not test_fishing_spot_detection():
@@ -156,6 +232,11 @@ if __name__ == "__main__":
     # Test minimap detection
     if not test_minimap_detection():
         logger.error("Minimap detection test failed")
+        exit(1)
+
+    # Test arrow variations
+    if not test_arrow_variations():
+        logger.error("Arrow variation tests failed")
         exit(1)
 
     logger.info("All tests completed successfully")
