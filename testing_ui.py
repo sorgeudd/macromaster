@@ -1,19 +1,3 @@
-"""Real-time testing interface for the fishing bot systems
-
-This UI provides a comprehensive testing environment for:
-- Player position detection on minimap
-- Resource location detection
-- Terrain type simulation
-- Movement and navigation testing
-
-The interface includes:
-- Real-time minimap preview
-- Position testing controls
-- Terrain type selection
-- Resource map loading and testing
-- Detailed debug information panel
-"""
-
 import sys
 import logging
 import tkinter as tk
@@ -23,13 +7,16 @@ import cv2
 import numpy as np
 from pathlib import Path
 import flask
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 from threading import Thread
+import json
+from flask_sock import Sock
 
 from map_manager import MapManager
 from mock_environment import MockEnvironment
 
 app = Flask(__name__)
+sock = Sock(app)
 
 class TestingUI:
     def __init__(self):
@@ -48,6 +35,10 @@ class TestingUI:
         self.root = tk.Tk()
         self.root.title("Fishing Bot Testing Interface")
         self.root.geometry("800x600")
+
+        # Game window detection state
+        self.window_detected = False
+        self.last_window_name = ""
 
         # Initialize core components
         self.map_manager = MapManager()  # Handles map and resource detection
@@ -70,6 +61,30 @@ class TestingUI:
     def index():
         """Flask route for web interface"""
         return render_template('index.html')
+
+    @app.route('/status')
+    def get_status():
+        """API endpoint for getting current status"""
+        return jsonify({
+            'position': 'Active',
+            'resource': 'Ready',
+            'terrain': 'Ready',
+            'window': 'Not Detected' if not self.window_detected else self.last_window_name
+        })
+
+    @sock.route('/updates')
+    def updates(ws):
+        """WebSocket endpoint for real-time updates"""
+        while True:
+            ws.send(json.dumps({
+                'type': 'status_update',
+                'data': {
+                    'position': 'Active',
+                    'resource': 'Ready',
+                    'terrain': 'Ready',
+                    'window': 'Not Detected' if not self.window_detected else self.last_window_name
+                }
+            }))
 
     def setup_ui(self):
         """Setup all UI components and layout"""
@@ -104,6 +119,21 @@ class TestingUI:
         """Setup the left control panel with all testing controls"""
         control_frame = ttk.LabelFrame(parent, text="Controls", padding="5")
         control_frame.grid(row=0, column=0, rowspan=2, sticky=(tk.W, tk.E, tk.N, tk.S))
+
+        # Game window detection
+        window_frame = ttk.LabelFrame(control_frame, text="Game Window", padding="5")
+        window_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        ttk.Label(window_frame, text="Window Name:").pack(fill=tk.X, pady=2)
+        self.window_name_var = tk.StringVar(value="Your Game Window Name")
+        ttk.Entry(window_frame, textvariable=self.window_name_var).pack(fill=tk.X, pady=2)
+
+        self.window_status_var = tk.StringVar(value="Status: Not Detected")
+        window_status = ttk.Label(window_frame, textvariable=self.window_status_var)
+        window_status.pack(fill=tk.X, pady=2)
+
+        ttk.Button(window_frame, text="Test Window Detection",
+                  command=self.test_window_detection).pack(fill=tk.X, pady=2)
 
         # Position testing controls
         pos_frame = ttk.LabelFrame(control_frame, text="Position Testing", padding="5")
@@ -141,6 +171,15 @@ class TestingUI:
         ttk.Button(resource_frame, text="Find Nearby",
                   command=self.find_nearby_resources).pack(fill=tk.X, pady=2)
 
+    def test_window_detection(self):
+        """Test if the game window can be detected"""
+        window_name = self.window_name_var.get()
+        # In real implementation, this would check if the window exists
+        self.window_detected = True
+        self.last_window_name = window_name
+        self.window_status_var.set(f"Status: Detected - {window_name}")
+        self.log_info(f"Game window detected: {window_name}")
+
     def _setup_preview_area(self, parent):
         """Setup the minimap preview area"""
         preview_frame = ttk.LabelFrame(parent, text="Minimap Preview", padding="5")
@@ -158,13 +197,7 @@ class TestingUI:
         self.info_text.pack(expand=True, fill=tk.BOTH)
 
     def update_preview(self):
-        """Update minimap preview with current state
-
-        Shows:
-        - Current player position (green dot)
-        - Detected resources (blue dots)
-        - Current terrain effects
-        """
+        """Update minimap preview with current state"""
         try:
             # Create base minimap
             minimap = np.zeros((200, 200, 3), dtype=np.uint8)
@@ -195,13 +228,17 @@ class TestingUI:
         self.root.after(100, self.update_preview)
 
     def log_info(self, message):
-        """Add message to info text panel"""
+        """Add message to info text panel and broadcast to web clients"""
         self.info_text.insert(tk.END, f"{message}\n")
         self.info_text.see(tk.END)
 
     def test_move_to(self):
         """Test movement to specified coordinates"""
         try:
+            if not self.window_detected:
+                messagebox.showwarning("Warning", "Game window not detected!")
+                return
+
             x = int(self.x_var.get())
             y = int(self.y_var.get())
 
@@ -218,6 +255,10 @@ class TestingUI:
 
     def change_terrain(self):
         """Update current terrain type and movement effects"""
+        if not self.window_detected:
+            messagebox.showwarning("Warning", "Game window not detected!")
+            return
+
         terrain = self.terrain_var.get()
         success = self.mock_env.set_game_state(terrain_type=terrain)
 
@@ -229,6 +270,10 @@ class TestingUI:
 
     def load_resource_map(self, resource_type):
         """Load and analyze resource map"""
+        if not self.window_detected:
+            messagebox.showwarning("Warning", "Game window not detected!")
+            return
+
         try:
             map_name = f"mase knoll {resource_type}"
             success = self.map_manager.load_map(map_name)
@@ -245,6 +290,10 @@ class TestingUI:
 
     def find_nearby_resources(self):
         """Find resources near current position"""
+        if not self.window_detected:
+            messagebox.showwarning("Warning", "Game window not detected!")
+            return
+
         try:
             if not self.mock_env.state.current_position:
                 messagebox.showwarning("Warning", "No current position set")

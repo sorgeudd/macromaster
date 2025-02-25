@@ -52,6 +52,11 @@
     <div class="status-panel">
         <h2>Testing Status</h2>
         <div class="status-item">
+            <span class="status-indicator error"></span>
+            <span>Game Window: </span>
+            <span id="window-status">Not Detected</span>
+        </div>
+        <div class="status-item">
             <span class="status-indicator active"></span>
             <span>Position Testing: </span>
             <span id="position-status">Active</span>
@@ -76,7 +81,22 @@
     </div>
 
     <script>
-        // Placeholder for real-time updates
+        // Setup WebSocket connection
+        const ws = new WebSocket('ws://' + location.host + '/updates');
+
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            if (data.type === 'status_update') {
+                updateStatus('position', data.data.position);
+                updateStatus('resource', data.data.resource);
+                updateStatus('terrain', data.data.terrain);
+                updateStatus('window', data.data.window);
+            } else if (data.type === 'log') {
+                addLogEntry(data.data);
+            }
+        };
+
         function updateStatus(component, status) {
             const element = document.getElementById(component + '-status');
             if (element) {
@@ -96,6 +116,16 @@
             entry.textContent = new Date().toLocaleTimeString() + ': ' + message;
             logs.insertBefore(entry, logs.firstChild);
         }
+
+        // Initial status update
+        fetch('/status')
+            .then(response => response.json())
+            .then(data => {
+                updateStatus('position', data.position);
+                updateStatus('resource', data.resource);
+                updateStatus('terrain', data.terrain);
+                updateStatus('window', data.window);
+            });
     </script>
 </body>
 </html>
