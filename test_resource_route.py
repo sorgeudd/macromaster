@@ -65,29 +65,40 @@ def test_resource_routing():
                 'name': 'Full resources only',
                 'types': ['copper_ore_full', 'limestone_full'],
                 'prefer_full': True,
-                'min_priority': 1.0  # Only high priority nodes
+                'min_priority': 1.0,  # Only high priority nodes
+                'priority_modifiers': {'copper_ore_full': 1.2, 'limestone_full': 1.0}
             },
             {
                 'name': 'All copper nodes',
                 'types': ['copper_ore_full', 'copper_ore_empty'],
                 'prefer_full': False,
-                'min_priority': 0.0  # Any priority
+                'min_priority': 0.0,  # Any priority
+                'priority_modifiers': None
             },
             {
                 'name': 'Mixed resources',
                 'types': ['copper_ore_full', 'copper_ore_empty', 'limestone_full', 'limestone_empty'],
                 'prefer_full': False,
-                'min_priority': 0.5  # Medium priority and up
+                'min_priority': 0.5,  # Medium priority and up
+                'priority_modifiers': {'copper_ore_full': 1.5, 'limestone_full': 1.3}
             }
         ]
 
         for test_case in test_cases:
             logger.info(f"\nTesting route: {test_case['name']}")
+
+            # Configure filtering for this test case
+            route_manager.configure_filtering(
+                enabled_types=test_case['types'],
+                priority_modifiers=test_case['priority_modifiers'],
+                minimum_priority=test_case['min_priority'],
+                require_full_only=test_case['prefer_full']
+            )
+
             route = route_manager.create_route(
-                resource_types=test_case['types'],
                 start_pos=start_pos,
-                prefer_full=test_case['prefer_full'],
-                min_priority=test_case['min_priority']
+                max_distance=None,
+                complete_cycle=True
             )
 
             if route:
@@ -130,11 +141,15 @@ def test_resource_routing():
                 logger.error(f"Failed to create route for: {test_case['name']}")
                 return False
 
+            # Reset filtering between test cases
+            route_manager.reset_filtering()
+
         # Log overall statistics
         logger.info("\nOverall Statistics:")
         logger.info(f"Total routes created: {route_manager.stats['total_routes']}")
         logger.info(f"Average completion time: {route_manager.stats['average_completion_time']:.2f}s")
         logger.info(f"Failed routes: {route_manager.stats['failed_routes']}")
+        logger.info(f"Filtered nodes: {route_manager.stats['filtered_nodes']}")
         logger.info("Resources collected:")
         for res_type, count in route_manager.stats['resources_collected'].items():
             logger.info(f"  {res_type}: {count}")
