@@ -297,7 +297,7 @@ class ResourceRouteManager:
 
             route = ResourceRoute()
             route.cycle_complete = complete_cycle
-            route.pattern = pattern
+            route.pattern = "optimal"  # Force optimal pattern as selected
 
             start_node = ResourceNode(start_pos, "start")
             route.add_waypoint(start_node)
@@ -310,14 +310,27 @@ class ResourceRouteManager:
             available_nodes = []
             filtered_count = 0
             for pos, node in self.nodes.items():
+                # Check terrain penalties
+                terrain = self.map_manager.detect_terrain(pos)
+                terrain_penalty = self.map_manager.get_terrain_penalty(pos)
+
+                # Skip nodes in impassable terrain
+                if terrain['water'] > 0.5 or terrain_penalty > 0.9:
+                    filtered_count += 1
+                    continue
+
                 if not node.is_available(self.filter_settings):
                     filtered_count += 1
                     continue
+
                 if max_distance is not None:
                     distance = abs(pos[0] - start_pos[0]) + abs(pos[1] - start_pos[1])
                     if distance > max_distance:
                         filtered_count += 1
                         continue
+
+                # Add terrain penalty to node
+                self.add_terrain_penalty(pos, terrain_penalty)
                 available_nodes.append(node)
 
             self.stats['filtered_nodes'] = filtered_count
@@ -330,13 +343,21 @@ class ResourceRouteManager:
             for node in available_nodes:
                 route.add_waypoint(node)
 
-            route.optimize(pattern=pattern)
+            # Enhanced optimization weights for terrain awareness
+            route.optimize(
+                pattern="optimal",
+                distance_weight=0.5,  # Reduced to give more weight to terrain
+                variety_weight=0.2,
+                priority_weight=0.2,
+                density_weight=0.1
+            )
 
             full_path = []
             bounds = self._calculate_bounds(route.waypoints)
             route_valid = True
 
             for i in range(len(route.waypoints) - 1):
+                # Find path considering terrain
                 path = self.pathfinder.find_path(
                     route.waypoints[i],
                     route.waypoints[i + 1],
@@ -354,20 +375,21 @@ class ResourceRouteManager:
                 self.stats['failed_routes'] += 1
                 return None
 
+            # Adjust time estimates based on terrain
             base_time = route.total_distance * 0.5
+            terrain_modifier = 1.0 + sum(penalty for penalty in route.terrain_penalties.values()) / len(route.terrain_penalties) if route.terrain_penalties else 1.0
             gathering_time = sum(2.0 + (node.visit_count * 0.5) for node in route.nodes)
-            route.estimated_time = base_time + gathering_time
+            route.estimated_time = (base_time + gathering_time) * terrain_modifier
 
             self.current_route = route
             self.stats['total_routes'] += 1
 
             self.logger.info(
-                f"Created route with {len(route.waypoints)} waypoints "
-                f"covering {len(route.resource_counts)} resource types\n"
+                f"Created optimal route with {len(route.waypoints)} waypoints\n"
                 f"Distance: {route.total_distance:.1f} units\n"
                 f"Est. time: {route.estimated_time:.1f}s\n"
+                f"Terrain modifier: {terrain_modifier:.2f}\n"
                 f"Resource distribution: {dict(route.resource_counts)}\n"
-                f"Pattern: {pattern}\n"
                 f"Filtered nodes: {filtered_count}"
             )
 
