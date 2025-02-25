@@ -133,22 +133,26 @@ class VisionSystem:
 
             # Define color ranges for basic detection with tighter thresholds
             color_ranges = {
-                'wood': [(10, 120, 70), (20, 255, 200)],     # Brown
-                'stone': [(0, 0, 100), (180, 30, 200)],      # Gray
-                'ore': [(0, 0, 0), (180, 30, 100)],          # Dark Gray/Black
-                'fiber': [(35, 100, 100), (85, 255, 255)],   # Green
-                'hide': [(0, 50, 50), (10, 255, 200)]        # Light Brown
+                'copper_ore_full': [(10, 50, 50), (20, 255, 200)],    # Brownish-orange
+                'copper_ore_empty': [(0, 0, 50), (20, 50, 150)],      # Gray-brown
+                'limestone_full': [(20, 0, 150), (40, 50, 255)],      # Light beige
+                'limestone_empty': [(0, 0, 100), (20, 30, 180)],      # Gray
+                'wood': [(10, 120, 70), (20, 255, 200)],             # Brown
+                'stone': [(0, 0, 100), (180, 30, 200)],              # Gray
+                'ore': [(0, 0, 0), (180, 30, 100)],                  # Dark Gray/Black
+                'fiber': [(35, 100, 100), (85, 255, 255)],           # Green
+                'hide': [(0, 50, 50), (10, 255, 200)]                # Light Brown
             }
 
             detections = []
-            min_area = 1000  # Increased minimum area to filter out noise
+            min_area = 500  # Reduced minimum area for smaller resource nodes
             max_area = frame.shape[0] * frame.shape[1] // 4  # Max 1/4 of image
 
             for class_id, (lower, upper) in color_ranges.items():
                 mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
 
                 # Apply morphological operations to remove noise
-                kernel = np.ones((7,7), np.uint8)
+                kernel = np.ones((5,5), np.uint8)  # Smaller kernel for finer details
                 mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
                 mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
@@ -164,14 +168,15 @@ class VisionSystem:
                             aspect_ratio = float(w)/h
                             solidity = area / (w * h)
 
-                            # Check if the detection meets our criteria
-                            if (0.5 <= aspect_ratio <= 2.0 and  # Not too elongated
-                                solidity > 0.5):                # Reasonably solid shape
+                            # More lenient criteria for resource nodes
+                            if (0.3 <= aspect_ratio <= 3.0 and  # Less strict aspect ratio
+                                solidity > 0.3):                # Less strict solidity
 
                                 # Calculate confidence based on multiple factors
-                                area_conf = min(area / 10000, 0.95)
+                                area_conf = min(area / 5000, 0.95)  # Adjusted for smaller nodes
                                 shape_conf = min(solidity, 0.95)
-                                confidence = (area_conf + shape_conf) / 2
+                                color_strength = np.mean(mask[y:y+h, x:x+w]) / 255.0
+                                confidence = (area_conf + shape_conf + color_strength) / 3
 
                                 detections.append({
                                     'class_id': class_id,
