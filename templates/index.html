@@ -193,7 +193,8 @@
                     <h3>Macro Management</h3>
                     <div id="macro-controls">
                         <input type="text" id="macro-name" placeholder="New Macro Name">
-                        <button onclick="recordMacro()">Record Macro</button>
+                        <button onclick="startMacroRecording()" id="record-macro-btn">Record Macro</button>
+                        <button onclick="saveMacroRecording()" id="save-macro-btn" disabled>Save Recording</button>
                         <button onclick="refreshMacroList()">Refresh Macros</button>
                         <select id="macro-list" style="margin: 10px 0;">
                             <option value="">Select a macro to play</option>
@@ -213,16 +214,15 @@
                     <div id="binding-options" style="margin: 10px 0;">
                         <!-- Dynamic binding options will be inserted here -->
                     </div>
-                    <button onclick="recordSound()">Record Sound</button>
                     <button onclick="saveTrigger()">Save Trigger</button>
                 </div>
 
-                <!-- Sound Trigger Management -->
                 <div class="control-group">
                     <h3>Sound Triggers</h3>
                     <div id="sound-controls">
                         <input type="text" id="sound-name" placeholder="Enter a name for the sound trigger">
-                        <button onclick="recordSound()">Record Sound (2s)</button>
+                        <button onclick="startSoundRecording()" id="record-sound-btn">Record Sound</button>
+                        <button onclick="saveSoundRecording()" id="save-sound-btn" disabled>Save Recording</button>
                         <button onclick="refreshSoundList()">Refresh Sounds</button>
                         <select id="sound-list" style="margin: 10px 0;">
                             <option value="">Select a sound trigger</option>
@@ -231,7 +231,6 @@
                     </div>
                 </div>
 
-                <!-- Sound Macro Mapping -->
                 <div class="control-group">
                     <h3>Map Sound to Macro</h3>
                     <div id="mapping-controls">
@@ -374,39 +373,6 @@
         }
 
         // Macro Controls
-        function recordMacro() {
-            const macroName = document.getElementById('macro-name').value.trim();
-            if (!macroName) {
-                addLogEntry('Please enter a macro name', 'error');
-                return;
-            }
-
-            // Disable the record button temporarily
-            const recordBtn = document.querySelector('button[onclick="recordMacro()"]');
-            recordBtn.disabled = true;
-
-            addLogEntry('Recording macro in 3 seconds...', 'info');
-            setTimeout(() => {
-                addLogEntry('Started recording macro...', 'info');
-                let recording = true;
-                let actions = [];
-
-                // Record for 5 seconds
-                setTimeout(() => {
-                    if (recording) {
-                        recording = false;
-                        ws.send(JSON.stringify({
-                            type: 'save_macro',
-                            macro_name: macroName,
-                            actions: actions
-                        }));
-                        addLogEntry('Finished recording macro', 'info');
-                    }
-                }, 5000);
-
-            }, 3000);
-        }
-
         function playMacro() {
             const macroName = document.getElementById('macro-list').value;
             if (!macroName) {
@@ -421,55 +387,18 @@
             addLogEntry(`Playing macro: ${macroName}`, 'info');
         }
 
+
         // Sound Controls
-        function recordSound() {
-            const soundName = document.getElementById('sound-name').value.trim();
+        function playSound() {
+            const soundName = document.getElementById('sound-list').value;
             if (!soundName) {
-                addLogEntry('Please enter a name for the sound trigger', 'error');
+                addLogEntry('Please select a sound to play', 'error');
                 return;
             }
 
-            // Disable the record button temporarily
-            const recordBtn = document.querySelector('button[onclick="recordSound()"]');
-            recordBtn.disabled = true;
-
-            addLogEntry('Recording sound in 3 seconds...', 'info');
-            setTimeout(() => {
-                ws.send(JSON.stringify({
-                    type: 'start_sound_recording',
-                    sound_name: soundName
-                }));
-                addLogEntry('Recording sound...', 'info');
-
-                // Re-enable button and clear input after 2 seconds
-                setTimeout(() => {
-                    recordBtn.disabled = false;
-                    document.getElementById('sound-name').value = '';
-                    addLogEntry('Finished recording sound', 'info');
-                }, 2000);
-            }, 3000);
-        }
-
-        function saveTrigger() {
-            const triggerName = document.getElementById('trigger-name').value;
-            const bindAction = document.getElementById('bind-action').value;
-            let bindingValue = '';
-
-            if (bindAction === 'mouse_click') {
-                bindingValue = document.getElementById('mouse-button').value;
-            } else if (bindAction === 'macro') {
-                bindingValue = document.getElementById('trigger-macro').value;
-            } else if (bindAction === 'key_press') {
-                bindingValue = document.getElementById('key-bind').value;
-            }
-
             ws.send(JSON.stringify({
-                type: 'save_trigger',
-                data: {
-                    name: triggerName,
-                    action: bindAction,
-                    binding: bindingValue
-                }
+                type: 'play_sound',
+                sound_name: soundName
             }));
         }
 
@@ -536,7 +465,7 @@
         // Macro list management
         function updateMacroList(macros) {
             const macroList = document.getElementById('macro-list');
-            const mapMacro = document.getElementById('map-macro'); // Update this select as well
+            const mapMacro = document.getElementById('map-macro');
 
             [macroList, mapMacro].forEach(select => {
                 select.innerHTML = '<option value="">Select a macro to play</option>';
@@ -547,7 +476,7 @@
                     select.appendChild(option);
                 });
             });
-            console.log('Updated macro list with:', macros); // Debug log
+            console.log('Updated macro list with:', macros);
         }
 
         // Binding options management
@@ -601,7 +530,7 @@
                     return response.json();
                 })
                 .then(data => {
-                    console.log('Received macros:', data); // Debug log
+                    console.log('Received macros:', data);
                     if (data.macros) {
                         updateMacroList(data.macros);
                         addLogEntry('Macro list refreshed successfully', 'info');
@@ -614,19 +543,6 @@
         }
 
         // Sound Management Functions
-        function playSound() {
-            const soundName = document.getElementById('sound-list').value;
-            if (!soundName) {
-                addLogEntry('Please select a sound to play', 'error');
-                return;
-            }
-
-            ws.send(JSON.stringify({
-                type: 'play_sound',
-                sound_name: soundName
-            }));
-        }
-
         function refreshSoundList() {
             fetch('/sounds')
                 .then(response => {
@@ -652,7 +568,6 @@
             const soundList = document.getElementById('sound-list');
             const mapSound = document.getElementById('map-sound');
 
-            // Update both dropdowns
             [soundList, mapSound].forEach(select => {
                 select.innerHTML = '<option value="">Select a sound trigger</option>';
                 sounds.forEach(sound => {
@@ -706,6 +621,126 @@
             refreshSoundList();
             refreshMacroList();
         });
+
+        let recordedActions = [];
+        let isRecordingMacro = false;
+        let isRecordingSound = false;
+
+        function startSoundRecording() {
+            const soundName = document.getElementById('sound-name').value.trim();
+            if (!soundName) {
+                addLogEntry('Please enter a name for the sound trigger', 'error');
+                return;
+            }
+
+            const recordBtn = document.getElementById('record-sound-btn');
+            const saveBtn = document.getElementById('save-sound-btn');
+            recordBtn.disabled = true;
+            isRecordingSound = true;
+
+            addLogEntry('Recording sound in 3 seconds...', 'info');
+            setTimeout(() => {
+                ws.send(JSON.stringify({
+                    type: 'start_sound_recording',
+                    sound_name: soundName
+                }));
+                addLogEntry('Recording sound...', 'info');
+
+                // Enable save button after recording duration
+                setTimeout(() => {
+                    isRecordingSound = false;
+                    saveBtn.disabled = false;
+                    addLogEntry('Sound recording complete. Click Save to keep the recording.', 'info');
+                }, 2000);
+            }, 3000);
+        }
+
+        function saveSoundRecording() {
+            const soundName = document.getElementById('sound-name').value.trim();
+            const recordBtn = document.getElementById('record-sound-btn');
+            const saveBtn = document.getElementById('save-sound-btn');
+
+            ws.send(JSON.stringify({
+                type: 'save_sound_recording',
+                sound_name: soundName
+            }));
+
+            // Reset UI
+            recordBtn.disabled = false;
+            saveBtn.disabled = true;
+            document.getElementById('sound-name').value = '';
+            addLogEntry('Sound recording saved', 'info');
+            refreshSoundList();
+        }
+
+        function startMacroRecording() {
+            const macroName = document.getElementById('macro-name').value.trim();
+            if (!macroName) {
+                addLogEntry('Please enter a macro name', 'error');
+                return;
+            }
+
+            const recordBtn = document.getElementById('record-macro-btn');
+            const saveBtn = document.getElementById('save-macro-btn');
+            recordBtn.disabled = true;
+            isRecordingMacro = true;
+            recordedActions = [];
+
+            addLogEntry('Recording macro in 3 seconds...', 'info');
+            setTimeout(() => {
+                addLogEntry('Started recording macro...', 'info');
+
+                // Record for 5 seconds
+                setTimeout(() => {
+                    isRecordingMacro = false;
+                    saveBtn.disabled = false;
+                    addLogEntry('Macro recording complete. Click Save to keep the recording.', 'info');
+                }, 5000);
+            }, 3000);
+        }
+
+        function saveMacroRecording() {
+            const macroName = document.getElementById('macro-name').value.trim();
+            const recordBtn = document.getElementById('record-macro-btn');
+            const saveBtn = document.getElementById('save-macro-btn');
+
+            ws.send(JSON.stringify({
+                type: 'save_macro',
+                macro_name: macroName,
+                actions: recordedActions
+            }));
+
+            // Reset UI
+            recordBtn.disabled = false;
+            saveBtn.disabled = true;
+            document.getElementById('macro-name').value = '';
+            recordedActions = [];
+            addLogEntry('Macro saved', 'info');
+            refreshMacroList();
+        }
+
+        function saveTrigger() {
+            const triggerName = document.getElementById('trigger-name').value;
+            const bindAction = document.getElementById('bind-action').value;
+            let bindingValue = '';
+
+            if (bindAction === 'mouse_click') {
+                bindingValue = document.getElementById('mouse-button').value;
+            } else if (bindAction === 'macro') {
+                bindingValue = document.getElementById('trigger-macro').value;
+            } else if (bindAction === 'key_press') {
+                bindingValue = document.getElementById('key-bind').value;
+            }
+
+            ws.send(JSON.stringify({
+                type: 'save_trigger',
+                data: {
+                    name: triggerName,
+                    action: bindAction,
+                    binding: bindingValue
+                }
+            }));
+        }
     </script>
 </body>
 </html>

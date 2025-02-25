@@ -192,18 +192,19 @@ def updates(ws):
 
                 if testing_ui:
                     try:
-                        if testing_ui.sound_manager.record_sound_trigger(sound_name, duration=2.0):
+                        # Only trigger recording, don't save yet
+                        if testing_ui.sound_manager.record_sound_trigger(sound_name, duration=2.0, save=False):
                             TestingUI.logger.info(f"Successfully recorded sound: {sound_name}")
                             ws.send(json.dumps({
                                 'type': 'log',
                                 'level': 'info',
-                                'data': f'Successfully recorded sound trigger: {sound_name}'
+                                'data': f'Successfully recorded sound: {sound_name}'
                             }))
-                            # Refresh sound list
-                            sounds = testing_ui.sound_manager.sound_trigger.get_trigger_names()
+                        else:
                             ws.send(json.dumps({
-                                'type': 'sounds_updated',
-                                'sounds': sounds
+                                'type': 'log',
+                                'level': 'error',
+                                'data': f'Failed to record sound: {sound_name}'
                             }))
                     except Exception as e:
                         TestingUI.logger.error(f"Error recording sound: {str(e)}")
@@ -211,6 +212,46 @@ def updates(ws):
                             'type': 'log',
                             'level': 'error',
                             'data': f'Error recording sound: {str(e)}'
+                        }))
+
+            elif data['type'] == 'save_sound_recording':
+                sound_name = data.get('sound_name', '')
+                if not sound_name:
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'level': 'error',
+                        'data': 'No sound name provided'
+                    }))
+                    return
+
+                if testing_ui:
+                    try:
+                        # Save the last recorded sound
+                        if testing_ui.sound_manager.save_sound_trigger(sound_name):
+                            TestingUI.logger.info(f"Successfully saved sound: {sound_name}")
+                            ws.send(json.dumps({
+                                'type': 'log',
+                                'level': 'info',
+                                'data': f'Successfully saved sound trigger: {sound_name}'
+                            }))
+                            # Refresh sound list
+                            sounds = testing_ui.sound_manager.sound_trigger.get_trigger_names()
+                            ws.send(json.dumps({
+                                'type': 'sounds_updated',
+                                'sounds': sounds
+                            }))
+                        else:
+                            ws.send(json.dumps({
+                                'type': 'log',
+                                'level': 'error',
+                                'data': f'Failed to save sound: {sound_name}'
+                            }))
+                    except Exception as e:
+                        TestingUI.logger.error(f"Error saving sound: {str(e)}")
+                        ws.send(json.dumps({
+                            'type': 'log',
+                            'level': 'error',
+                            'data': f'Error saving sound: {str(e)}'
                         }))
 
             elif data['type'] == 'save_macro':
@@ -247,7 +288,7 @@ def updates(ws):
                         }))
                         # Refresh macro list
                         macro_files = [f[:-5] for f in os.listdir(testing_ui.macro_dir) 
-                                    if f.endswith('.json')]
+                                        if f.endswith('.json')]
                         ws.send(json.dumps({
                             'type': 'macros_updated',
                             'macros': macro_files
