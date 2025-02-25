@@ -239,7 +239,20 @@ def handle_assign_hotkey(ws, data):
         return
 
     try:
-        if testing_ui.sound_manager.assign_hotkey(macro_name, hotkey):
+        # Create macro file if it doesn't exist
+        macro_path = testing_ui.macro_dir / f"{macro_name}.json"
+        if not macro_path.exists():
+            macro_data = {
+                "name": macro_name,
+                "hotkey": None,
+                "actions": []
+            }
+            with open(macro_path, 'w') as f:
+                json.dump(macro_data, f, indent=2)
+            testing_ui.logger.info(f"Created new macro file: {macro_path}")
+
+        success = testing_ui.sound_manager.assign_hotkey(macro_name, hotkey)
+        if success:
             ws.send(json.dumps({
                 'type': 'log',
                 'level': 'info',
@@ -258,7 +271,8 @@ def handle_assign_hotkey(ws, data):
                 'message': 'Failed to assign hotkey'
             }))
     except Exception as e:
-        logger.error(f"Error assigning hotkey: {e}")
+        testing_ui.logger.error(f"Error assigning hotkey: {e}")
+        testing_ui.logger.error(traceback.format_exc())
         ws.send(json.dumps({
             'type': 'error',
             'message': f'Error assigning hotkey: {str(e)}'

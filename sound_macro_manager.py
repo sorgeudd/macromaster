@@ -47,6 +47,9 @@ class SoundMacroManager:
             except Exception as e:
                 self.logger.error(f"Error loading hotkey mappings: {e}")
                 self.hotkeys = {}
+        else:
+            self.hotkeys = {}
+            self._save_hotkeys()
 
     def _save_hotkeys(self):
         """Save macro to hotkey mappings"""
@@ -68,11 +71,28 @@ class SoundMacroManager:
                 self.logger.error(f"Macro file '{macro_file}' not found")
                 return False
 
+            # Load existing macro data
+            try:
+                with open(macro_file, 'r') as f:
+                    macro_data = json.load(f)
+            except Exception as e:
+                self.logger.error(f"Error reading macro file: {e}")
+                return False
+
             # Remove this hotkey if it was assigned to another macro
             for existing_macro, existing_hotkey in self.hotkeys.items():
                 if existing_hotkey == hotkey and existing_macro != macro_name:
                     self.logger.info(f"Removing hotkey '{hotkey}' from macro '{existing_macro}'")
                     del self.hotkeys[existing_macro]
+
+            # Update macro file with hotkey
+            macro_data['hotkey'] = hotkey
+            try:
+                with open(macro_file, 'w') as f:
+                    json.dump(macro_data, f, indent=2)
+            except Exception as e:
+                self.logger.error(f"Error writing macro file: {e}")
+                return False
 
             # Assign new hotkey
             self.hotkeys[macro_name] = hotkey
