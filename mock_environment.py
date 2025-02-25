@@ -1,14 +1,4 @@
-"""Mock environment for headless testing of fishing bot functionality
-
-This module provides a simulated game environment for testing bot functionality without
-requiring an actual game client. It simulates:
-- Mouse and keyboard input
-- Game state tracking
-- Resource detection
-- Terrain effects
-- Combat and healing
-"""
-
+"""Mock environment for headless testing of fishing bot functionality"""
 import logging
 import traceback
 from dataclasses import dataclass
@@ -55,7 +45,6 @@ class GameState:
 
 class MockEnvironment:
     def __init__(self):
-        # Initialize logging with file output
         self.logger = logging.getLogger('MockEnvironment')
         formatter = logging.Formatter(
             '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -64,13 +53,14 @@ class MockEnvironment:
             file_handler = logging.FileHandler('mock_environment.log')
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)  # Changed from DEBUG to INFO
 
         # Initialize state
         self.state = GameState()
         self.input_events = []
         self.fish_bite_event = Event()
-        self.running = False
+        self._running = False
+        self.simulation_thread = None
         self.min_action_interval = 0.05
 
         # Terrain-specific movement speeds
@@ -87,6 +77,64 @@ class MockEnvironment:
 
         self.logger.info("MockEnvironment initialized successfully")
 
+    @property
+    def is_running(self):
+        """Check if simulation is running"""
+        return self._running and (self.simulation_thread is not None and self.simulation_thread.is_alive())
+
+    def start_simulation(self):
+        """Start background simulation"""
+        if self.is_running:
+            self.logger.warning("Simulation already running")
+            return
+
+        self._running = True
+        self.simulation_thread = Thread(target=self._run_simulation)
+        self.simulation_thread.daemon = True
+        self.simulation_thread.start()
+        self.logger.info("Mock environment simulation started")
+
+    def stop_simulation(self):
+        """Stop background simulation"""
+        if not self.is_running:
+            self.logger.warning("Simulation not running")
+            return
+
+        self._running = False
+        if self.simulation_thread:
+            self.simulation_thread.join(timeout=1.0)
+            self.simulation_thread = None
+        self.logger.info("Mock environment simulation stopped")
+
+    def _run_simulation(self):
+        """Simulate game events with reduced frequency"""
+        bite_cooldown = 0
+        while self._running:
+            current_time = time.time()
+
+            # Handle fish bite events less frequently (30% chance every 3 seconds)
+            if bite_cooldown <= 0 and random.random() < 0.3:
+                self.logger.info("Fish bite event triggered")  # Changed to INFO level
+                self.state.fish_bite_active = True
+                self.fish_bite_event.set()
+
+                # Short delay for bite detection
+                time.sleep(0.2)
+
+                self.state.fish_bite_active = False
+                self.fish_bite_event.clear()
+                bite_cooldown = 3.0  # Increased cooldown to 3 seconds
+                self.logger.info("Fish bite event completed")  # Changed to INFO level
+            else:
+                bite_cooldown = max(0, bite_cooldown - 0.1)
+
+            # Simulate combat damage less frequently
+            if self.state.is_in_combat and random.random() < 0.1:
+                self.state.health = max(0, self.state.health - random.uniform(1, 5))
+                self.logger.info(f"Combat damage taken, health now: {self.state.health}")
+
+            time.sleep(0.1)  # Reduced update frequency
+
     def move_mouse(self, x, y):
         """Record mouse movement and update position with terrain effects"""
         try:
@@ -97,22 +145,18 @@ class MockEnvironment:
             # Add terrain-based delay
             speed_mult = self.terrain_speeds.get(self.state.terrain_type, 1.0)
             move_delay = 0.05 / speed_mult
-            time.sleep(move_delay * 0.1)  # Scale down for tests
+            time.sleep(move_delay * 0.1)
 
             return success
 
         except Exception as e:
             self.logger.error(f"Error in move_mouse: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def click(self, button='left', clicks=1):
         """Record mouse click with terrain-based delays"""
         try:
-            self.logger.debug(f"Processing click: button={button}, clicks={clicks}")
             pos = self.state.current_position
-
-            # Record click event at current position
             success = self.record_input('mouse_click', 
                                     button=button, 
                                     clicks=clicks,
@@ -122,14 +166,12 @@ class MockEnvironment:
             # Add terrain-based delay
             speed_mult = self.terrain_speeds.get(self.state.terrain_type, 1.0)
             click_delay = 0.1 / speed_mult
-            time.sleep(click_delay * 0.1)  # Scale down for tests
+            time.sleep(click_delay * 0.1)
 
-            self.logger.debug(f"Click recorded at {pos}")
             return success
 
         except Exception as e:
             self.logger.error(f"Error recording click: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def move_to(self, position):
@@ -157,14 +199,13 @@ class MockEnvironment:
             # Additional delay based on distance and terrain
             speed_mult = self.terrain_speeds.get(self.state.terrain_type, 1.0)
             move_time = distance * 0.001 / speed_mult
-            time.sleep(move_time * 0.1)  # Scale down for tests
+            time.sleep(move_time * 0.1)
 
             self.logger.debug(f"Moved to {position} (terrain: {self.state.terrain_type})")
             return True
 
         except Exception as e:
             self.logger.error(f"Error in move_to: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def record_input(self, input_type, **kwargs):
@@ -183,7 +224,6 @@ class MockEnvironment:
 
         except Exception as e:
             self.logger.error(f"Error recording input: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def press_key(self, key, duration=None):
@@ -204,13 +244,12 @@ class MockEnvironment:
 
             # Add delay if duration specified
             if duration:
-                time.sleep(duration * 0.1)  # Scale down for tests
+                time.sleep(duration * 0.1)
 
             return success
 
         except Exception as e:
             self.logger.error(f"Error recording key press: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def get_screen_region(self):
@@ -232,7 +271,6 @@ class MockEnvironment:
 
         except Exception as e:
             self.logger.error(f"Error getting screen region: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return None
 
     def set_game_state(self, **kwargs):
@@ -250,52 +288,7 @@ class MockEnvironment:
 
         except Exception as e:
             self.logger.error(f"Error updating game state: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
-
-    def start_simulation(self):
-        """Start background simulation"""
-        self.running = True
-        self.simulation_thread = Thread(target=self._run_simulation)
-        self.simulation_thread.daemon = True  # Allow clean shutdown
-        self.simulation_thread.start()
-        self.logger.info("Mock environment simulation started")
-
-    def stop_simulation(self):
-        """Stop background simulation"""
-        self.running = False
-        if hasattr(self, 'simulation_thread'):
-            self.simulation_thread.join(timeout=1.0)  # Wait with timeout
-        self.logger.info("Mock environment simulation stopped")
-
-    def _run_simulation(self):
-        """Simulate game events"""
-        bite_cooldown = 0
-        while self.running:
-            current_time = time.time()
-
-            # Handle fish bite events
-            if bite_cooldown <= 0 and random.random() < 0.1:  # 10% chance per cycle
-                self.logger.debug("Triggering fish bite event")
-                self.state.fish_bite_active = True
-                self.fish_bite_event.set()
-
-                # Short delay for bite detection
-                time.sleep(0.2)
-
-                self.state.fish_bite_active = False
-                self.fish_bite_event.clear()
-                bite_cooldown = 1.0  # 1 second cooldown
-                self.logger.debug("Fish bite event completed")
-            else:
-                bite_cooldown = max(0, bite_cooldown - 0.1)
-
-            # Simulate combat damage and other environmental effects
-            if self.state.is_in_combat:
-                self.state.health = max(0, self.state.health - random.uniform(1, 5))
-                self.logger.debug(f"Combat damage taken, health now: {self.state.health}")
-
-            time.sleep(0.05)  # Reduced CPU usage while maintaining responsiveness
 
     def heal(self, amount):
         """Heal character"""
@@ -306,7 +299,6 @@ class MockEnvironment:
 
         except Exception as e:
             self.logger.error(f"Error healing: {str(e)}")
-            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def get_current_health(self):

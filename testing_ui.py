@@ -22,6 +22,7 @@ class TestingUI:
     recording_macro = False
     recording_sound = False
     logger = logging.getLogger('TestingUI')
+    mock_env = None
 
     @staticmethod
     def find_window(window_name):
@@ -63,12 +64,12 @@ class TestingUI:
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
-        self.logger.setLevel(logging.DEBUG)
+        self.logger.setLevel(logging.INFO)  # Changed from DEBUG to INFO to reduce spam
 
         # Initialize components
         self.map_manager = MapManager()
-        self.mock_env = MockEnvironment()
-        self.mock_env.start_simulation()
+        # Don't start mock environment automatically
+        TestingUI.mock_env = MockEnvironment()
 
         self.logger.info("Testing UI initialized successfully")
         self.logger.info("Running as local server with full system access")
@@ -146,6 +147,9 @@ class TestingUI:
                         }))
 
                 elif data['type'] == 'start_bot':
+                    # Only start mock environment when bot starts
+                    if not TestingUI.mock_env.is_running:
+                        TestingUI.mock_env.start_simulation()
                     TestingUI.bot_running = True
                     TestingUI.logger.info("Starting bot operations")
                     ws.send(json.dumps({
@@ -156,6 +160,9 @@ class TestingUI:
 
                 elif data['type'] == 'stop_bot':
                     TestingUI.bot_running = False
+                    # Stop mock environment when bot stops
+                    if TestingUI.mock_env.is_running:
+                        TestingUI.mock_env.stop_simulation()
                     TestingUI.logger.info("Stopping bot operations")
                     ws.send(json.dumps({
                         'type': 'log',
@@ -166,6 +173,9 @@ class TestingUI:
                 elif data['type'] == 'emergency_stop':
                     TestingUI.bot_running = False
                     TestingUI.learning_mode = False
+                    # Stop mock environment on emergency stop
+                    if TestingUI.mock_env.is_running:
+                        TestingUI.mock_env.stop_simulation()
                     TestingUI.logger.warning("Emergency stop triggered")
                     ws.send(json.dumps({
                         'type': 'log',
@@ -221,12 +231,13 @@ class TestingUI:
         except Exception as e:
             self.logger.error(f"Server error: {str(e)}")
         finally:
-            self.mock_env.stop_simulation()
+            if TestingUI.mock_env and TestingUI.mock_env.is_running:
+                TestingUI.mock_env.stop_simulation()
             self.logger.info("Testing UI server stopped")
 
 if __name__ == "__main__":
     # Setup logging
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)  # Changed from DEBUG to INFO
 
     # Create and run UI
     ui = TestingUI()
