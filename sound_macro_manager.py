@@ -24,8 +24,11 @@ class SoundMacroManager:
 
         # Load existing mappings
         self.mappings_file = Path('sound_macro_mappings.json')
+        self.hotkeys_file = Path('macro_hotkeys.json')
         self.mappings: Dict[str, str] = {}
+        self.hotkeys: Dict[str, str] = {}  # macro_name -> hotkey
         self._load_mappings()
+        self._load_hotkeys()
 
         # Recording state
         self.is_recording = False
@@ -34,24 +37,90 @@ class SoundMacroManager:
 
         self.logger.info("Sound macro manager initialized")
 
-    def _handle_sound_detected(self, sound_name: str):
-        """Internal method to handle detected sounds"""
-        self.logger.info(f"Sound trigger detected: {sound_name}")
+    def _load_hotkeys(self):
+        """Load macro to hotkey mappings"""
+        if self.hotkeys_file.exists():
+            try:
+                with open(self.hotkeys_file, 'r') as f:
+                    self.hotkeys = json.load(f)
+                self.logger.info(f"Loaded {len(self.hotkeys)} macro hotkey mappings")
+            except Exception as e:
+                self.logger.error(f"Error loading hotkey mappings: {e}")
+                self.hotkeys = {}
 
-        if sound_name in self.mappings:
-            macro_name = self.mappings[sound_name]
+    def _save_hotkeys(self):
+        """Save macro to hotkey mappings"""
+        try:
+            with open(self.hotkeys_file, 'w') as f:
+                json.dump(self.hotkeys, f, indent=2)
+            self.logger.info(f"Saved {len(self.hotkeys)} macro hotkey mappings")
+        except Exception as e:
+            self.logger.error(f"Error saving hotkey mappings: {e}")
+
+    def assign_hotkey(self, macro_name: str, hotkey: str) -> bool:
+        """Assign a hotkey to trigger a specific macro"""
+        try:
+            # Verify macro file exists
             macro_file = self.macros_dir / f"{macro_name}.json"
+            self.logger.info(f"Checking for macro file: {macro_file}")
 
-            self.logger.info(f"Found mapping for sound '{sound_name}' -> macro '{macro_name}'")
-            self.logger.info(f"Looking for macro file: {macro_file}")
+            if not macro_file.exists():
+                self.logger.error(f"Macro file '{macro_file}' not found")
+                return False
 
-            if macro_file.exists():
-                self.logger.info(f"Executing macro '{macro_name}' triggered by sound '{sound_name}'")
-                self.macro_tester.play_macro(str(macro_file))
-            else:
-                self.logger.error(f"Mapped macro file not found: {macro_file}")
-        else:
-            self.logger.info(f"No macro mapping found for sound: {sound_name}")
+            # Remove this hotkey if it was assigned to another macro
+            for existing_macro, existing_hotkey in self.hotkeys.items():
+                if existing_hotkey == hotkey and existing_macro != macro_name:
+                    self.logger.info(f"Removing hotkey '{hotkey}' from macro '{existing_macro}'")
+                    del self.hotkeys[existing_macro]
+
+            # Assign new hotkey
+            self.hotkeys[macro_name] = hotkey
+            self._save_hotkeys()
+            self.logger.info(f"Successfully assigned hotkey '{hotkey}' to macro '{macro_name}'")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error assigning hotkey to macro: {e}")
+            return False
+
+    def remove_hotkey(self, macro_name: str) -> bool:
+        """Remove a hotkey assignment from a macro"""
+        if macro_name in self.hotkeys:
+            del self.hotkeys[macro_name]
+            self._save_hotkeys()
+            self.logger.info(f"Removed hotkey for macro: {macro_name}")
+            return True
+        return False
+
+    def get_macro_hotkey(self, macro_name: str) -> Optional[str]:
+        """Get the hotkey assigned to a macro"""
+        return self.hotkeys.get(macro_name)
+
+    def get_all_hotkeys(self) -> Dict[str, str]:
+        """Get all macro to hotkey mappings"""
+        return self.hotkeys.copy()
+
+    def trigger_macro_by_hotkey(self, hotkey: str) -> bool:
+        """Execute a macro that's mapped to a specific hotkey"""
+        try:
+            # Find macro mapped to this hotkey
+            for macro_name, mapped_hotkey in self.hotkeys.items():
+                if mapped_hotkey == hotkey:
+                    macro_file = self.macros_dir / f"{macro_name}.json"
+                    if macro_file.exists():
+                        self.logger.info(f"Executing macro '{macro_name}' triggered by hotkey '{hotkey}'")
+                        return self.macro_tester.play_macro(str(macro_file))
+                    else:
+                        self.logger.error(f"Macro file not found: {macro_file}")
+                        return False
+
+            self.logger.info(f"No macro mapped to hotkey: {hotkey}")
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Error triggering macro by hotkey: {e}")
+            return False
 
     def _load_mappings(self):
         """Load sound trigger to macro mappings"""
@@ -221,3 +290,22 @@ class SoundMacroManager:
             self.logger.info(f"Removed mapping for sound: {sound_name}")
             return True
         return False
+
+    def _handle_sound_detected(self, sound_name: str):
+        """Internal method to handle detected sounds"""
+        self.logger.info(f"Sound trigger detected: {sound_name}")
+
+        if sound_name in self.mappings:
+            macro_name = self.mappings[sound_name]
+            macro_file = self.macros_dir / f"{macro_name}.json"
+
+            self.logger.info(f"Found mapping for sound '{sound_name}' -> macro '{macro_name}'")
+            self.logger.info(f"Looking for macro file: {macro_file}")
+
+            if macro_file.exists():
+                self.logger.info(f"Executing macro '{macro_name}' triggered by sound '{sound_name}'")
+                self.macro_tester.play_macro(str(macro_file))
+            else:
+                self.logger.error(f"Mapped macro file not found: {macro_file}")
+        else:
+            self.logger.info(f"No macro mapping found for sound: {sound_name}")
