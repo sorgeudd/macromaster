@@ -1,12 +1,10 @@
-"""Real-time testing interface for the fishing bot systems"""
+"""Real-time testing interface for macro systems"""
 import logging
 import json
 import os
-import platform
 import time
 import traceback
 import socket
-import atexit
 from pathlib import Path
 
 try:
@@ -18,15 +16,13 @@ except ImportError as e:
     raise
 
 try:
-    from map_manager import MapManager
-    from mock_environment import MockEnvironment
     from sound_macro_manager import SoundMacroManager
 except ImportError as e:
     print(f"Failed to import local modules: {e}")
     print("Please ensure all required modules are available")
     raise
 
-# Configure logging first
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -37,27 +33,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger('TestingUI')
 
-try:
-    # Initialize Flask and WebSocket
-    app = Flask(__name__)
-    sock = Sock(app)
-except Exception as e:
-    logger.error(f"Failed to initialize Flask app: {e}")
-    logger.error(traceback.format_exc())
-    raise
+# Initialize Flask and WebSocket
+app = Flask(__name__)
+sock = Sock(app)
 
 # Global TestingUI instance
 testing_ui = None
+
+def verify_port_available(port):
+    """Check if a port is available"""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('0.0.0.0', port))
+        sock.close()
+        return True
+    except OSError:
+        return False
+
+def find_available_port(start_port=5000, max_attempts=10):
+    """Find an available port starting from start_port"""
+    for port in range(start_port, start_port + max_attempts):
+        if verify_port_available(port):
+            return port
+    return None
 
 class TestingUI:
     def __init__(self):
         self.logger = logger
         self.initialized = False
         try:
-            # Initialize components
-            self.map_manager = MapManager()
-            self.mock_env = MockEnvironment()
-            self.sound_manager = SoundMacroManager(test_mode=(platform.system() != 'Windows'))
+            # Initialize sound macro manager
+            self.sound_manager = SoundMacroManager(test_mode=True)
 
             # Ensure macros directory exists
             self.macro_dir = Path('macros')
@@ -77,8 +83,6 @@ class TestingUI:
     def cleanup(self):
         """Cleanup resources"""
         try:
-            if self.mock_env and self.mock_env.is_running:
-                self.mock_env.stop_simulation()
             if self.sound_manager:
                 self.sound_manager.stop_monitoring()
             self.logger.info("Resources cleaned up successfully")
@@ -112,49 +116,11 @@ def cleanup_resources():
     global testing_ui
     try:
         if testing_ui:
-            if testing_ui.mock_env and testing_ui.mock_env.is_running:
-                testing_ui.mock_env.stop_simulation()
             if testing_ui.sound_manager:
                 testing_ui.sound_manager.stop_monitoring()
             logger.info("Resources cleaned up successfully")
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
-
-def run():
-    """Start the server"""
-    try:
-        global testing_ui
-        logger.info("Initializing Testing UI server...")
-        testing_ui = TestingUI()
-
-        if not testing_ui.initialized:
-            logger.error("Failed to initialize Testing UI")
-            return
-
-        logger.info("Starting Testing UI server on port 5001")
-        try:
-            # Test if port is available before starting
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(('0.0.0.0', 5001))
-            sock.close()
-            logger.info("Port 5001 is available")
-
-            # Use threaded=True to handle WebSocket connections properly
-            app.run(host='0.0.0.0', port=5001, debug=False, threaded=True)
-        except OSError as e:
-            logger.error(f"Port 5001 is not available: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error starting Flask server: {e}")
-            logger.error(traceback.format_exc())
-            raise
-    except Exception as e:
-        logger.error(f"Server error: {e}")
-        logger.error(traceback.format_exc())
-        cleanup_resources()
-        raise
-    finally:
-        cleanup_resources()
 
 @app.route('/')
 def index():
@@ -164,27 +130,6 @@ def index():
     except Exception as e:
         logger.error(f"Error rendering index: {e}")
         return jsonify({'error': str(e)}), 500
-
-@app.route('/sounds')
-def get_sounds():
-    """API endpoint for getting available sound triggers"""
-    global testing_ui
-    try:
-        if not testing_ui or not testing_ui.initialized:
-            return jsonify({'error': 'Server not initialized', 'sounds': []}), 500
-
-        sounds = testing_ui.sound_manager.sound_trigger.get_trigger_names()
-        testing_ui.logger.info(f"Found {len(sounds)} sound triggers: {sounds}")
-
-        response = jsonify({'sounds': sounds})
-        response.headers['Content-Type'] = 'application/json'
-        response.headers['Cache-Control'] = 'no-store'
-        return response
-
-    except Exception as e:
-        logger.error(f"Error loading sounds: {e}")
-        logger.error(traceback.format_exc())
-        return jsonify({'error': str(e), 'sounds': []}), 500
 
 @app.route('/macros')
 def get_macros():
@@ -222,12 +167,8 @@ def websocket(ws):
         logger.info("New WebSocket connection established")
         ws.send(json.dumps({
             'type': 'status_update',
-            'window_status': 'Not Detected',
-            'bot_status': 'Stopped',
-            'learning_status': 'Inactive',
             'macro_status': 'Ready',
-            'sound_status': 'Ready',
-            'monitoring_status': 'Stopped'
+            'sound_status': 'Ready'
         }))
 
         while True:
@@ -239,14 +180,18 @@ def websocket(ws):
                 data = json.loads(message)
                 testing_ui.logger.info(f"Received command: {data['type']}")
 
-                if data['type'] == 'start_sound_recording':
-                    handle_start_sound_recording(ws, data)
-                elif data['type'] == 'stop_sound_recording':
-                    handle_stop_sound_recording(ws)
+                if data['type'] == 'assign_hotkey':
+                    handle_assign_hotkey(ws, data)
+                elif data['type'] == 'clear_hotkey':
+                    handle_clear_hotkey(ws, data)
                 elif data['type'] == 'start_macro_recording':
                     handle_start_macro_recording(ws, data)
                 elif data['type'] == 'stop_macro_recording':
                     handle_stop_macro_recording(ws)
+                elif data['type'] == 'start_sound_recording':
+                    handle_start_sound_recording(ws, data)
+                elif data['type'] == 'stop_sound_recording':
+                    handle_stop_sound_recording(ws)
 
             except Exception as e:
                 logger.error(f"Error processing WebSocket message: {e}")
@@ -260,8 +205,85 @@ def websocket(ws):
         logger.error(f"WebSocket error: {e}")
         logger.error(traceback.format_exc())
 
+def handle_assign_hotkey(ws, data):
+    """Handle hotkey assignment command"""
+    global testing_ui
+    macro_name = data.get('macro_name', '')
+    hotkey = data.get('hotkey', '')
+
+    if not macro_name or not hotkey:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Please provide both macro name and hotkey'
+        }))
+        return
+
+    if testing_ui.sound_manager.assign_hotkey(macro_name, hotkey):
+        ws.send(json.dumps({
+            'type': 'log',
+            'level': 'info',
+            'message': f'Assigned hotkey {hotkey} to macro {macro_name}'
+        }))
+    else:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Failed to assign hotkey'
+        }))
+
+def handle_clear_hotkey(ws, data):
+    """Handle clear hotkey command"""
+    global testing_ui
+    macro_name = data.get('macro_name', '')
+
+    if not macro_name:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Please provide a macro name'
+        }))
+        return
+
+    if testing_ui.sound_manager.remove_hotkey(macro_name):
+        ws.send(json.dumps({
+            'type': 'log',
+            'level': 'info',
+            'message': f'Cleared hotkey for macro {macro_name}'
+        }))
+    else:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'No hotkey assigned to clear'
+        }))
+
+def handle_start_macro_recording(ws, data):
+    """Handle start macro recording command"""
+    global testing_ui
+    macro_name = data.get('macro_name', '')
+    if not macro_name:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Please enter a macro name'
+        }))
+        return
+
+    if testing_ui.sound_manager.record_macro(macro_name):
+        ws.send(json.dumps({
+            'type': 'log',
+            'level': 'info',
+            'message': f'Started recording macro: {macro_name}'
+        }))
+
+def handle_stop_macro_recording(ws):
+    """Handle stop macro recording command"""
+    global testing_ui
+    if testing_ui.sound_manager.stop_macro_recording():
+        ws.send(json.dumps({
+            'type': 'recording_complete',
+            'recording_type': 'macro'
+        }))
+
 def handle_start_sound_recording(ws, data):
     """Handle start sound recording command"""
+    global testing_ui
     sound_name = data.get('sound_name', '')
     if not sound_name:
         ws.send(json.dumps({
@@ -279,31 +301,39 @@ def handle_start_sound_recording(ws, data):
 
 def handle_stop_sound_recording(ws):
     """Handle stop sound recording command"""
+    global testing_ui
     if testing_ui.sound_manager.stop_recording():
         ws.send(json.dumps({
             'type': 'recording_complete',
             'recording_type': 'sound'
         }))
 
-def handle_start_macro_recording(ws, data):
-    """Handle start macro recording command"""
-    macro_name = data.get('macro_name', '')
-    if testing_ui.sound_manager.record_macro(macro_name):
-        ws.send(json.dumps({
-            'type': 'log',
-            'level': 'info',
-            'message': f'Started recording macro: {macro_name}'
-        }))
+def run():
+    """Start the server"""
+    try:
+        global testing_ui
+        logger.info("Initializing Testing UI server...")
+        testing_ui = TestingUI()
 
-def handle_stop_macro_recording(ws):
-    """Handle stop macro recording command"""
-    if testing_ui.sound_manager.stop_macro_recording():
-        ws.send(json.dumps({
-            'type': 'recording_complete',
-            'recording_type': 'macro'
-        }))
+        if not testing_ui.initialized:
+            logger.error("Failed to initialize Testing UI")
+            return
+
+        port = find_available_port(5000)
+        if not port:
+            logger.error("Could not find an available port")
+            raise RuntimeError("No available ports found")
+
+        logger.info(f"Starting Testing UI server on port {port}")
+
+        # Use threaded=True to handle WebSocket connections properly
+        app.run(host='0.0.0.0', port=port, debug=False, threaded=True)
+
+    except Exception as e:
+        logger.error(f"Server error: {e}")
+        logger.error(traceback.format_exc())
+        cleanup_resources()
+        raise
 
 if __name__ == "__main__":
-    # Register cleanup on exit
-    atexit.register(cleanup_resources)
     run()

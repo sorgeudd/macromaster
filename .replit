@@ -77,11 +77,11 @@ args = "Arrow Variation Tests"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Test Server"
+args = "Windows Interface"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Windows Interface"
+args = "Testing UI Server"
 
 [[workflows.workflow]]
 name = "Test Bot"
@@ -308,21 +308,6 @@ task = "shell.exec"
 args = "python test_minimap.py"
 
 [[workflows.workflow]]
-name = "Test Server"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python test_server.py"
-waitForPort = 5000
-
-[[workflows.workflow]]
 name = "Windows Interface"
 author = "agent"
 
@@ -335,6 +320,21 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python macro_interface.py"
+
+[[workflows.workflow]]
+name = "Testing UI Server"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python testing_ui.py"
+waitForPort = 5000
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]

@@ -79,6 +79,9 @@ function handleWebSocketMessage(event) {
                     handleSoundRecordingComplete();
                 }
                 break;
+            case 'hotkey_updated':
+                updateHotkeyDisplay(data.macro_name, data.hotkey);
+                break;
         }
     } catch (error) {
         console.error("Error handling WebSocket message:", error);
@@ -115,6 +118,43 @@ function addLog(message, level = 'info') {
     // Keep only the last 100 log entries
     while (logs.children.length > 100) {
         logs.removeChild(logs.lastChild);
+    }
+}
+
+// Hotkey Management Functions
+function assignHotkey() {
+    const macroName = document.getElementById('macro-name').value.trim();
+    const hotkey = document.getElementById('hotkey-input').value.trim();
+
+    if (!macroName) {
+        addLog('Please enter a macro name', 'error');
+        return;
+    }
+    if (!hotkey) {
+        addLog('Please enter a hotkey', 'error');
+        return;
+    }
+
+    sendWebSocketMessage('assign_hotkey', { 
+        macro_name: macroName,
+        hotkey: hotkey
+    });
+}
+
+function clearHotkey() {
+    const macroName = document.getElementById('macro-name').value.trim();
+    if (!macroName) {
+        addLog('Please enter a macro name', 'error');
+        return;
+    }
+
+    sendWebSocketMessage('clear_hotkey', { macro_name: macroName });
+}
+
+function updateHotkeyDisplay(macroName, hotkey) {
+    const hotkeyDisplay = document.getElementById('hotkey-display');
+    if (hotkeyDisplay) {
+        hotkeyDisplay.textContent = `Hotkey: ${hotkey || 'None'}`;
     }
 }
 
@@ -311,10 +351,14 @@ function setupEventListeners() {
     const recordMacroBtn = document.getElementById("record-macro-btn");
     const stopMacroBtn = document.getElementById("stop-macro-btn");
     const playMacroBtn = document.getElementById("play-macro-btn");
+    const assignHotkeyBtn = document.getElementById("assign-hotkey-btn");
+    const clearHotkeyBtn = document.getElementById("clear-hotkey-btn");
 
     if (recordMacroBtn) recordMacroBtn.onclick = startMacroRecording;
     if (stopMacroBtn) stopMacroBtn.onclick = stopMacroRecording;
     if (playMacroBtn) playMacroBtn.onclick = playMacro;
+    if (assignHotkeyBtn) assignHotkeyBtn.onclick = assignHotkey;
+    if (clearHotkeyBtn) clearHotkeyBtn.onclick = clearHotkey;
 
     // Sound controls
     const recordSoundBtn = document.getElementById("record-sound-btn");
@@ -327,3 +371,5 @@ function setupEventListeners() {
     if (playSoundBtn) playSoundBtn.onclick = playSound;
     if (monitoringBtn) monitoringBtn.onclick = toggleSoundMonitoring;
 }
+
+setupEventListeners();
