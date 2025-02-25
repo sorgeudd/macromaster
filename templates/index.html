@@ -160,6 +160,16 @@
                     <span>Terrain Testing: </span>
                     <span id="terrain-status">Ready</span>
                 </div>
+                <div class="status-item">
+                    <span class="status-indicator ready"></span>
+                    <span>Bot Status: </span>
+                    <span id="bot-status">Idle</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-indicator ready"></span>
+                    <span>Learning Mode: </span>
+                    <span id="learning-status">Inactive</span>
+                </div>
             </div>
 
             <div class="control-panel">
@@ -265,6 +275,8 @@
                 updateStatus('resource', data.data.resource);
                 updateStatus('terrain', data.data.terrain);
                 updateStatus('window', data.data.window);
+                updateStatus('bot', data.data.bot_status);
+                updateStatus('learning', data.data.learning ? 'Active' : 'Inactive');
             } else if (data.type === 'log') {
                 addLogEntry(data.data, data.level || 'info');
             }
@@ -276,8 +288,9 @@
                 element.textContent = status;
                 const indicator = element.parentElement.querySelector('.status-indicator');
                 indicator.className = 'status-indicator ' + 
-                    (status === 'Active' ? 'active' : 
-                     status === 'Ready' ? 'ready' : 'error');
+                    (status === 'Active' || status === 'Running' ? 'active' : 
+                     status === 'Ready' || status === 'Idle' || status === 'Inactive' ? 'ready' : 
+                     'error');
             }
         }
 
@@ -428,6 +441,8 @@
                 updateStatus('resource', data.resource);
                 updateStatus('terrain', data.terrain);
                 updateStatus('window', data.window);
+                updateStatus('bot', data.bot);
+                updateStatus('learning', data.learning);
             });
 
 
