@@ -316,7 +316,7 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python testing_ui.py"
-waitForPort = 5000
+waitForPort = 5001
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]
@@ -324,3 +324,7 @@ run = ["sh", "-c", "python fishing_bot.py"]
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 5001
+externalPort = 3000

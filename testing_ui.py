@@ -253,9 +253,9 @@ def run():
             logger.error("Failed to initialize Testing UI")
             return
 
-        logger.info("Starting Testing UI server on port 5000")
+        logger.info("Starting Testing UI server on port 5001")
         # Use threaded=True to handle WebSocket connections properly
-        app.run(host='0.0.0.0', port=5000, debug=False, threaded=True)
+        app.run(host='0.0.0.0', port=5001, debug=False, threaded=True)
     except Exception as e:
         logger.error(f"Server error: {e}")
         logger.error(traceback.format_exc())
