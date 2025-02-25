@@ -1,48 +1,121 @@
-"""Test script for minimap player position detection and resource tracking"""
+"""Test script for minimap player position detection and fishing spot tracking"""
 import cv2
 import numpy as np
 import logging
 import json
 from pathlib import Path
 from map_manager import MapManager, ResourceNode
+import shutil
+import traceback
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger('MinimapTest')
 
-def create_test_map_data():
-    """Create test map and resource data"""
-    # Create test map directory
+def setup_test_maps():
+    """Setup test maps directory with actual fishing spot map"""
     test_map_dir = Path('maps')
     test_map_dir.mkdir(exist_ok=True)
 
-    # Create test map image (200x200 with different terrain colors)
-    map_size = (200, 200, 3)
-    test_map = np.zeros(map_size, dtype=np.uint8)
+    # Copy the actual fishing spot map
+    shutil.copy(
+        'attached_assets/Mase knoll fish_1740481898173.jpg',
+        test_map_dir / 'fishing_map.png'
+    )
 
-    # Add terrain features
-    cv2.rectangle(test_map, (0, 0), (100, 100), (50, 150, 50), -1)  # Forest
-    cv2.rectangle(test_map, (100, 0), (200, 100), (150, 50, 50), -1)  # Mountain
-    cv2.rectangle(test_map, (0, 100), (100, 200), (150, 150, 50), -1)  # Normal
-    cv2.rectangle(test_map, (100, 100), (200, 200), (150, 150, 150), -1)  # Water
+def test_fishing_spot_detection():
+    """Test detection of fishing spots from map"""
+    try:
+        # Setup test environment
+        setup_test_maps()
 
-    # Save test map
-    cv2.imwrite('maps/test_map.png', test_map)
+        # Initialize map manager
+        map_manager = MapManager()
 
-    # Create test resource data
-    resource_data = {
-        "nodes": [
-            {"x": 50, "y": 50, "type": "herb", "priority": 1.0},
-            {"x": 150, "y": 150, "type": "fish", "priority": 0.8},
-            {"x": 100, "y": 100, "type": "ore", "priority": 1.2}
-        ]
-    }
+        # Load the fishing spot map
+        success = map_manager.load_map('fishing_map')
+        assert success, "Failed to load fishing map"
 
-    # Save resource data
-    with open('maps/test_map_resources.json', 'w') as f:
-        json.dump(resource_data, f, indent=2)
+        # Verify fishing spots were detected
+        assert 'fishing_map' in map_manager.resource_nodes, "No resource nodes found"
+        spots = map_manager.resource_nodes['fishing_map']
+        assert len(spots) > 0, "No fishing spots detected"
 
-    return test_map
+        logger.info(f"Detected {len(spots)} fishing spots")
+
+        # Test nearby spot detection
+        for spot in spots[:3]:  # Log first 3 spots
+            logger.debug(f"Fishing spot at {spot.position}")
+            nearby = map_manager.get_nearby_resources(spot.position, 50)
+            assert len(nearby) > 0, "Failed to find nearby spots"
+
+        # Verify terrain detection near spots
+        for spot in spots[:3]:
+            terrain = map_manager.get_terrain_type(spot.position)
+            logger.debug(f"Terrain at spot {spot.position}: {terrain}")
+            assert terrain == 'water', "Fishing spot not in water"
+
+        logger.info("✓ Fishing spot detection test passed")
+        return True
+
+    except Exception as e:
+        logger.error(f"Fishing spot detection test failed: {str(e)}")
+        logger.error(f"Stack trace: {traceback.format_exc()}")
+        return False
+
+def test_map_loading():
+    """Test map and resource data loading"""
+    try:
+        # Create test map data with water areas
+        test_map_dir = Path('maps')
+        test_map_dir.mkdir(exist_ok=True)
+
+        # Create map image (200x200 with different terrain colors)
+        map_size = (200, 200, 3)
+        test_map = np.zeros(map_size, dtype=np.uint8)
+
+        # Add water area (BGR values matching real map)
+        cv2.rectangle(test_map, (100, 100), (150, 150), (93, 150, 142), -1)  # Water color from real map
+
+        # Add other terrain
+        cv2.rectangle(test_map, (0, 0), (100, 100), (50, 150, 50), -1)  # Forest
+        cv2.rectangle(test_map, (150, 0), (200, 100), (20, 20, 20), -1)  # Mountain
+
+        # Add fishing spot markers using real map BGR values
+        spot_color = (93, 150, 142)  # BGR values from successful detections
+        for pos in [(110, 110), (120, 120), (130, 130)]:
+            cv2.circle(test_map, pos, 3, spot_color, -1)
+
+        # Save test map
+        cv2.imwrite('maps/test_map.png', test_map)
+
+        # Initialize map manager
+        map_manager = MapManager()
+
+        # Test loading map
+        success = map_manager.load_map('test_map')
+        assert success, "Failed to load test map"
+
+        # Test resource loading
+        assert 'test_map' in map_manager.resource_nodes, "Resource nodes not loaded"
+        spots = map_manager.resource_nodes['test_map']
+        assert len(spots) == 3, f"Expected 3 fishing spots, found {len(spots)}"
+
+        # Test resource retrieval
+        nearby = map_manager.get_nearby_resources((120, 120), 20)
+        assert len(nearby) >= 1, "Failed to find nearby spots"
+
+        # Test terrain detection
+        terrain = map_manager.get_terrain_type((120, 120))
+        assert terrain == 'water', f"Incorrect terrain type: {terrain}"
+
+        logger.info("✓ Map loading test passed")
+        return True
+
+    except Exception as e:
+        logger.error(f"Map loading test failed: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return False
 
 def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
     """Create a test minimap with player arrow"""
@@ -53,8 +126,8 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
     # Create darker background for better contrast
     cv2.rectangle(minimap, (0, 0), (200, 200), (20, 20, 20), -1)
 
-    # Calculate arrow dimensions (target 18 pixels area)
-    target_area = 18  # Middle of 12-25 range
+    # Calculate arrow dimensions
+    target_area = 18  # Target middle of range
     arrow_length = int(np.sqrt(target_area * 2))
     arrow_width = int(np.sqrt(target_area / 2))
 
@@ -80,51 +153,9 @@ def create_test_minimap(arrow_pos=(100, 100), arrow_angle=0):
 
     # Save debug visualizations
     cv2.imwrite('test_minimap_raw.png', minimap)
-
-    hsv = cv2.cvtColor(minimap, cv2.COLOR_BGR2HSV)
-    cv2.imwrite('test_minimap_hsv.png', hsv)
-
-    # Save arrow mask
-    lower = np.array([20, 100, 200])  # Yellow arrow range
-    upper = np.array([30, 255, 255])
-    mask = cv2.inRange(hsv, lower, upper)
-    cv2.imwrite('test_minimap_mask.png', mask)
+    cv2.imwrite('test_minimap_hsv.png', cv2.cvtColor(minimap, cv2.COLOR_BGR2HSV))
 
     return minimap
-
-def test_map_loading():
-    """Test map and resource data loading"""
-    try:
-        # Create test data
-        test_map = create_test_map_data()
-
-        # Initialize map manager
-        map_manager = MapManager()
-
-        # Test loading map
-        success = map_manager.load_map('test_map')
-        assert success, "Failed to load test map"
-
-        # Test resource loading
-        assert 'test_map' in map_manager.resource_nodes, "Resource nodes not loaded"
-        assert len(map_manager.resource_nodes['test_map']) == 3, "Incorrect number of resource nodes"
-
-        # Test resource retrieval
-        nearby = map_manager.get_nearby_resources((100, 100), 60)
-        assert len(nearby) == 3, "Failed to find nearby resources"
-
-        # Test terrain detection
-        terrain = map_manager.get_terrain_type((50, 50))
-        assert terrain == 'forest', f"Incorrect terrain type: {terrain}"
-
-        logger.info("✓ Map loading test passed")
-        return True
-
-    except Exception as e:
-        logger.error(f"Map loading test failed: {str(e)}")
-        import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
-        return False
 
 def test_arrow_detection(map_manager, position, angle):
     """Test arrow detection at specific position and angle"""
@@ -145,16 +176,6 @@ def test_arrow_detection(map_manager, position, angle):
         logger.info(f"Position error: {pos_error:.1f} pixels")
         logger.info(f"Angle error: {angle_error:.1f}°")
 
-        # Save visualization
-        visualization = minimap.copy()
-        cv2.circle(visualization, (detected_pos.x, detected_pos.y), 3, (0, 255, 0), -1)
-        cv2.line(visualization, 
-                (detected_pos.x, detected_pos.y),
-                (int(detected_pos.x + 20 * np.sin(np.radians(detected_pos.direction))),
-                 int(detected_pos.y - 20 * np.cos(np.radians(detected_pos.direction)))),
-                (0, 255, 0), 2)
-        cv2.imwrite(f'test_arrow_{angle}.png', visualization)
-
         return pos_error < 3 and angle_error < 15
     return False
 
@@ -174,7 +195,7 @@ def test_minimap_detection():
             ((50, 50), 90),     # Upper left, pointing East
             ((150, 150), 180),  # Lower right, pointing South
             ((150, 50), 270),   # Upper right, pointing West
-            ((100, 100), 45),   # Center, pointing Northeast
+            ((100, 100), 45)    # Center, pointing Northeast
         ]
 
         passed_tests = 0
@@ -192,14 +213,17 @@ def test_minimap_detection():
 
     except Exception as e:
         logger.error(f"Test failed: {str(e)}")
-        import traceback
         logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 
 if __name__ == "__main__":
-    success = test_minimap_detection()
-    if success:
-        logger.info("Minimap detection test completed successfully")
-    else:
+    # Test fishing spot detection first
+    if not test_fishing_spot_detection():
+        logger.error("Fishing spot detection test failed")
+        exit(1)
+
+    # Test arrow detection and map loading
+    if not test_minimap_detection():
         logger.error("Minimap detection test failed")
         exit(1)
+    logger.info("Minimap detection test completed successfully")
