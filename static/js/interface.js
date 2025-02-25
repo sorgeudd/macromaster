@@ -8,8 +8,8 @@ let monitoring = false;
 // Initialize WebSocket connection
 function initializeWebSocket() {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    // Use port 5001 to match our server configuration
-    const wsUrl = `${protocol}//${window.location.host.split(':')[0]}:5001/ws`;
+    // Use port 5003 where our test server is running successfully
+    const wsUrl = `${protocol}//${window.location.hostname}:5003/ws`;
 
     try {
         ws = new WebSocket(wsUrl);
@@ -21,8 +21,8 @@ function initializeWebSocket() {
             refreshSoundList();
         };
 
-        ws.onclose = () => {
-            console.log("WebSocket connection closed");
+        ws.onclose = (event) => {
+            console.log("WebSocket connection closed", event);
             updateConnectionStatus(false);
             // Try to reconnect after 5 seconds
             setTimeout(initializeWebSocket, 5000);

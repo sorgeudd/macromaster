@@ -5,9 +5,9 @@ import os
 import platform
 import time
 import traceback
-from pathlib import Path
-import atexit
 import socket
+import atexit
+from pathlib import Path
 
 try:
     from flask import Flask, render_template, jsonify
@@ -131,18 +131,18 @@ def run():
             logger.error("Failed to initialize Testing UI")
             return
 
-        logger.info("Starting Testing UI server on port 5002")
+        logger.info("Starting Testing UI server on port 5001")
         try:
             # Test if port is available before starting
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(('0.0.0.0', 5002))
+            sock.bind(('0.0.0.0', 5001))
             sock.close()
-            logger.info("Port 5002 is available")
+            logger.info("Port 5001 is available")
 
             # Use threaded=True to handle WebSocket connections properly
-            app.run(host='0.0.0.0', port=5002, debug=False, threaded=True)
+            app.run(host='0.0.0.0', port=5001, debug=False, threaded=True)
         except OSError as e:
-            logger.error(f"Port 5002 is not available: {e}")
+            logger.error(f"Port 5001 is not available: {e}")
             raise
         except Exception as e:
             logger.error(f"Error starting Flask server: {e}")
@@ -239,7 +239,6 @@ def websocket(ws):
                 data = json.loads(message)
                 testing_ui.logger.info(f"Received command: {data['type']}")
 
-                # Handle WebSocket messages here
                 if data['type'] == 'start_sound_recording':
                     handle_start_sound_recording(ws, data)
                 elif data['type'] == 'stop_sound_recording':
