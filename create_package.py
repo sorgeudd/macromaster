@@ -1,23 +1,18 @@
 """Script to create distribution package"""
 import os
 import zipfile
+import shutil
 from pathlib import Path
 
 def create_package():
     # Files to include
     files = [
-        'gui_interface.py',
-        'sound_trigger.py',
-        'direct_input.py',
-        'macro_visualizer.py',
-        'sound_macro_manager.py',
-        'simple_install.bat',
-        'simple_start.bat',
+        'testing_ui.py',
+        'map_manager.py',
+        'mock_environment.py',
+        'install.bat',
+        'start_app.bat',
         'README.md',
-        'gui_components.py',
-        'logger.py',
-        'test_macro.py',
-        'config_manager.py',
     ]
 
     # Create dist directory
@@ -25,7 +20,7 @@ def create_package():
     dist_dir.mkdir(exist_ok=True)
 
     # Create ZIP file
-    zip_path = dist_dir / 'sound_macro_app.zip'
+    zip_path = dist_dir / 'testing_package.zip'
     with zipfile.ZipFile(zip_path, 'w') as zf:
         # Add essential Python files and batch scripts
         for file in files:
@@ -35,8 +30,18 @@ def create_package():
             else:
                 print(f"Warning: {file} not found")
 
-        # Add directories with their contents
-        directories = ['macros', 'models', 'sounds']
+        # Add templates directory
+        if os.path.exists('templates'):
+            for root, _, filenames in os.walk('templates'):
+                for filename in filenames:
+                    file_path = os.path.join(root, filename)
+                    zf.write(file_path)
+                    print(f"Added {file_path}")
+        else:
+            print("Warning: templates directory not found")
+
+        # Add required directories with their contents
+        directories = ['maps', 'sounds', 'macros']
         for directory in directories:
             if os.path.exists(directory):
                 for root, _, filenames in os.walk(directory):
@@ -45,7 +50,9 @@ def create_package():
                         zf.write(file_path)
                         print(f"Added {file_path}")
             else:
-                print(f"Warning: {directory} directory not found")
+                # Create empty directory in zip
+                zf.writestr(f"{directory}/.gitkeep", "")
+                print(f"Created empty directory: {directory}")
 
     print(f"\nPackage created: {zip_path}")
     print("Contents:")
