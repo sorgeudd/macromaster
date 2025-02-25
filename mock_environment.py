@@ -44,7 +44,18 @@ class GameState:
 
 class MockEnvironment:
     def __init__(self):
+        # Initialize logging
         self.logger = logging.getLogger('MockEnvironment')
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        if not self.logger.handlers:
+            file_handler = logging.FileHandler('mock_environment.log')
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+        self.logger.setLevel(logging.DEBUG)
+
+        # Initialize state
         self.state = GameState()
         self.input_events = []
         self.fish_bite_event = Event()
@@ -63,6 +74,8 @@ class MockEnvironment:
         self.window_size = (800, 600)
         self.state.screen_content = np.zeros((*self.window_size, 3), dtype=np.uint8)
 
+        self.logger.info("MockEnvironment initialized successfully")
+
     def move_mouse(self, x, y):
         """Record mouse movement and update position"""
         try:
@@ -76,8 +89,10 @@ class MockEnvironment:
             time.sleep(move_delay * 0.1)  # Scale down for tests
 
             return success
+
         except Exception as e:
             self.logger.error(f"Error in move_mouse: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def click(self, button='left', clicks=1):
@@ -100,8 +115,10 @@ class MockEnvironment:
 
             self.logger.debug(f"Click recorded at {pos}")
             return success
+
         except Exception as e:
             self.logger.error(f"Error recording click: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def move_to(self, position):
@@ -133,8 +150,10 @@ class MockEnvironment:
 
             self.logger.debug(f"Moved to {position} (terrain: {self.state.terrain_type})")
             return True
+
         except Exception as e:
             self.logger.error(f"Error in move_to: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def record_input(self, input_type, **kwargs):
@@ -150,8 +169,10 @@ class MockEnvironment:
             self.input_events.append(event)
             self.logger.debug(f"Recorded input event: {event}")
             return True
+
         except Exception as e:
             self.logger.error(f"Error recording input: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def press_key(self, key, duration=None):
@@ -175,8 +196,10 @@ class MockEnvironment:
                 time.sleep(duration * 0.1)  # Scale down for tests
 
             return success
+
         except Exception as e:
             self.logger.error(f"Error recording key press: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
 
     def get_screen_region(self):
@@ -195,8 +218,10 @@ class MockEnvironment:
                 'terrain_type': self.state.terrain_type
             }
             return state_data
+
         except Exception as e:
             self.logger.error(f"Error getting screen region: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return None
 
     def set_game_state(self, **kwargs):
@@ -211,17 +236,11 @@ class MockEnvironment:
 
             self.logger.info(f"Updated game state: {kwargs}")
             return True
+
         except Exception as e:
             self.logger.error(f"Error updating game state: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return False
-
-    def get_current_health(self):
-        """Get current health value"""
-        return self.state.health
-
-    def is_mounted(self):
-        """Check if character is mounted"""
-        return self.state.is_mounted
 
     def start_simulation(self):
         """Start background simulation"""
@@ -260,9 +279,33 @@ class MockEnvironment:
             else:
                 bite_cooldown = max(0, bite_cooldown - 0.1)
 
-            self.simulate_combat_damage() #Added combat simulation
+            # Simulate combat damage and other environmental effects
+            if self.state.is_in_combat:
+                self.state.health = max(0, self.state.health - random.uniform(1, 5))
+                self.logger.debug(f"Combat damage taken, health now: {self.state.health}")
+
             time.sleep(0.05)  # Reduced CPU usage while maintaining responsiveness
 
+    def heal(self, amount):
+        """Heal character"""
+        try:
+            self.state.health = min(100, self.state.health + amount)
+            self.logger.debug(f"Healed for {amount}, health now: {self.state.health}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error healing: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
+            return False
+
+    def get_current_health(self):
+        """Get current health value"""
+        return self.state.health
+
+    def is_mounted(self):
+        """Check if character is mounted"""
+        return self.state.is_mounted
+    
     def get_mouse_pos(self):
         """Get current mouse position"""
         recent_moves = [e for e in self.input_events if e['type'] == 'mouse_move']
@@ -270,19 +313,6 @@ class MockEnvironment:
             latest = recent_moves[-1]
             return (latest['x'], latest['y'])
         return (0, 0)
-
-    def simulate_combat_damage(self):
-        """Simulate taking damage in combat"""
-        if self.state.is_in_combat:
-            self.state.health = max(0, self.state.health - random.uniform(1, 5))
-            self.logger.debug(f"Combat damage taken, health now: {self.state.health}")
-            return True
-        return False
-
-    def heal(self, amount):
-        """Heal character"""
-        self.state.health = min(100, self.state.health + amount)
-        self.logger.debug(f"Healed for {amount}, health now: {self.state.health}")
 
 
 def create_test_environment():

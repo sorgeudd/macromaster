@@ -79,6 +79,14 @@ args = "Game Window Resolution Test"
 task = "workflow.run"
 args = "GitHub Push"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Testing UI"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Component Tests"
+
 [[workflows.workflow]]
 name = "Fishing Bot"
 author = "agent"
@@ -316,6 +324,34 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python github_setup.py"
+
+[[workflows.workflow]]
+name = "Testing UI"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python testing_ui.py"
+
+[[workflows.workflow]]
+name = "Component Tests"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -m unittest test_minimap.py test_bot.py -v"
 
 [deployment]
 run = ["sh", "-c", "python fishing_bot.py"]

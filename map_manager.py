@@ -20,7 +20,16 @@ class PlayerPosition:
 
 class MapManager:
     def __init__(self, maps_directory: str = "maps"):
+        # Setup logging with more detailed format
         self.logger = logging.getLogger('MapManager')
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+        if not self.logger.handlers:
+            file_handler = logging.FileHandler('map_manager.log')
+            file_handler.setFormatter(formatter)
+            self.logger.addHandler(file_handler)
+
         self.logger.setLevel(logging.DEBUG)
         self.maps_directory = Path(maps_directory)
         self.maps_directory.mkdir(exist_ok=True)
@@ -46,9 +55,12 @@ class MapManager:
             (np.array([45, 100, 100]), np.array([75, 255, 255]))
         ]
 
+        self.logger.info("MapManager initialized successfully")
+
     def get_zone_name(self, minimap_image: np.ndarray) -> Optional[str]:
         """Extract zone name from minimap image using OCR"""
         try:
+            self.logger.debug("Attempting to extract zone name from minimap.")
             # Isolate the top portion of the minimap where zone name usually appears
             height, width = minimap_image.shape[:2]
             top_portion = minimap_image[0:int(height*0.1), :]  # Top 10% of image
@@ -67,7 +79,9 @@ class MapManager:
             # For now, return a fixed zone name for testing
             # In a real implementation, this would use OCR to read the text
             # TODO: Implement actual OCR using tesseract or similar
-            return "Mase Knoll"
+            zone_name = "Mase Knoll"
+            self.logger.debug(f"Zone name extracted: {zone_name}")
+            return zone_name
 
         except Exception as e:
             self.logger.error(f"Error detecting zone name: {str(e)}")
@@ -77,6 +91,7 @@ class MapManager:
     def update_from_minimap(self, minimap_image: np.ndarray, resource_type: str = None) -> bool:
         """Update state from minimap image, including zone detection"""
         try:
+            self.logger.debug("Updating state from minimap image.")
             # Detect player position first
             position = self.detect_player_position(minimap_image)
             if position:
@@ -91,6 +106,7 @@ class MapManager:
                 # If resource type specified, load appropriate map
                 if resource_type:
                     map_name = f"{zone_name.lower()} {resource_type}"
+                    self.logger.debug(f"Loading map: {map_name}")
                     return self.load_map(map_name)
 
             return True
@@ -104,11 +120,13 @@ class MapManager:
         """Detect resource spots from map image"""
         try:
             spots = []
+            self.logger.debug(f"Starting resource detection for type: {resource_type}")
+
             # Convert to HSV for color detection
             hsv = cv2.cvtColor(map_image, cv2.COLOR_BGR2HSV)
 
             # Create mask for blue markers (adjusted for actual map markers)
-            blue_lower = np.array([90, 100, 100])  # Relaxed blue HSV thresholds
+            blue_lower = np.array([90, 100, 100])
             blue_upper = np.array([130, 255, 255])
             mask = cv2.inRange(hsv, blue_lower, blue_upper)
 
@@ -123,9 +141,10 @@ class MapManager:
 
             # Find contours
             contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            self.logger.debug(f"Found {len(contours)} potential resource spots")
 
             for cnt in contours:
-                # Filter by area for spot markers
+                # Filter by area
                 area = cv2.contourArea(cnt)
                 if area < 5 or area > 100:  # Adjust based on spot size
                     continue
@@ -151,7 +170,7 @@ class MapManager:
             viz_path = self.maps_directory / f"{self.current_map_name}_spots.png"
             cv2.imwrite(str(viz_path), debug_viz)
 
-            self.logger.debug(f"Detected {len(spots)} {resource_type} spots")
+            self.logger.info(f"Detected {len(spots)} {resource_type} spots")
             return spots
 
         except Exception as e:
@@ -166,6 +185,8 @@ class MapManager:
             clean_name = map_name.lower().replace(' ', '_')
             map_path = self.maps_directory / f"{clean_name}.png"
 
+            self.logger.debug(f"Attempting to load map: {map_path}")
+
             if not map_path.exists():
                 self.logger.error(f"Map file not found: {map_path}")
                 return False
@@ -177,14 +198,15 @@ class MapManager:
                 return False
 
             # Get resource type from map name
-            resource_type = map_name.split()[-1]  # Last word is resource type
+            resource_type = map_name.split()[-1]
+            self.logger.debug(f"Resource type detected: {resource_type}")
 
             # Detect resource locations
             spots = self.detect_resource_spots(self.current_map, resource_type)
             self.resource_nodes[clean_name] = spots
 
             self.current_map_name = clean_name
-            self.logger.info(f"Loaded {len(spots)} {resource_type} locations from map: {map_name}")
+            self.logger.info(f"Successfully loaded {len(spots)} {resource_type} locations from map: {map_name}")
             return True
 
         except Exception as e:
@@ -195,6 +217,7 @@ class MapManager:
     def detect_player_position(self, minimap_image: np.ndarray) -> Optional[PlayerPosition]:
         """Detect player position from minimap"""
         try:
+            self.logger.debug("Attempting to detect player position.")
             if self.minimap_size == (0, 0):
                 self.minimap_size = minimap_image.shape[:2]
                 self.logger.debug(f"Set minimap size to {self.minimap_size}")
@@ -220,7 +243,7 @@ class MapManager:
                 self.logger.debug("No arrow contours found")
                 return None
 
-            # Find best arrow-like shape using simple area/perimeter ratio
+            # Find arrow-like shape
             best_contour = None
             best_score = 0
             best_centroid = None
@@ -257,7 +280,7 @@ class MapManager:
             cv2.circle(debug_frame, best_centroid, 3, (0, 0, 255), -1)
             cv2.imwrite('arrow_detection_debug.png', debug_frame)
 
-            # Create position using centroid coordinates
+            # Return position with fixed angle since direction doesn't matter
             position = PlayerPosition(best_centroid[0], best_centroid[1])
             self.last_known_position = position
             self.logger.debug(f"Detected player at ({position.x}, {position.y})")
@@ -270,28 +293,39 @@ class MapManager:
 
     def get_nearby_resources(self, position: Tuple[int, int], radius: float) -> List[ResourceNode]:
         """Get resources within radius of position"""
-        if not self.current_map_name or self.current_map_name not in self.resource_nodes:
+        try:
+            self.logger.debug(f"Finding nearby resources within radius {radius} of {position}")
+            if not self.current_map_name or self.current_map_name not in self.resource_nodes:
+                return []
+
+            nearby = []
+            for node in self.resource_nodes[self.current_map_name]:
+                dx = node.position[0] - position[0]
+                dy = node.position[1] - position[1]
+                distance = np.sqrt(dx*dx + dy*dy)
+                if distance <= radius:
+                    nearby.append(node)
+
+            self.logger.debug(f"Found {len(nearby)} resources within {radius} units of {position}")
+            return nearby
+
+        except Exception as e:
+            self.logger.error(f"Error finding nearby resources: {str(e)}")
+            self.logger.error(f"Stack trace: {traceback.format_exc()}")
             return []
-
-        nearby = []
-        for node in self.resource_nodes[self.current_map_name]:
-            dx = node.position[0] - position[0]
-            dy = node.position[1] - position[1]
-            distance = np.sqrt(dx*dx + dy*dy)
-            if distance <= radius:
-                nearby.append(node)
-
-        self.logger.debug(f"Found {len(nearby)} resources within {radius} units")
-        return nearby
 
     def minimap_to_world_coords(self, minimap_pos: Tuple[int, int]) -> Tuple[int, int]:
         """Convert minimap coordinates to world map coordinates"""
-        world_x = int(minimap_pos[0] * self.scale_x)
-        world_y = int(minimap_pos[1] * self.scale_y)
+        self.logger.debug(f"Converting minimap coordinates {minimap_pos} to world coordinates.")
+        world_x = int(minimap_pos[0])  # Using 1:1 scale for now
+        world_y = int(minimap_pos[1])
+        self.logger.debug(f"World coordinates: ({world_x}, {world_y})")
         return (world_x, world_y)
 
     def world_to_minimap_coords(self, world_pos: Tuple[int, int]) -> Tuple[int, int]:
         """Convert world map coordinates to minimap coordinates"""
-        minimap_x = int(world_pos[0] / self.scale_x)
-        minimap_y = int(world_pos[1] / self.scale_y)
+        self.logger.debug(f"Converting world coordinates {world_pos} to minimap coordinates.")
+        minimap_x = int(world_pos[0])  # Using 1:1 scale for now
+        minimap_y = int(world_pos[1])
+        self.logger.debug(f"Minimap coordinates: ({minimap_x}, {minimap_y})")
         return (minimap_x, minimap_y)
