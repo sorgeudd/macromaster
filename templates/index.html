@@ -8,7 +8,7 @@
             margin: 20px;
             background-color: #f5f5f5;
         }
-        .status-panel, .control-panel {
+        .status-panel, .control-panel, .log-panel {
             background: white;
             padding: 20px;
             border-radius: 8px;
@@ -32,10 +32,6 @@
         .ready { background-color: #2196F3; }
         .error { background-color: #f44336; }
         .log-panel {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             max-height: 300px;
             overflow-y: auto;
         }
@@ -43,6 +39,18 @@
             margin: 5px 0;
             padding: 5px;
             border-bottom: 1px solid #eee;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .log-error {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .log-warning {
+            color: #ff9800;
+        }
+        .log-info {
+            color: #2196F3;
         }
         .window-control {
             display: flex;
@@ -69,6 +77,12 @@
         button:hover {
             background-color: #1976D2;
         }
+        button.emergency {
+            background-color: #f44336;
+        }
+        button.emergency:hover {
+            background-color: #d32f2f;
+        }
         .control-group {
             margin-bottom: 20px;
             padding: 10px;
@@ -89,73 +103,139 @@
             grid-template-columns: repeat(2, 1fr);
             gap: 5px;
         }
+        select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        .flex-container {
+            display: flex;
+            gap: 20px;
+        }
+        .left-panel {
+            flex: 1;
+        }
+        .right-panel {
+            flex: 1;
+        }
     </style>
 </head>
 <body>
     <h1>Fishing Bot Testing Interface</h1>
 
-    <div class="status-panel">
-        <h2>Testing Status</h2>
-        <div class="status-item">
-            <div class="window-control">
-                <input type="text" id="window-name" placeholder="Enter game window name">
-                <button onclick="detectWindow()">Detect Window</button>
+    <div class="flex-container">
+        <div class="left-panel">
+            <div class="status-panel">
+                <h2>Status</h2>
+                <div class="status-item">
+                    <div class="window-control">
+                        <input type="text" id="window-name" placeholder="Enter game window name">
+                        <button onclick="detectWindow()">Detect Window</button>
+                    </div>
+                    <span class="status-indicator error"></span>
+                    <span>Game Window: </span>
+                    <span id="window-status">Not Detected</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-indicator active"></span>
+                    <span>Position Testing: </span>
+                    <span id="position-status">Active</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-indicator ready"></span>
+                    <span>Resource Detection: </span>
+                    <span id="resource-status">Ready</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-indicator ready"></span>
+                    <span>Terrain Testing: </span>
+                    <span id="terrain-status">Ready</span>
+                </div>
             </div>
-            <span class="status-indicator error"></span>
-            <span>Game Window: </span>
-            <span id="window-status">Not Detected</span>
-        </div>
-        <div class="status-item">
-            <span class="status-indicator active"></span>
-            <span>Position Testing: </span>
-            <span id="position-status">Active</span>
-        </div>
-        <div class="status-item">
-            <span class="status-indicator ready"></span>
-            <span>Resource Detection: </span>
-            <span id="resource-status">Ready</span>
-        </div>
-        <div class="status-item">
-            <span class="status-indicator ready"></span>
-            <span>Terrain Testing: </span>
-            <span id="terrain-status">Ready</span>
-        </div>
-    </div>
 
-    <div class="control-panel">
-        <h2>Control Panel</h2>
+            <div class="control-panel">
+                <h2>Control Panel</h2>
 
-        <div class="control-group">
-            <h3>Position Testing</h3>
-            <div class="coordinate-inputs">
-                <input type="number" id="pos-x" placeholder="X coordinate" value="100">
-                <input type="number" id="pos-y" placeholder="Y coordinate" value="100">
-            </div>
-            <button onclick="moveTo()">Move To Position</button>
-        </div>
+                <div class="control-group">
+                    <h3>Bot Control</h3>
+                    <button onclick="startBot()">Start Bot</button>
+                    <button onclick="stopBot()">Stop Bot</button>
+                    <button class="emergency" onclick="emergencyStop()">EMERGENCY STOP (F6)</button>
+                </div>
 
-        <div class="control-group">
-            <h3>Terrain Testing</h3>
-            <div class="terrain-buttons">
-                <button onclick="setTerrain('normal')">Normal</button>
-                <button onclick="setTerrain('water')">Water</button>
-                <button onclick="setTerrain('mountain')">Mountain</button>
-                <button onclick="setTerrain('forest')">Forest</button>
+                <div class="control-group">
+                    <h3>Learning Mode</h3>
+                    <button onclick="startLearning()">Start Learning</button>
+                    <button onclick="resetLearning()">Reset Learning</button>
+                    <button onclick="importTrainingVideo()">Import Training Video</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>Macro Management</h3>
+                    <input type="text" id="macro-name" placeholder="Macro Name">
+                    <button onclick="recordMacro()">Record Macro</button>
+                    <button onclick="playMacro()">Play Macro</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>Sound Triggers</h3>
+                    <input type="text" id="trigger-name" placeholder="Trigger Name">
+                    <select id="bind-action">
+                        <option value="key_press">Key Press</option>
+                        <option value="mouse_click">Mouse Click</option>
+                        <option value="movement">Movement</option>
+                    </select>
+                    <button onclick="recordSound()">Record Sound</button>
+                    <button onclick="saveTrigger()">Save Trigger</button>
+                </div>
             </div>
         </div>
 
-        <div class="control-group">
-            <h3>Resource Detection</h3>
-            <button onclick="loadMap('fish')">Load Fish Map</button>
-            <button onclick="loadMap('ore')">Load Ore Map</button>
-            <button onclick="findNearby()">Find Nearby Resources</button>
-        </div>
-    </div>
+        <div class="right-panel">
+            <div class="control-panel">
+                <div class="control-group">
+                    <h3>Position Testing</h3>
+                    <div class="coordinate-inputs">
+                        <input type="number" id="pos-x" placeholder="X coordinate" value="100">
+                        <input type="number" id="pos-y" placeholder="Y coordinate" value="100">
+                    </div>
+                    <button onclick="moveTo()">Move To Position</button>
+                </div>
 
-    <div class="log-panel">
-        <h2>Test Results</h2>
-        <div id="test-logs">
-            <!-- Test logs will be added here -->
+                <div class="control-group">
+                    <h3>Terrain Testing</h3>
+                    <div class="terrain-buttons">
+                        <button onclick="setTerrain('normal')">Normal</button>
+                        <button onclick="setTerrain('water')">Water</button>
+                        <button onclick="setTerrain('mountain')">Mountain</button>
+                        <button onclick="setTerrain('forest')">Forest</button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Resource Detection</h3>
+                    <button onclick="loadMap('fish')">Load Fish Map</button>
+                    <button onclick="loadMap('ore')">Load Ore Map</button>
+                    <button onclick="findNearby()">Find Nearby Resources</button>
+                </div>
+
+                <div class="control-group">
+                    <h3>Real-World Testing</h3>
+                    <button onclick="testArrowDetection()">Test Arrow Detection</button>
+                    <button onclick="testResourceSpots()">Test Resource Spots</button>
+                    <button onclick="calibrateTerrain()">Calibrate Terrain</button>
+                    <button onclick="testPathfinding()">Test Pathfinding</button>
+                </div>
+            </div>
+
+            <div class="log-panel">
+                <h2>System Logs</h2>
+                <div id="test-logs">
+                    <!-- Logs will be added here -->
+                </div>
+            </div>
         </div>
     </div>
 
@@ -172,7 +252,7 @@
                 updateStatus('terrain', data.data.terrain);
                 updateStatus('window', data.data.window);
             } else if (data.type === 'log') {
-                addLogEntry(data.data);
+                addLogEntry(data.data, data.level || 'info');
             }
         };
 
@@ -187,14 +267,15 @@
             }
         }
 
-        function addLogEntry(message) {
+        function addLogEntry(message, level = 'info') {
             const logs = document.getElementById('test-logs');
             const entry = document.createElement('div');
-            entry.className = 'log-entry';
+            entry.className = `log-entry log-${level}`;
             entry.textContent = new Date().toLocaleTimeString() + ': ' + message;
             logs.insertBefore(entry, logs.firstChild);
         }
 
+        // Window Detection
         function detectWindow() {
             const windowName = document.getElementById('window-name').value;
             ws.send(JSON.stringify({
@@ -203,6 +284,71 @@
             }));
         }
 
+        // Bot Controls
+        function startBot() {
+            ws.send(JSON.stringify({ type: 'start_bot' }));
+        }
+
+        function stopBot() {
+            ws.send(JSON.stringify({ type: 'stop_bot' }));
+        }
+
+        function emergencyStop() {
+            ws.send(JSON.stringify({ type: 'emergency_stop' }));
+        }
+
+        // Learning Controls
+        function startLearning() {
+            ws.send(JSON.stringify({ type: 'start_learning' }));
+        }
+
+        function resetLearning() {
+            ws.send(JSON.stringify({ type: 'reset_learning' }));
+        }
+
+        function importTrainingVideo() {
+            ws.send(JSON.stringify({ type: 'import_training' }));
+        }
+
+        // Macro Controls
+        function recordMacro() {
+            const macroName = document.getElementById('macro-name').value;
+            ws.send(JSON.stringify({
+                type: 'record_macro',
+                data: macroName
+            }));
+        }
+
+        function playMacro() {
+            const macroName = document.getElementById('macro-name').value;
+            ws.send(JSON.stringify({
+                type: 'play_macro',
+                data: macroName
+            }));
+        }
+
+        // Sound Controls
+        function recordSound() {
+            const triggerName = document.getElementById('trigger-name').value;
+            ws.send(JSON.stringify({
+                type: 'record_sound',
+                data: triggerName
+            }));
+        }
+
+        function saveTrigger() {
+            const triggerName = document.getElementById('trigger-name').value;
+            const bindAction = document.getElementById('bind-action').value;
+            ws.send(JSON.stringify({
+                type: 'save_trigger',
+                data: {
+                    name: triggerName,
+                    action: bindAction
+                }
+            }));
+        }
+
+        // Movement Controls
         function moveTo() {
             const x = document.getElementById('pos-x').value;
             const y = document.getElementById('pos-y').value;
@@ -230,6 +376,23 @@
             ws.send(JSON.stringify({
                 type: 'find_nearby'
             }));
+        }
+
+        // Real-World Testing
+        function testArrowDetection() {
+            ws.send(JSON.stringify({ type: 'test_arrow_detection' }));
+        }
+
+        function testResourceSpots() {
+            ws.send(JSON.stringify({ type: 'test_resource_spots' }));
+        }
+
+        function calibrateTerrain() {
+            ws.send(JSON.stringify({ type: 'calibrate_terrain' }));
+        }
+
+        function testPathfinding() {
+            ws.send(JSON.stringify({ type: 'test_pathfinding' }));
         }
 
         // Initial status update
