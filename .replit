@@ -71,6 +71,10 @@ args = "Minimap Test"
 task = "workflow.run"
 args = "Game Window Test"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Game Window Resolution Test"
+
 [[workflows.workflow]]
 name = "Fishing Bot"
 author = "agent"
@@ -269,6 +273,20 @@ args = "python test_minimap.py"
 
 [[workflows.workflow]]
 name = "Game Window Test"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python test_game_window.py"
+
+[[workflows.workflow]]
+name = "Game Window Resolution Test"
 author = "agent"
 
 [workflows.workflow.metadata]
