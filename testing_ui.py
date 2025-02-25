@@ -2,6 +2,7 @@
 
 import logging
 import json
+import os
 from flask import Flask, render_template, jsonify
 from flask_sock import Sock
 
@@ -41,6 +42,7 @@ class TestingUI:
         self.mock_env.start_simulation()
 
         self.logger.info("Testing UI initialized successfully")
+        self.logger.info("Running as local server with full system access")
 
     @app.route('/')
     def index():
@@ -54,8 +56,30 @@ class TestingUI:
             'position': 'Active',
             'resource': 'Ready',
             'terrain': 'Ready',
-            'window': 'Not Detected' if not TestingUI.window_detected else TestingUI.last_window_name
+            'window': 'Not Detected' if not TestingUI.window_detected else TestingUI.last_window_name,
+            'bot_status': 'Running' if TestingUI.bot_running else 'Stopped',
+            'learning': TestingUI.learning_mode
         })
+
+    @app.route('/macros')
+    def get_macros():
+        """API endpoint for getting available macros"""
+        try:
+            macro_dir = 'macros'
+            if not os.path.exists(macro_dir):
+                os.makedirs(macro_dir)
+
+            macro_files = [f[:-5] for f in os.listdir(macro_dir) 
+                         if f.endswith('.json')]
+
+            return jsonify({
+                'macros': macro_files
+            })
+        except Exception as e:
+            TestingUI.logger.error(f"Error loading macros: {str(e)}")
+            return jsonify({
+                'macros': []
+            })
 
     @sock.route('/updates')
     def updates(ws):
@@ -65,17 +89,14 @@ class TestingUI:
                 message = ws.receive()
                 data = json.loads(message)
 
-                # Send log message for each command
-                ws.send(json.dumps({
-                    'type': 'log',
-                    'level': 'info',
-                    'data': f"Received command: {data['type']}"
-                }))
+                # Log received command
+                TestingUI.logger.info(f"Received command from web UI: {data['type']}")
 
                 if data['type'] == 'detect_window':
                     window_name = data['data']
                     TestingUI.window_detected = True
                     TestingUI.last_window_name = window_name
+                    TestingUI.logger.info(f"Backend: Detecting window '{window_name}'")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -84,6 +105,7 @@ class TestingUI:
 
                 elif data['type'] == 'start_bot':
                     TestingUI.bot_running = True
+                    TestingUI.logger.info("Backend: Starting bot operations")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -92,6 +114,7 @@ class TestingUI:
 
                 elif data['type'] == 'stop_bot':
                     TestingUI.bot_running = False
+                    TestingUI.logger.info("Backend: Stopping bot operations")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -101,6 +124,7 @@ class TestingUI:
                 elif data['type'] == 'emergency_stop':
                     TestingUI.bot_running = False
                     TestingUI.learning_mode = False
+                    TestingUI.logger.warning("Backend: Emergency stop triggered")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'warning',
@@ -109,6 +133,7 @@ class TestingUI:
 
                 elif data['type'] == 'start_learning':
                     TestingUI.learning_mode = True
+                    TestingUI.logger.info("Backend: Starting learning mode")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -116,6 +141,7 @@ class TestingUI:
                     }))
 
                 elif data['type'] == 'reset_learning':
+                    TestingUI.logger.info("Backend: Resetting learning data")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -123,6 +149,7 @@ class TestingUI:
                     }))
 
                 elif data['type'] == 'test_arrow_detection':
+                    TestingUI.logger.info("Backend: Running arrow detection test")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -131,6 +158,7 @@ class TestingUI:
                     # Add actual test implementation here
 
                 elif data['type'] == 'test_resource_spots':
+                    TestingUI.logger.info("Backend: Testing resource detection")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -139,6 +167,7 @@ class TestingUI:
                     # Add actual test implementation here
 
                 elif data['type'] == 'calibrate_terrain':
+                    TestingUI.logger.info("Backend: Starting terrain calibration")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -147,6 +176,7 @@ class TestingUI:
                     # Add actual calibration implementation here
 
                 elif data['type'] == 'test_pathfinding':
+                    TestingUI.logger.info("Backend: Testing pathfinding system")
                     ws.send(json.dumps({
                         'type': 'log',
                         'level': 'info',
@@ -180,7 +210,7 @@ class TestingUI:
     def run(self):
         """Start the server"""
         try:
-            self.logger.info("Starting Testing UI server")
+            self.logger.info("Starting Testing UI server with full system access")
             app.run(host='0.0.0.0', port=5000)
         except Exception as e:
             self.logger.error(f"Server error: {str(e)}")
