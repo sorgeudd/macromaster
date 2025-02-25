@@ -85,22 +85,72 @@ class TestingUI:
             'position': 'Active',
             'resource': 'Ready',
             'terrain': 'Ready',
-            'window': 'Not Detected' if not self.window_detected else self.last_window_name
+            'window': 'Not Detected' if not TestingUI.window_detected else TestingUI.last_window_name
         })
 
     @sock.route('/updates')
     def updates(ws):
-        """WebSocket endpoint for real-time updates"""
+        """WebSocket endpoint for real-time updates and commands"""
         while True:
-            ws.send(json.dumps({
-                'type': 'status_update',
-                'data': {
-                    'position': 'Active',
-                    'resource': 'Ready',
-                    'terrain': 'Ready',
-                    'window': 'Not Detected' if not self.window_detected else self.last_window_name
-                }
-            }))
+            try:
+                message = ws.receive()
+                data = json.loads(message)
+
+                if data['type'] == 'detect_window':
+                    window_name = data['data']
+                    # Call the window detection method
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'data': f'Attempting to detect window: {window_name}'
+                    }))
+                    TestingUI.window_detected = True
+                    TestingUI.last_window_name = window_name
+
+                elif data['type'] == 'move_to':
+                    pos = data['data']
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'data': f'Moving to position: ({pos["x"]}, {pos["y"]})'
+                    }))
+                    # Send the movement command
+
+                elif data['type'] == 'set_terrain':
+                    terrain = data['data']
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'data': f'Setting terrain type: {terrain}'
+                    }))
+                    # Set the terrain type
+
+                elif data['type'] == 'load_map':
+                    map_type = data['data']
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'data': f'Loading {map_type} map'
+                    }))
+                    # Load the specified map
+
+                elif data['type'] == 'find_nearby':
+                    ws.send(json.dumps({
+                        'type': 'log',
+                        'data': 'Finding nearby resources'
+                    }))
+                    # Search for nearby resources
+
+                # Send updated status
+                ws.send(json.dumps({
+                    'type': 'status_update',
+                    'data': {
+                        'position': 'Active',
+                        'resource': 'Ready',
+                        'terrain': 'Ready',
+                        'window': 'Not Detected' if not TestingUI.window_detected else TestingUI.last_window_name
+                    }
+                }))
+
+            except Exception as e:
+                TestingUI.logger.error(f"WebSocket error: {str(e)}")
+                break
 
     def setup_ui(self):
         """Setup all UI components and layout"""
