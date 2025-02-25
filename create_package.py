@@ -11,7 +11,7 @@ def create_package():
         'config.py',
         'README.md',
         'install.bat',
-        'start_bot.bat',
+        'start.bat',
     ]
 
     # Create dist directory
@@ -19,9 +19,9 @@ def create_package():
     dist_dir.mkdir(exist_ok=True)
 
     # Create ZIP file
-    zip_path = dist_dir / 'fishing_bot.zip'
+    zip_path = dist_dir / 'FishingBot_Installer.zip'
     with zipfile.ZipFile(zip_path, 'w') as zf:
-        # Add essential Python files and batch scripts
+        # Add essential files
         for file in files:
             if os.path.exists(file):
                 zf.write(file)
@@ -29,22 +29,12 @@ def create_package():
             else:
                 print(f"Warning: {file} not found")
 
-        # Add required directories with their contents
-        directories = ['debug_screenshots']
-        for directory in directories:
-            if os.path.exists(directory):
-                for root, _, filenames in os.walk(directory):
-                    for filename in filenames:
-                        file_path = os.path.join(root, filename)
-                        zf.write(file_path)
-                        print(f"Added {file_path}")
-            else:
-                # Create empty directory in zip
-                zf.writestr(f"{directory}/.gitkeep", "")
-                print(f"Created empty directory: {directory}")
+        # Create empty debug_screenshots directory in zip
+        zf.writestr('debug_screenshots/.gitkeep', '')
+        print("Created debug_screenshots directory")
 
-    print(f"\nPackage created: {zip_path}")
-    print("Contents:")
+    print(f"\nInstaller package created: {zip_path}")
+    print("\nContents:")
     with zipfile.ZipFile(zip_path, 'r') as zf:
         for name in zf.namelist():
             print(f"- {name}")

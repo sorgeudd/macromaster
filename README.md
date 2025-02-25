@@ -1,82 +1,37 @@
-# Game Automation Bot - Testing Interface
+# Fishing Bot - Easy Install Edition
 
-A Python-based game automation bot with advanced computer vision capabilities for precise resource detection and automation in Windows game environments.
+A simple fishing bot with automated fishing detection and macro capabilities.
 
-## Quick Installation Guide for Windows 10
+## Quick Start
 
-1. Download and extract testing_package.zip
-2. Run install.bat as Administrator
-3. Once installation completes, run start_app.bat
-4. Open your web browser and go to http://localhost:5000
+1. Double-click `install.bat` to install everything automatically
+2. Launch the bot using the desktop shortcut created during installation
+
+## Controls
+
+- F3: Cast/Reel fishing line
+- F6: Emergency Stop
 
 ## Features
 
-### Bot Control
-- Start/Stop bot operation
-- Emergency Stop (F6 hotkey)
-- Learning mode for AI player
-- Import training videos
+- Automatic fish bite detection
+- Screenshot capture for debugging
+- Configurable detection settings
+- Safe emergency stop
 
-### Macro Management
-- Record new macros
-- Play existing macros
-- Name and save macros for reuse
+## Requirements
 
-### Sound Triggers
-- Record sound triggers
-- Bind to key presses
-- Bind to mouse clicks
-- Bind to existing macros
-
-### Testing Features
-1. Position Testing
-   - Enter X and Y coordinates
-   - Move to position testing
-   - Real-time preview
-
-2. Terrain Testing
-   - Normal, water, mountain, forest terrain types
-   - Tests movement speed and behavior
-
-3. Resource Detection
-   - Load fish or ore maps
-   - Find nearby resources
-   - Blue dots show detected resources
-
-4. Real-World Testing
-   - Arrow detection testing
-   - Resource spot verification
-   - Terrain calibration
-   - Pathfinding system tests
-
-## System Requirements
-- Windows 10
-- Python 3.8 or later
-- Administrator privileges for installation
-- Microsoft Visual C++ 2015-2022 Redistributable
+- Windows 10 or later
+- Internet connection for initial installation
+- Administrator privileges (for installation only)
 
 ## Troubleshooting
 
-1. If installation fails:
-   - Make sure you're running install.bat as Administrator
-   - Check your internet connection
-   - Verify Python is installed and in PATH
-   - Install Visual C++ Redistributable if prompted
+If you encounter any issues:
 
-2. If application won't start:
-   - Check all dependencies were installed correctly
-   - Verify port 5000 is not in use
-   - Run start_app.bat as Administrator
+1. Make sure you run install.bat as Administrator
+2. Check that your antivirus isn't blocking the installation
+3. Verify that your game window is not minimized
+4. Look in the debug_screenshots folder for detection issues
 
-3. If game window isn't detected:
-   - Make sure the game window is open
-   - Verify the window name matches exactly
-   - Try running the application as Administrator
-
-## Logs
-Application logs are stored in:
-- testing_ui.log: Main application logs
-- map_manager.log: Resource detection logs
-- mock_environment.log: Environment simulation logs
-
-For issues and feature requests, please file an issue in the GitHub repository.
+For additional help, check the logs in the installation directory.

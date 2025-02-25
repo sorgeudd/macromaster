@@ -1,55 +1,58 @@
 @echo off
-echo ===============================
-echo Testing Interface Setup
-echo ===============================
+title Fishing Bot Installer
+color 0A
 
-REM Check system architecture
-reg Query "HKLM\Hardware\Description\System\CentralProcessor\0" | find /i "x86" > NUL && set ARCH=32BIT || set ARCH=64BIT
-if %ARCH%==32BIT (
-    echo Warning: 32-bit Windows detected. 64-bit is recommended for optimal performance.
-    echo.
-)
+echo ================================
+echo   Fishing Bot - Easy Install
+echo ================================
+echo.
 
-REM Check if Python is installed
+REM Create installation directory
+set INSTALL_DIR=%USERPROFILE%\FishingBot
+if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+
+REM Check Python installation
 python --version > nul 2>&1
 if errorlevel 1 (
-    echo Python is not installed!
-    echo Please install Python 3.8 or later from https://www.python.org/downloads/
-    echo Make sure to check "Add Python to PATH" during installation
-    pause
-    exit /b 1
+    echo Installing Python...
+    curl -L "https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe" -o "%TEMP%\python-installer.exe"
+    "%TEMP%\python-installer.exe" /quiet InstallAllUsers=1 PrependPath=1
+    del "%TEMP%\python-installer.exe"
 )
 
-REM Check Python version
-python -c "import sys; ver=sys.version_info; exit(0 if ver.major==3 and ver.minor>=8 else 1)" > nul 2>&1
-if errorlevel 1 (
-    echo Error: Python 3.8 or later is required
-    echo Current Python installation is too old
-    pause
-    exit /b 1
-)
+REM Copy all files to installation directory
+echo Copying files...
+xcopy /Y /E /I "*.py" "%INSTALL_DIR%"
+xcopy /Y /E /I "*.json" "%INSTALL_DIR%" 2>nul
+if not exist "%INSTALL_DIR%\debug_screenshots" mkdir "%INSTALL_DIR%\debug_screenshots"
 
-echo.
+REM Install Python packages
 echo Installing required packages...
-echo This might take a few minutes...
+python -m pip install --upgrade pip
+python -m pip install opencv-python numpy pyautogui keyboard mss python-dotenv
 
-echo Installing Flask and dependencies...
-pip install flask flask-sock
-if errorlevel 1 goto error
+REM Create desktop shortcut
+echo Creating desktop shortcut...
+set SHORTCUT="%USERPROFILE%\Desktop\Fishing Bot.lnk"
+echo Set oWS = WScript.CreateObject("WScript.Shell") > CreateShortcut.vbs
+echo sLinkFile = %SHORTCUT% >> CreateShortcut.vbs
+echo Set oLink = oWS.CreateShortcut(sLinkFile) >> CreateShortcut.vbs
+echo oLink.TargetPath = "pythonw.exe" >> CreateShortcut.vbs
+echo oLink.Arguments = "%INSTALL_DIR%\main.py" >> CreateShortcut.vbs
+echo oLink.WorkingDirectory = "%INSTALL_DIR%" >> CreateShortcut.vbs
+echo oLink.Description = "Fishing Bot" >> CreateShortcut.vbs
+echo oLink.IconLocation = "pythonw.exe,0" >> CreateShortcut.vbs
+echo oLink.Save >> CreateShortcut.vbs
+cscript //nologo CreateShortcut.vbs
+del CreateShortcut.vbs
 
-echo Installing OpenCV...
-pip install opencv-python
-if errorlevel 1 goto error
+REM Create start script
+echo @echo off > "%INSTALL_DIR%\start.bat"
+echo title Fishing Bot >> "%INSTALL_DIR%\start.bat"
+echo python main.py >> "%INSTALL_DIR%\start.bat"
+echo pause >> "%INSTALL_DIR%\start.bat"
 
-echo Installing NumPy...
-pip install numpy
-if errorlevel 1 goto error
-
-echo Installing Pillow...
-pip install pillow
-if errorlevel 1 goto error
-
-REM Check Visual C++ Redistributable
+REM Check Visual C++ Redistributable (from original script)
 reg query "HKLM\SOFTWARE\Microsoft\VisualStudio\14.0" >nul 2>&1
 if errorlevel 1 (
     echo Warning: Microsoft Visual C++ 2015-2022 Redistributable might be missing
@@ -58,40 +61,15 @@ if errorlevel 1 (
     echo.
 )
 
-REM Verify installations
-echo.
-echo Verifying installations...
-python -c "import flask; import flask_sock; import cv2; import numpy; import PIL" > nul 2>&1
-if errorlevel 1 (
-    echo Error: Some dependencies failed to install correctly
-    echo Please check the error messages above and try again
-    goto error
-)
 
 echo.
-echo ===================================
+echo ================================
 echo Installation Complete!
-echo ===================================
 echo.
-echo To start the Testing Interface:
-echo 1. Double click on 'start_app.bat'
-echo    OR
-echo 2. Run 'python testing_ui.py' in terminal
+echo The Fishing Bot has been installed to:
+echo %INSTALL_DIR%
 echo.
-echo Note: Make sure to run as Administrator
-echo for proper functionality
+echo A shortcut has been created on your desktop.
 echo.
-pause
-exit /b 0
-
-:error
-echo.
-echo Error during installation!
-echo Please check:
-echo 1. Your internet connection
-echo 2. If you have administrator privileges
-echo 3. If any antivirus is blocking the installation
-echo 4. If Microsoft Visual C++ Build Tools are installed
-echo.
-pause
-exit /b 1
+echo Press any key to exit...
+pause > nul
