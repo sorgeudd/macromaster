@@ -12,6 +12,12 @@ let isRecordingHotkey = false;
 let currentHotkeyRecorder = null;
 let wsConnected = false;
 
+// Add these variables to the top of the file
+let lastActiveWindow = '';
+let lastActiveApp = '';
+let recentKeys = [];
+const MAX_RECENT_KEYS = 10;
+
 // Initialize WebSocket connection
 function initializeWebSocket() {
     if (ws && ws.readyState === WebSocket.CONNECTING) {
@@ -143,6 +149,9 @@ function handleWebSocketMessage(event) {
                 break;
             case 'screenshot_taken':
                 addLog(`Screenshot saved: ${data.filename}`, 'info');
+                break;
+            case 'suggestions':
+                handleSuggestions(data.suggestions);
                 break;
         }
     } catch (error) {
@@ -305,6 +314,7 @@ function assignHotkey() {
         macro_name: macroName,
         hotkey: hotkey
     });
+    updateMacroContext(macroName);
 }
 
 function clearHotkey() {
@@ -443,7 +453,9 @@ function playMacro() {
         addLog('Please enter a macro name', 'error');
         return;
     }
+
     sendWebSocketMessage('play_macro', { macro_name: macroName });
+    updateMacroContext(macroName);
 }
 
 
@@ -572,6 +584,66 @@ function updateSoundList(sounds) {
     });
 }
 
+// Add this function after the WebSocket message handler
+function handleSuggestions(suggestions) {
+    const suggestionsList = document.getElementById('macro-suggestions');
+    if (!suggestionsList) return;
+
+    suggestionsList.innerHTML = '';
+    suggestions.forEach(macro => {
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.textContent = macro;
+        item.onclick = () => {
+            document.getElementById('macro-name').value = macro;
+            // Clear suggestions after selection
+            suggestionsList.innerHTML = '';
+        };
+        suggestionsList.appendChild(item);
+    });
+}
+
+
+// Add this function to track key presses
+function trackKeyPress(e) {
+    if (!isRecordingHotkey) {  // Don't track keys during hotkey recording
+        const key = e.key.toLowerCase();
+        if (!recentKeys.includes(key)) {
+            recentKeys.unshift(key);
+            if (recentKeys.length > MAX_RECENT_KEYS) {
+                recentKeys.pop();
+            }
+        }
+        requestMacroSuggestions();
+    }
+}
+
+// Add this function to request macro suggestions
+function requestMacroSuggestions() {
+    if (!wsConnected) return;
+
+    sendWebSocketMessage('get_suggestions', {
+        window_title: lastActiveWindow,
+        active_app: lastActiveApp,
+        recent_keys: recentKeys
+    });
+}
+
+// Add this function to update context after macro execution
+function updateMacroContext(macroName) {
+    if (!wsConnected) return;
+
+    sendWebSocketMessage('update_context', {
+        macro_name: macroName,
+        window_title: lastActiveWindow,
+        active_app: lastActiveApp,
+        recent_keys: recentKeys
+    });
+
+    // Clear recent keys after updating context
+    recentKeys = [];
+}
+
 // Initialize everything when the document is ready
 document.addEventListener("DOMContentLoaded", () => {
     // Initialize WebSocket first
@@ -584,4 +656,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Setup event listeners
     setupEventListeners();
+    document.addEventListener('keydown', trackKeyPress);
 });

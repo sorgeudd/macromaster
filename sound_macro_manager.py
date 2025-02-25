@@ -3,7 +3,8 @@ import logging
 import json
 import time
 from pathlib import Path
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, List
+from macro_suggestion_engine import MacroSuggestionEngine
 
 class SoundMacroManager:
     def __init__(self, test_mode: bool = False, headless: bool = False):
@@ -20,6 +21,9 @@ class SoundMacroManager:
         self.hotkeys_file = Path('macro_hotkeys.json')
         self.hotkeys: Dict[str, str] = {}  # macro_name -> hotkey
         self._load_hotkeys()
+
+        # Initialize suggestion engine
+        self.suggestion_engine = MacroSuggestionEngine(self.macros_dir)
 
         self.logger.info("Sound macro manager initialized")
 
@@ -66,6 +70,28 @@ class SoundMacroManager:
         except Exception as e:
             self.logger.error(f"Error creating macro file: {e}")
             return False
+
+    def update_macro_context(self, macro_name: str, window_title: str, active_app: str, recent_keys: List[str]):
+        """Update context information for macro suggestions"""
+        try:
+            self.suggestion_engine.update_context(macro_name, window_title, active_app, recent_keys)
+            self.logger.info(f"Updated context for macro: {macro_name}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Error updating macro context: {e}")
+            return False
+
+    def get_macro_suggestions(self, window_title: str, active_app: str, recent_keys: List[str], max_suggestions: int = 3) -> List[str]:
+        """Get suggested macros based on current context"""
+        try:
+            suggestions = self.suggestion_engine.get_suggestions(
+                window_title, active_app, recent_keys, max_suggestions
+            )
+            self.logger.info(f"Generated {len(suggestions)} macro suggestions")
+            return suggestions
+        except Exception as e:
+            self.logger.error(f"Error getting macro suggestions: {e}")
+            return []
 
     def assign_hotkey(self, macro_name: str, hotkey: str) -> bool:
         """Assign a hotkey to trigger a specific macro"""

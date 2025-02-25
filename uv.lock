@@ -1595,6 +1595,15 @@ wheels = [
 ]
 
 [[package]]
+name = "mss"
+version = "10.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/be/2c/6a50c69793918502b4391729bd5741964c9f8ccc98c8482d4a680384923b/mss-10.0.0.tar.gz", hash = "sha256:d903e0d51262bf0f8782841cf16eaa6d7e3e1f12eae35ab41c2e318837c6637f", size = 83127 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/29/aa/b897ae9e1c1616e4df9fb319637ef6a9d07cca6d46de6b59c80209f006a4/mss-10.0.0-py3-none-any.whl", hash = "sha256:82cf6460a53d09e79b7b6d871163c982e6c7e9649c426e7b7591b74956d5cb64", size = 24050 },
+]
+
+[[package]]
 name = "multidict"
 version = "6.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -4929,6 +4938,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-dotenv"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/57/e84d88dfe0aec03b7a2d4327012c1627ab5f03652216c63d49846d7a6c58/python-dotenv-1.0.1.tar.gz", hash = "sha256:e324ee90a023d808f1959c46bcbc04446a10ced277783dc6ee09987c37ec10ca", size = 39115 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6a/3e/b68c118422ec867fa7ab88444e1274aa40681c606d59ac27de5a5588f082/python_dotenv-1.0.1-py3-none-any.whl", hash = "sha256:f7b63ef50f1b690dddf550d03497b66d609393b40b564ed0d674909a68ebf16a", size = 19863 },
+]
+
+[[package]]
 name = "python-json-logger"
 version = "3.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -5155,6 +5173,7 @@ dependencies = [
     { name = "flask-wtf" },
     { name = "inference-sdk" },
     { name = "keyboard" },
+    { name = "mss" },
     { name = "numpy" },
     { name = "oauthlib" },
     { name = "openai" },
@@ -5163,6 +5182,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pyaudio" },
     { name = "pyautogui" },
+    { name = "python-dotenv" },
     { name = "requests" },
     { name = "soundfile" },
     { name = "torch", version = "2.6.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
@@ -5180,6 +5200,7 @@ requires-dist = [
     { name = "flask-wtf", specifier = ">=1.2.2" },
     { name = "inference-sdk", specifier = ">=0.12.0" },
     { name = "keyboard", specifier = ">=0.13.5" },
+    { name = "mss", specifier = ">=10.0.0" },
     { name = "numpy", specifier = ">=2.2.3" },
     { name = "oauthlib", specifier = ">=3.2.2" },
     { name = "openai", specifier = ">=1.64.0" },
@@ -5188,6 +5209,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=11.1.0" },
     { name = "pyaudio", specifier = ">=0.2.14" },
     { name = "pyautogui", specifier = ">=0.9.54" },
+    { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "soundfile", specifier = ">=0.13.1" },
     { name = "torch", marker = "sys_platform != 'linux'", specifier = ">=2.6.0" },

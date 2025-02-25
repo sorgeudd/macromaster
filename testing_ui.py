@@ -121,6 +121,19 @@ class TestingUI:
                 json.dump(test_macro, f, indent=2)
             self.logger.info(f"Created test macro at {test_macro_path}")
 
+    def take_screenshot(self, macro_name):
+        """Take a screenshot and save it"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{macro_name or 'screenshot'}_{timestamp}.png"
+            filepath = self.screenshots_dir / filename
+            screenshot = ImageGrab.grab()
+            screenshot.save(filepath)
+            return True, str(filepath), filename
+        except Exception as e:
+            self.logger.error(f"Error taking screenshot: {e}")
+            return False, None, None
+
     def cleanup(self):
         """Cleanup resources"""
         try:
@@ -129,6 +142,7 @@ class TestingUI:
             self.logger.info("Resources cleaned up successfully")
         except Exception as e:
             self.logger.error(f"Error during cleanup: {e}")
+
 
 @app.route('/')
 def index():
@@ -181,7 +195,11 @@ def websocket(ws):
                     ws.send(json.dumps({'type': 'pong'}))
                     continue
 
-                if data['type'] == 'take_screenshot':
+                if data['type'] == 'update_context':
+                    handle_update_context(ws, data)
+                elif data['type'] == 'get_suggestions':
+                    handle_get_suggestions(ws, data)
+                elif data['type'] == 'take_screenshot':
                     handle_take_screenshot(ws, data)
                 elif data['type'] == 'assign_hotkey':
                     handle_assign_hotkey(ws, data)
@@ -209,6 +227,66 @@ def websocket(ws):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         logger.error(traceback.format_exc())
+
+def handle_update_context(ws, data):
+    """Handle macro context update"""
+    macro_name = data.get('macro_name', '')
+    window_title = data.get('window_title', '')
+    active_app = data.get('active_app', '')
+    recent_keys = data.get('recent_keys', [])
+
+    if not macro_name:
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': 'Please provide a macro name'
+        }))
+        return
+
+    try:
+        success = testing_ui.sound_manager.update_macro_context(
+            macro_name, window_title, active_app, recent_keys
+        )
+
+        if success:
+            ws.send(json.dumps({
+                'type': 'log',
+                'level': 'info',
+                'message': f'Updated context for macro: {macro_name}'
+            }))
+        else:
+            ws.send(json.dumps({
+                'type': 'error',
+                'message': 'Failed to update macro context'
+            }))
+    except Exception as e:
+        logger.error(f"Error updating macro context: {e}")
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': f'Error updating context: {str(e)}'
+        }))
+
+def handle_get_suggestions(ws, data):
+    """Handle macro suggestions request"""
+    window_title = data.get('window_title', '')
+    active_app = data.get('active_app', '')
+    recent_keys = data.get('recent_keys', [])
+    max_suggestions = data.get('max_suggestions', 3)
+
+    try:
+        suggestions = testing_ui.sound_manager.get_macro_suggestions(
+            window_title, active_app, recent_keys, max_suggestions
+        )
+
+        ws.send(json.dumps({
+            'type': 'suggestions',
+            'suggestions': suggestions
+        }))
+    except Exception as e:
+        logger.error(f"Error getting macro suggestions: {e}")
+        ws.send(json.dumps({
+            'type': 'error',
+            'message': f'Error getting suggestions: {str(e)}'
+        }))
 
 def handle_take_screenshot(ws, data):
     """Handle screenshot capture request"""
