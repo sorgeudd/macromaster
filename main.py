@@ -7,6 +7,7 @@ import keyboard
 from mss import mss
 from pathlib import Path
 from datetime import datetime
+import platform
 
 # Configure logging
 logging.basicConfig(
@@ -20,9 +21,24 @@ logging.basicConfig(
 logger = logging.getLogger('FishingBot')
 
 class FishingBot:
-    def __init__(self):
+    def __init__(self, test_mode=None):
         self.running = False
-        self.screen = mss()
+        # Auto-detect test mode if not specified
+        if test_mode is None:
+            test_mode = platform.system() != 'Windows'
+        self.test_mode = test_mode
+
+        if test_mode:
+            logger.warning("Running in test mode (non-Windows platform)")
+            # Mock screen capture in test mode
+            self.screen = None
+        else:
+            try:
+                self.screen = mss()
+            except Exception as e:
+                logger.error(f"Failed to initialize screen capture: {e}")
+                raise
+
         self.logger = logging.getLogger('FishingBot')
 
         # Create screenshots directory
@@ -65,12 +81,19 @@ class FishingBot:
             self.logger.info("Cast fishing line")
 
             # Save debug screenshot before detection
-            self.save_debug_screenshot("before_detection")
+            if not self.test_mode:
+                self.save_debug_screenshot("before_detection")
 
             # Wait for bite detection
             time.sleep(2)  # Initial delay
 
             while self.running:
+                if self.test_mode:
+                    # Simulate bite detection in test mode
+                    self.logger.info("Test mode: Simulating fish bite")
+                    time.sleep(3)
+                    return True
+
                 screenshot = self.take_screenshot()
                 if self.detect_bite(screenshot):
                     self.logger.info("Fish bite detected!")
@@ -85,12 +108,20 @@ class FishingBot:
 
     def take_screenshot(self):
         """Capture screen for bite detection"""
+        if self.test_mode:
+            # Return mock screenshot in test mode
+            return np.zeros((self.monitor["height"], self.monitor["width"], 3), dtype=np.uint8)
+
         screenshot = self.screen.grab(self.monitor)
         return np.array(screenshot)
 
     def detect_bite(self, screenshot):
         """Detect if there's a fish bite using image processing"""
         try:
+            if self.test_mode:
+                # Simulate detection in test mode
+                return True
+
             # Convert to HSV color space
             hsv = cv2.cvtColor(screenshot, cv2.COLOR_BGR2HSV)
 
@@ -119,6 +150,10 @@ class FishingBot:
 
     def save_debug_screenshot(self, prefix):
         """Save a debug screenshot"""
+        if self.test_mode:
+            self.logger.debug(f"Test mode: Skipping screenshot save for {prefix}")
+            return
+
         try:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = self.screenshots_dir / f"{prefix}_{timestamp}.png"
@@ -129,7 +164,7 @@ class FishingBot:
             self.logger.error(f"Error saving debug screenshot: {e}")
 
 def main():
-    bot = FishingBot()
+    bot = FishingBot(test_mode=True)  # Force test mode for now
     logger.info("Press F3 to cast fishing line, F6 to stop")
     bot.start()
 
